@@ -285,9 +285,18 @@ class Gemma4(lmms):
 
                 batched_messages.append(message)
 
-            inputs = self.processor.apply_chat_template(batched_messages, add_generation_prompt=True, tokenize=True, return_dict=True, return_tensors="pt", padding="max_length", pad_to_multiple_of=8, max_length=self.max_length).to(
-                self.model.device, dtype=torch.bfloat16
-            )
+            inputs = self.processor.apply_chat_template(
+                batched_messages,
+                add_generation_prompt=True,
+                tokenize=True,
+                return_dict=True,
+                processor_kwargs={
+                    "return_tensors": "pt",
+                    "padding": "max_length",
+                    "pad_to_multiple_of": 8,
+                    "max_length": self.max_length,
+                },
+            ).to(self.model.device, dtype=torch.bfloat16)
 
             if self.device_map == "auto":
                 inputs = inputs.to("cuda")
