@@ -40,6 +40,7 @@ from contextlib import contextmanager
 from functools import partial
 from glob import glob
 from typing import Any
+from typing import TextIO
 
 from loguru import logger as eval_logger
 
@@ -555,7 +556,7 @@ class ResponseCache:
         self._task_fingerprints: dict[str, str] = task_fingerprints or {}
         self._eval_version = eval_version
         self.db: sqlite3.Connection | None = None
-        self._audit_file = None
+        self._audit_file: TextIO | None = None
 
         # Metadata set by create() for finalize()
         self._cache_root: str | None = None
@@ -589,6 +590,16 @@ class ResponseCache:
         self._hits_shared = 0
         self._misses = 0
         self._skipped = 0
+
+    def _require_db(self) -> sqlite3.Connection:
+        if self.db is None:
+            raise RuntimeError("ResponseCache: local DB handle is closed")
+        return self.db
+
+    def _require_audit_file(self) -> TextIO:
+        if self._audit_file is None:
+            raise RuntimeError("ResponseCache: audit file handle is closed")
+        return self._audit_file
 
     def _open_local_handles(self) -> None:
         os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
@@ -658,6 +669,7 @@ class ResponseCache:
 
     def _replay_audit_log(self) -> None:
         """Replay JSONL entries missing from SQLite (crash recovery)."""
+        db = self._require_db()
         if not os.path.exists(self.audit_path):
             return
 
@@ -675,9 +687,9 @@ class ResponseCache:
                         response = _deserialize_response(rec["response"])
                         if not self._is_valid_response(response, rec["request_type"]):
                             continue
-                        cur = self.db.execute("SELECT 1 FROM responses WHERE cache_key = ?", (rec["cache_key"],))
+                        cur = db.execute("SELECT 1 FROM responses WHERE cache_key = ?", (rec["cache_key"],))
                         if cur.fetchone() is None:
-                            self.db.execute(
+                            db.execute(
                                 "INSERT INTO responses (cache_key, request_type, task_name, doc_id, idx, gen_kwargs, response, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                                 (
                                     rec["cache_key"],
@@ -694,7 +706,7 @@ class ResponseCache:
                     except (json.JSONDecodeError, KeyError):
                         continue
             if replayed > 0:
-                self.db.commit()
+                db.commit()
                 eval_logger.info(f"ResponseCache: replayed {replayed} entries from audit log")
         except Exception as e:
             eval_logger.warning(f"ResponseCache: audit log replay failed: {e}")
@@ -702,7 +714,7 @@ class ResponseCache:
     def _lookup(self, cache_key: str) -> Any:
         """Look up a cache key: local DB first, then shared DB."""
         # 1. Check local (writable) DB
-        cur = self.db.execute("SELECT response FROM responses WHERE cache_key = ?", (cache_key,))
+        cur = self._require_db().execute("SELECT response FROM responses WHERE cache_key = ?", (cache_key,))
         row = cur.fetchone()
         if row is not None:
             return _deserialize_response(row[0])
@@ -759,9 +771,10 @@ class ResponseCache:
             record["model_fingerprint_hash"] = model_fingerprint_hash
         if self._eval_version:
             record["eval_version"] = self._eval_version
-        self._audit_file.write(json.dumps(record, ensure_ascii=False) + "\n")
-        self._audit_file.flush()
-        os.fsync(self._audit_file.fileno())
+        audit = self._require_audit_file()
+        audit.write(json.dumps(record, ensure_ascii=False) + "\n")
+        audit.flush()
+        os.fsync(audit.fileno())
 
     def _store(
         self,
@@ -778,11 +791,12 @@ class ResponseCache:
         gen_kwargs_str = canonicalize_gen_kwargs(gen_kwargs)
         response_str = _serialize_response(response)
 
-        self.db.execute(
+        db = self._require_db()
+        db.execute(
             "INSERT OR REPLACE INTO responses (cache_key, request_type, task_name, doc_id, idx, gen_kwargs, response, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
             (cache_key, request_type, task_name, doc_id, idx, gen_kwargs_str, response_str, now),
         )
-        self.db.commit()
+        db.commit()
 
     @staticmethod
     def _extract_cacheable(response: Any) -> Any:
@@ -918,8 +932,9 @@ class ResponseCache:
         if not self._use_scratch or not self._remote_rank_db:
             return
         try:
-            self.db.execute("PRAGMA wal_checkpoint(TRUNCATE)")
-            self.db.commit()
+            db = self._require_db()
+            db.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+            db.commit()
             _atomic_copy(self.db_path, self._remote_rank_db)
             if os.path.exists(self.audit_path) and self._remote_rank_audit:
                 _atomic_copy(self.audit_path, self._remote_rank_audit)
@@ -936,7 +951,7 @@ class ResponseCache:
             "misses": self._misses,
             "skipped_non_deterministic": self._skipped,
             "hit_rate": self._hits / max(1, total_lookups),
-            "total_cached_entries": self.db.execute("SELECT COUNT(*) FROM responses").fetchone()[0],
+            "total_cached_entries": self._require_db().execute("SELECT COUNT(*) FROM responses").fetchone()[0],
         }
         if self._shared_db is not None:
             try:

@@ -25,7 +25,6 @@ with open(Path(__file__).parent / "_default_template_yaml") as f:
 cache_dir = snapshot_download(
     repo_id=config["dataset_path"],
     repo_type="dataset",
-    local_dir_use_symlinks=False,
 )
 
 # Initialize the LLM judge server

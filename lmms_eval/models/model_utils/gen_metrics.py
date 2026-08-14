@@ -1,3 +1,4 @@
+import math
 import time
 from collections.abc import Callable
 from numbers import Number
@@ -31,6 +32,7 @@ def summarize_logged_metrics() -> dict[str, Any]:
     total_requests = 0.0
     avg_speed_vals: list[float] = []
     additional_numeric: dict[str, list[float]] = {}
+    request_latencies_seconds: list[float] = []
 
     for metric in _THROUGHPUT_METRICS_HISTORY:
         token_val = metric.get("total_gen_tokens")
@@ -61,6 +63,9 @@ def summarize_logged_metrics() -> dict[str, Any]:
                 "num_requests",
             }:
                 continue
+            if key == "request_latencies_seconds" and isinstance(value, list):
+                request_latencies_seconds.extend(float(item) for item in value if isinstance(item, Number))
+                continue
             if isinstance(value, Number):
                 additional_numeric.setdefault(key, []).append(float(value))
 
@@ -78,6 +83,18 @@ def summarize_logged_metrics() -> dict[str, Any]:
     for key, values in additional_numeric.items():
         if values:
             summary[f"avg_{key}"] = sum(values) / len(values)
+
+    if request_latencies_seconds:
+        sorted_latencies = sorted(request_latencies_seconds)
+        summary["request_count"] = len(sorted_latencies)
+        summary["request_latencies_seconds"] = sorted_latencies
+        for percentile in (50, 95, 99):
+            position = (len(sorted_latencies) - 1) * percentile / 100
+            lower = math.floor(position)
+            upper = math.ceil(position)
+            fraction = position - lower
+            value = sorted_latencies[lower] + (sorted_latencies[upper] - sorted_latencies[lower]) * fraction
+            summary[f"latency_p{percentile}_seconds"] = value
 
     return summary
 
@@ -143,7 +160,12 @@ def log_metrics(
     if additional_metrics is not None:
         required_stats += ", Additional metrics: "
         required_stats += ", ".join(
-            f"{k}: {v:.4f}" if isinstance(v, float) else f"{k}: {v}" for k, v in additional_metrics.items()
+            f"{key}: {value:.4f}"
+            if isinstance(value, float)
+            else f"{key}: {len(value)} values"
+            if isinstance(value, list)
+            else f"{key}: {value}"
+            for key, value in additional_metrics.items()
         )
     eval_logger.info(required_stats)
     _record_metrics(

@@ -23,6 +23,16 @@ FAIL_MSG = "Failed to obtain answer via API."
 config = load_phyx_config()
 
 
+def _parse_binary_judgment(response):
+    match response:
+        case 0 | "0":
+            return 0
+        case 1 | "1":
+            return 1
+        case _:
+            return None
+
+
 class PhyXEvaluator:
     def __init__(self):
         if not config["metadata"]["quick_extract"]:
@@ -246,9 +256,7 @@ class PhyXEvaluator:
         tmp = self.PhyX_process_line(line)
 
         if tmp["extracted"] == "Fail to Call API":
-            log += "Fail to Call API"
-            prediction = "Fail to Call API"
-            return dict(log=log, res=0, extracted=prediction)
+            raise RuntimeError("PhyX model generation failed before open-ended judging")
 
         if tmp["extracted"] != "SAME as predict":
             prediction = tmp["extracted"]
@@ -263,16 +271,17 @@ class PhyXEvaluator:
             if FAIL_MSG in res:
                 log += f"Try {i}: answer and prediction are {gt_answer} and {prediction}, failed to compare.\n"
             else:
-                log += "Compared at semantic level. "
-                # print(res)
-                if "1" in res or res == 1:
+                judgment = _parse_binary_judgment(res)
+                if judgment == 1:
+                    log += "Compared at semantic level. "
                     log += "Semantic equal via LLM."
                     return dict(log=log, res=1, extracted=prediction)
-                elif "0" in res or res == 0:
+                if judgment == 0:
+                    log += "Compared at semantic level. "
                     log += f"LLM judgement {res}"
                     return dict(log=log, res=0, extracted=prediction)
-        log += "All 5 retries failed.\n"
-        return dict(log=log, res=0, extracted=prediction)
+                log += f"Try {i}: judge returned invalid response {res!r}.\n"
+        raise RuntimeError("PhyX open-ended judge failed after all retries")
 
     def PhyX_auxeval_MC(self, line):
         log = ""
@@ -284,9 +293,7 @@ class PhyXEvaluator:
         tmp = self.PhyX_process_line_MC(line)
 
         if tmp["extracted"] == "Fail to Call API":
-            log += "Fail to Call API"
-            prediction = "Fail to Call API"
-            return dict(log=log, res=0, extracted=prediction)
+            raise RuntimeError("PhyX model generation failed before multiple-choice judging")
 
         if tmp["extracted"] != "SAME as predict":
             prediction = tmp["extracted"]
@@ -305,15 +312,17 @@ class PhyXEvaluator:
             if FAIL_MSG in res:
                 log += f"Try {i}: answer and prediction are {gt_answer} and {prediction}, failed to compare.\n"
             else:
-                log += "Compared at semantic level. "
-                if "1" in res or res == 1:
+                judgment = _parse_binary_judgment(res)
+                if judgment == 1:
+                    log += "Compared at semantic level. "
                     log += "Semantic equal via LLM."
                     return dict(log=log, res=1, extracted=prediction)
-                elif "0" in res or res == 0:
+                if judgment == 0:
+                    log += "Compared at semantic level. "
                     log += f"LLM judgement {res}"
                     return dict(log=log, res=0, extracted=prediction)
-        log += "All 5 retries failed.\n"
-        return dict(log=log, res=0, extracted=prediction)
+                log += f"Try {i}: judge returned invalid response {res!r}.\n"
+        raise RuntimeError("PhyX multiple-choice judge failed after all retries")
 
     def PhyX_process_line(self, line):
         ret = {}

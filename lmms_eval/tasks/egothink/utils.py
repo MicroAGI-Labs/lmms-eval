@@ -27,6 +27,7 @@ API_MAX_RETRY = 6
 
 NUM_SECONDS_TO_SLEEP = 15
 
+
 def egothink_doc_to_visual(doc):
     return [doc["image"].convert("RGB")]
 
@@ -69,14 +70,12 @@ def chat_completion_openai(messages, temperature, max_tokens):
             time.sleep(NUM_SECONDS_TO_SLEEP)
         else:
             eval_logger.error(f"All {API_MAX_RETRY} attempts failed.")
-            return "", ""
+            raise RuntimeError(f"EgoThink judge failed after {API_MAX_RETRY} attempts")
 
-    return "", ""
+    raise RuntimeError(f"EgoThink judge failed after {API_MAX_RETRY} attempts")
 
 
 def judge_single(question, answer, ref_answer):
-    rating = -1
-
     conv = [
         {"role": "system", "content": "You are a helpful assistant."},
         {
@@ -86,16 +85,12 @@ def judge_single(question, answer, ref_answer):
     ]
 
     judgment, eval_model = chat_completion_openai(conv, temperature=0, max_tokens=2048)
-    for _ in range(3):
-        match = re.search(one_score_pattern, judgment)
-        if not match:
-            match = re.search(one_score_pattern_backup, judgment)
-
-        if match:
-            rating = ast.literal_eval(match.groups()[0])
-            break
-        else:
-            rating = -1
+    match = re.search(one_score_pattern, judgment) or re.search(one_score_pattern_backup, judgment)
+    if match is None:
+        raise RuntimeError(f"EgoThink judge returned an invalid rating: {judgment!r}")
+    rating = ast.literal_eval(match.groups()[0])
+    if rating not in {0, 0.5, 1}:
+        raise RuntimeError(f"EgoThink judge returned an out-of-domain rating: {rating!r}")
     return rating, judgment, eval_model
 
 

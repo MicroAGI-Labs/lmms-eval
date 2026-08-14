@@ -93,7 +93,8 @@ def _judge_answer(question: str, prediction: str, ground_truth: str) -> tuple[st
                 max_tokens=1024,
             )
             judgment = response.choices[0].message.content or ""
-            return _parse_label(judgment), judgment, response.model
+            parsed_judgment = _strip_thinking(judgment)
+            return _parse_label(parsed_judgment), judgment, response.model
         except Exception as error:
             last_error = str(error)
             eval_logger.error(f"WorldVQA judge attempt {attempt + 1} failed: {error}")

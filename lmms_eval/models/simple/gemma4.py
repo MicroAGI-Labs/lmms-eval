@@ -20,6 +20,7 @@ Notes on the transformers integration:
 """
 
 import os
+import time
 import warnings
 from types import MethodType
 from typing import Callable
@@ -32,6 +33,7 @@ from lmms_eval import utils
 from lmms_eval.api.instance import Instance
 from lmms_eval.api.model import lmms
 from lmms_eval.api.registry import register_model
+from lmms_eval.models.model_utils.gen_metrics import log_metrics
 from lmms_eval.models.model_utils.media_encoder import encode_image_to_data_url
 from loguru import logger as eval_logger
 from PIL import Image
@@ -117,6 +119,8 @@ class Gemma4(lmms):
         assert kwargs == {}, f"Unexpected kwargs: {kwargs}"
         max_num_frames = _validate_max_num_frames(max_num_frames)
         self.batch_size_per_gpu = _validate_batch_size(batch_size)
+        if device is None:
+            raise ValueError("device must be set (e.g. 'cuda'), got None from model_args")
 
         accelerator = Accelerator()
         if accelerator.num_processes > 1:
@@ -263,6 +267,8 @@ class Gemma4(lmms):
             List of generated text responses
         """
         res = []
+        request_latencies_seconds = []
+        total_generated_tokens = 0
 
         def _collate(x):
             # the negative sign on len(toks) sorts descending - this has a few advantages:
@@ -373,13 +379,17 @@ class Gemma4(lmms):
             # Update with provided kwargs
             current_gen_kwargs = {**default_gen_kwargs, **gen_kwargs}
 
-            if current_gen_kwargs["temperature"] > 0:
+            temperature = current_gen_kwargs["temperature"]
+            if temperature is not None and temperature > 0:
                 current_gen_kwargs["do_sample"] = True
             else:
                 current_gen_kwargs["do_sample"] = False
                 current_gen_kwargs["temperature"] = None
                 current_gen_kwargs["top_p"] = None
 
+            if self.device.type == "cuda":
+                torch.cuda.synchronize(self.device)
+            generation_start = time.perf_counter()
             cont = self.model.generate(
                 **inputs,
                 do_sample=current_gen_kwargs["do_sample"],
@@ -389,8 +399,12 @@ class Gemma4(lmms):
                 max_new_tokens=current_gen_kwargs["max_new_tokens"],
                 use_cache=self.use_cache,
             )
+            if self.device.type == "cuda":
+                torch.cuda.synchronize(self.device)
+            request_latencies_seconds.append(time.perf_counter() - generation_start)
 
             generated_ids_trimmed = [out_ids[len(in_ids) :] for in_ids, out_ids in zip(inputs.input_ids, cont)]
+            total_generated_tokens += sum(len(token_ids) for token_ids in generated_ids_trimmed)
             answers = self.processor.batch_decode(
                 generated_ids_trimmed, skip_special_tokens=True, clean_up_tokenization_spaces=False
             )
@@ -406,6 +420,18 @@ class Gemma4(lmms):
                 pbar.update(1)
             # reorder this group of results back to original unsorted form
         res = re_ords.get_original(res)
+
+        if request_latencies_seconds:
+            total_elapsed_time = sum(request_latencies_seconds)
+            log_metrics(
+                total_elapsed_time=total_elapsed_time,
+                total_gen_tokens=total_generated_tokens,
+                avg_speed=total_generated_tokens / total_elapsed_time,
+                additional_metrics={
+                    "total_requests": len(request_latencies_seconds),
+                    "request_latencies_seconds": request_latencies_seconds,
+                },
+            )
 
         pbar.close()
         return res

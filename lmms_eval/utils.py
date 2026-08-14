@@ -110,6 +110,8 @@ def is_multimodal_content(value: Any) -> bool:
     """
     if isinstance(value, (bytes, bytearray, np.ndarray, torch.Tensor)):
         return True
+    if isinstance(value, (list, tuple)):
+        return any(is_multimodal_content(item) for item in value)
     if isinstance(value, dict):
         if "array" in value or "bytes" in value:
             return True

@@ -183,10 +183,12 @@ def extract_characters_regex(s):
 def egoplan_process_results(doc, results):
     pred = results[0]
     pred_ans = extract_characters_regex(pred)
-    # gt_ans = doc["answer"].lower().strip().replace(".", "")
-    doc["pred_answer"] = pred_ans
-    data_dict = doc.copy()
-    return {"egoplan_mcq_accuracy": data_dict}
+    return {
+        "egoplan_mcq_accuracy": {
+            "pred_answer": pred_ans,
+            "golden_choice_idx": doc["golden_choice_idx"],
+        }
+    }
 
 
 def egoplan_aggregate_results(results):
