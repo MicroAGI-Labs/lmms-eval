@@ -16,20 +16,18 @@ import uuid
 import warnings
 from concurrent.futures import ThreadPoolExecutor
 from json import JSONDecodeError
-from typing import TYPE_CHECKING, Any, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any
 
-import numpy as np
 from accelerate import Accelerator, DistributedType
-from PIL import Image
-from sglang import Engine
-from transformers import AutoConfig, AutoProcessor
-
 from lmms_eval.api.instance import GenerationResult, Instance, TokenCounts
 from lmms_eval.api.model import lmms
 from lmms_eval.api.registry import register_model
 from lmms_eval.models.model_utils.gen_metrics import log_metrics
 from lmms_eval.models.model_utils.progress import make_progress
 from lmms_eval.protocol import ChatMessages
+from PIL import Image
+from sglang import Engine
+from transformers import AutoConfig, AutoProcessor
 
 warnings.filterwarnings("ignore")
 
@@ -62,7 +60,9 @@ def _build_mcp_client(server_path: str) -> "MCPClient":
     try:
         from lmms_eval.mcp.client import MCPClient
     except ImportError as exc:
-        raise ImportError("MCP support requires the optional 'mcp' dependency. " "Install with: pip install 'lmms_eval[mcp]'") from exc
+        raise ImportError(
+            "MCP support requires the optional 'mcp' dependency. Install with: pip install 'lmms_eval[mcp]'"
+        ) from exc
     return MCPClient(server_path)
 
 
@@ -91,16 +91,16 @@ class Sglang(lmms):
         batch_size: int = 1,
         nframes: int = 32,
         max_frame_num: int = 768,
-        fps: Optional[int] = None,
+        fps: int | None = None,
         max_pixels: int = 1605632,
         min_pixels: int = 28 * 28,
         threads: int = 16,
-        trust_remote_code: Optional[bool] = True,
-        chat_template: Optional[str] = None,
+        trust_remote_code: bool | None = True,
+        chat_template: str | None = None,
         mcp_server_path: str = None,
         max_turn: int = 5,
         work_dir: str = None,
-        json_model_override_args: Optional[str] = None,
+        json_model_override_args: str | None = None,
         **kwargs,
     ) -> None:
         super().__init__()
@@ -141,7 +141,7 @@ class Sglang(lmms):
 
         # Custom chat template
         if chat_template is not None:
-            with open(chat_template, "r") as f:
+            with open(chat_template) as f:
                 self.processor.chat_template = f.read()
 
         # Distributed setup
@@ -212,7 +212,7 @@ class Sglang(lmms):
 
     # -- Tokenization --------------------------------------------------------
 
-    def tok_encode(self, string: str, left_truncate_len=None, add_special_tokens=None) -> List[int]:
+    def tok_encode(self, string: str, left_truncate_len=None, add_special_tokens=None) -> list[int]:
         add_special_tokens = False if add_special_tokens is None else add_special_tokens
         encoding = self.tokenizer.encode(string, add_special_tokens=add_special_tokens)
         if left_truncate_len:
@@ -224,10 +224,10 @@ class Sglang(lmms):
 
     # -- Request types -------------------------------------------------------
 
-    def loglikelihood(self, requests: List[Instance]) -> List[Tuple[float, bool]]:
+    def loglikelihood(self, requests: list[Instance]) -> list[tuple[float, bool]]:
         assert False, "loglikelihood not implemented for SGLang"
 
-    def generate_until_multi_round(self, requests) -> List[str]:
+    def generate_until_multi_round(self, requests) -> list[str]:
         raise NotImplementedError("Multi-round generation not implemented")
 
     # -- Message preparation -------------------------------------------------
@@ -275,7 +275,7 @@ class Sglang(lmms):
 
     # -- Main generation -----------------------------------------------------
 
-    def generate_until(self, requests) -> List[GenerationResult]:
+    def generate_until(self, requests) -> list[GenerationResult]:
         res = []
         pbar = make_progress(total=len(requests), disable=(self.rank != 0), desc="Model Responding")
 
@@ -327,7 +327,10 @@ class Sglang(lmms):
                 total_tokens += tok
 
             assert len(response_text) == len(batch_requests)
-            res.extend(GenerationResult(text=text, token_counts=TokenCounts(output_tokens=tok)) for text, tok in zip(response_text, response_output_tokens))
+            res.extend(
+                GenerationResult(text=text, token_counts=TokenCounts(output_tokens=tok))
+                for text, tok in zip(response_text, response_output_tokens)
+            )
             pbar.update(len(batch_requests))
 
         avg_speed = total_tokens / total_elapsed_time if total_elapsed_time > 0 else 0
@@ -355,7 +358,9 @@ class Sglang(lmms):
         flat_images = [img for imgs in image_data for img in imgs] or None
         inputs = self.processor(text=texts, images=flat_images, do_resize=False, padding=True, return_tensors="pt")
         input_ids = inputs.pop("input_ids").tolist()
-        return self.req_level_generate(input_ids=input_ids, image_data=flat_images, sampling_params=params, batched_messages=batched_messages)
+        return self.req_level_generate(
+            input_ids=input_ids, image_data=flat_images, sampling_params=params, batched_messages=batched_messages
+        )
 
     def _generate_video(self, texts, video_data, params, batched_messages):
         """Generate for video inputs.
@@ -415,7 +420,9 @@ class Sglang(lmms):
             image = [image]
         turn_count = 0
         while True:
-            output = await self.client.async_generate(input_ids=input_id, image_data=image, sampling_params=sampling_params)
+            output = await self.client.async_generate(
+                input_ids=input_id, image_data=image, sampling_params=sampling_params
+            )
             content = output["text"]
             content_id = self.processor.tokenizer.encode(content)
 
@@ -459,8 +466,12 @@ class Sglang(lmms):
                             raise ValueError(f"Unsupported MCP result type: {type(r)}")
                     tool_messages.append({"role": "tool", "name": tc.name, "content": content_list})
 
-                original_text = self.processor.apply_chat_template(messages, tokenize=False, add_generation_prompt=False)
-                tool_text = self.processor.apply_chat_template(messages + tool_messages, tokenize=False, add_generation_prompt=True)
+                original_text = self.processor.apply_chat_template(
+                    messages, tokenize=False, add_generation_prompt=False
+                )
+                tool_text = self.processor.apply_chat_template(
+                    messages + tool_messages, tokenize=False, add_generation_prompt=True
+                )
                 tool_text = tool_text.split(original_text)[1]
 
                 inputs = self.processor(text=tool_text, images=new_image_data or None, return_tensors="pt")
@@ -496,7 +507,14 @@ class Sglang(lmms):
     def req_level_generate(self, input_ids, image_data, sampling_params, batched_messages):
         """Per-request generation with tool calling support."""
         loop = asyncio.get_event_loop()
-        text_list = loop.run_until_complete(asyncio.gather(*[self.async_a_request(iid, img, sampling_params, msgs) for iid, img, msgs in zip(input_ids, image_data, batched_messages)]))
+        text_list = loop.run_until_complete(
+            asyncio.gather(
+                *[
+                    self.async_a_request(iid, img, sampling_params, msgs)
+                    for iid, img, msgs in zip(input_ids, image_data, batched_messages)
+                ]
+            )
+        )
         return [{"text": text} for text in text_list]
 
     def batch_level_generate(self, input_ids, image_data, sampling_params):

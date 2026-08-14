@@ -1,5 +1,4 @@
 import random
-from typing import Dict, List
 
 import numpy as np
 
@@ -8,7 +7,7 @@ assertion_prompt = """Answer the following multiple choice question. There is on
 mcq_prompt = """Answer the following multiple choice question. There is only one correct answer. The last line of your response should be in the format 'Answer: $LETTER' (without quotes), where LETTER is one of A, B, C, or D."""
 
 
-def csbench_mcq_doc_to_text(doc: Dict, lmms_eval_specific_kwargs: Dict) -> str:
+def csbench_mcq_doc_to_text(doc: dict, lmms_eval_specific_kwargs: dict) -> str:
     q = doc["Question"]
     a = doc["A"]
     b = doc["B"]
@@ -18,20 +17,20 @@ def csbench_mcq_doc_to_text(doc: Dict, lmms_eval_specific_kwargs: Dict) -> str:
     return question
 
 
-def csbench_assertion_doc_to_text(doc: Dict, lmms_eval_specific_kwargs: Dict) -> str:
+def csbench_assertion_doc_to_text(doc: dict, lmms_eval_specific_kwargs: dict) -> str:
     q = doc["Question"]
     question = f"{assertion_prompt}\nQuestion: {q}\n A: True\n B: False\n"
     return question
 
 
-def csbench_doc_to_target(doc: Dict) -> str:
+def csbench_doc_to_target(doc: dict) -> str:
     if doc["Format"].strip() == "Multiple-choice":
         return doc["Answer"].strip().upper()
     else:
         return "A" if doc["Answer"].strip() == "True" else "B"
 
 
-def csbench_doc_to_choice(doc: Dict) -> List[str]:
+def csbench_doc_to_choice(doc: dict) -> list[str]:
     if doc["Format"].strip() == "Multiple-choice":
         return ["A", "B", "C", "D"]
     else:
@@ -80,7 +79,7 @@ def parse_multi_choice_response(response, all_choices):
     return pred_index
 
 
-def csbench_process_results(doc: Dict, result: List[str]) -> Dict[str, float]:
+def csbench_process_results(doc: dict, result: list[str]) -> dict[str, float]:
     pred = parse_multi_choice_response(result[0], csbench_doc_to_choice(doc))
     gt = csbench_doc_to_target(doc)
     score = 1.0 if pred == gt else 0.0

@@ -3,7 +3,6 @@ import logging
 import re
 import time
 from pathlib import Path
-from typing import List
 
 import cv2
 import numpy as np
@@ -221,7 +220,7 @@ def call_judge_with_retry(client, model_name, prompt, temperature=0, max_tokens=
             raise Exception(f"An unexpected error occurred during API call: {e}")
 
 
-def decode_video(video_path: str) -> List[np.ndarray]:
+def decode_video(video_path: str) -> list[np.ndarray]:
     """
     Decode the video and return the RGB frames
     """
@@ -259,7 +258,9 @@ def load_video(video_path, max_frames, annot_sample_rate=1):
 def load_video_uniform(video_path, max_frames):
     def uniform_sample(m, n):
         if n >= m:
-            return list(range(m))  # Return all frames if max_frames is greater than or equal to the total number of frames
+            return list(
+                range(m)
+            )  # Return all frames if max_frames is greater than or equal to the total number of frames
         stride = (m - 1) / (n - 1) if n > 1 else 0  # Calculate the stride
         return [int(round(i * stride)) for i in range(n)]
 
@@ -274,7 +275,9 @@ def draw_bounding_boxes(frames, sample_pos, bbox_dict_map):
     """
     Helper function to draw bounding boxes on video frames.
     """
-    assert len(frames) == len(sample_pos), f"The number of frames ({len(frames)}) must match with the number of sample positions ({len(sample_pos)})"
+    assert len(frames) == len(sample_pos), (
+        f"The number of frames ({len(frames)}) must match with the number of sample positions ({len(sample_pos)})"
+    )
 
     frame_with_bbox = []
     for i, frame in enumerate(frames):
@@ -292,7 +295,7 @@ def draw_bounding_boxes(frames, sample_pos, bbox_dict_map):
 
 def load_defualt_config():
     # Load default config parameters
-    with open(Path(__file__).parent / "_default_template_yaml", "r") as f:
+    with open(Path(__file__).parent / "_default_template_yaml") as f:
         raw_data = f.readlines()
         safe_data = []
         for i, line in enumerate(raw_data):
@@ -316,7 +319,7 @@ def load_plm_stc_metadata(config):
         repo_type=repo_type,
     )
     # Load the cached JSONL file
-    with open(local_path, "r") as f:
+    with open(local_path) as f:
         metadata = [json.loads(line) for line in f]
     # Convert the list of dictionaries to a dictionary
     metadata_map = {(entry["video"], entry["masklet_id"]): entry for entry in metadata}

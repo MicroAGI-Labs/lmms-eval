@@ -20,7 +20,7 @@ from loguru import logger as eval_logger
 hf_home = os.getenv("HF_HOME", "~/.cache/huggingface/")
 base_cache_dir = os.path.expanduser(hf_home)
 
-with open(Path(__file__).parent / "_default_template_yaml", "r") as f:
+with open(Path(__file__).parent / "_default_template_yaml") as f:
     raw_data = f.readlines()
     safe_data = []
     for line in raw_data:
@@ -96,7 +96,10 @@ def videomme_v2_doc_to_text(doc, lmms_eval_specific_kwargs=None):
     if lmms_eval_specific_kwargs and lmms_eval_specific_kwargs.get("format") == "qwen3_vl":
         return _doc_to_text_qwen3vl(doc, lmms_eval_specific_kwargs)
 
-    instruct_prompt = "Select the best answer to the following multiple-choice question based on the video. " "Respond with only the letter (A, B, C, D, E, F, G, or H) of the correct option."
+    instruct_prompt = (
+        "Select the best answer to the following multiple-choice question based on the video. "
+        "Respond with only the letter (A, B, C, D, E, F, G, or H) of the correct option."
+    )
     question = doc["question"]
     options = doc["options"]  # already "A. ...\nB. ...\n...H. ..."
 
@@ -126,7 +129,7 @@ def load_subtitle_v2(subtitle_path):
     """
     texts = []
     try:
-        with open(subtitle_path, "r", encoding="utf-8") as f:
+        with open(subtitle_path, encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
                 if line:
@@ -146,7 +149,10 @@ def videomme_v2_doc_to_text_subtitle(doc, lmms_eval_specific_kwargs=None):
     if lmms_eval_specific_kwargs and lmms_eval_specific_kwargs.get("format") == "qwen3_vl":
         return _doc_to_text_subtitle_qwen3vl(doc, lmms_eval_specific_kwargs)
 
-    instruct_prompt = "Select the best answer to the following multiple-choice question based on the video. " "Respond with only the letter (A, B, C, D, E, F, G, or H) of the correct option."
+    instruct_prompt = (
+        "Select the best answer to the following multiple-choice question based on the video. "
+        "Respond with only the letter (A, B, C, D, E, F, G, or H) of the correct option."
+    )
     question = doc["question"]
     options = doc["options"]
 

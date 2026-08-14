@@ -7,13 +7,13 @@ This module provides functions to:
 4. Normalize facing directions
 """
 
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import networkx as nx
 import numpy as np
 
 
-def create_graph_from_cogmap(cogmap: Dict) -> nx.DiGraph:
+def create_graph_from_cogmap(cogmap: dict) -> nx.DiGraph:
     """Create a graph representation from a cognitive map.
 
     Args:
@@ -101,7 +101,7 @@ def _add_relative_position_edges(G: nx.DiGraph) -> None:
                 G.add_edge(node2, node1, angle=(angle + 180) % 360, distance=distance)
 
 
-def extract_position(position: Any) -> Tuple[float, float]:
+def extract_position(position: Any) -> tuple[float, float]:
     """Extract and validate position data.
 
     Args:
@@ -125,7 +125,7 @@ def extract_position(position: Any) -> Tuple[float, float]:
         return (0.0, 0.0)
 
 
-def normalize_facing(facing: Any) -> Optional[str]:
+def normalize_facing(facing: Any) -> str | None:
     """Normalize facing field to standard direction.
 
     Args:
@@ -181,7 +181,7 @@ def normalize_facing(facing: Any) -> Optional[str]:
     return facing_map.get(facing, facing)
 
 
-def extract_objects_with_extended_info(cog_map: Dict) -> Dict:
+def extract_objects_with_extended_info(cog_map: dict) -> dict:
     """Extract objects with position and facing information.
     Handles both complex and simple formats.
 
@@ -286,7 +286,7 @@ def extract_objects_with_extended_info(cog_map: Dict) -> Dict:
     return objects_info
 
 
-def get_rotation_matrices() -> List[Dict]:
+def get_rotation_matrices() -> list[dict]:
     """Generate rotation matrices for 6 main orientations in 3D space.
 
     Returns:
@@ -337,7 +337,7 @@ def get_rotation_matrices() -> List[Dict]:
     return rotations
 
 
-def apply_rotation_to_map(objects_data: Dict, rotation: Dict) -> Dict:
+def apply_rotation_to_map(objects_data: dict, rotation: dict) -> dict:
     """Apply 3D rotation to all objects in the map.
 
     Args:
@@ -387,7 +387,7 @@ def apply_rotation_to_map(objects_data: Dict, rotation: Dict) -> Dict:
     return rotated_data
 
 
-def rotate_facing_z(facing: Optional[str], angle: float) -> Optional[str]:
+def rotate_facing_z(facing: str | None, angle: float) -> str | None:
     """Rotate facing direction around Z-axis.
 
     Args:
@@ -431,7 +431,7 @@ def rotate_facing_z(facing: Optional[str], angle: float) -> Optional[str]:
     return facing
 
 
-def rotate_facing_x(facing: Optional[str]) -> Optional[str]:
+def rotate_facing_x(facing: str | None) -> str | None:
     """Rotate facing direction around X-axis.
 
     Args:
@@ -468,7 +468,7 @@ def rotate_facing_x(facing: Optional[str]) -> Optional[str]:
     return direction_map.get(facing, facing)
 
 
-def rotate_facing_y(facing: Optional[str]) -> Optional[str]:
+def rotate_facing_y(facing: str | None) -> str | None:
     """Rotate facing direction around Y-axis.
 
     Args:
@@ -508,9 +508,9 @@ def rotate_facing_y(facing: Optional[str]) -> Optional[str]:
 def get_extended_direction(
     pos1: np.ndarray,
     pos2: np.ndarray,
-    facing1: Optional[str] = None,
-    facing2: Optional[str] = None,
-) -> Optional[str]:
+    facing1: str | None = None,
+    facing2: str | None = None,
+) -> str | None:
     """Determine the extended direction from pos1 to pos2.
     Includes: up, right, down, left, inner, outer.
 
@@ -563,7 +563,9 @@ def get_extended_direction(
         return "down" if dy > 0 else "up"
 
 
-def determine_inner_outer_relationship(pos1: np.ndarray, pos2: np.ndarray, facing1: Optional[str], facing2: Optional[str]) -> Optional[str]:
+def determine_inner_outer_relationship(
+    pos1: np.ndarray, pos2: np.ndarray, facing1: str | None, facing2: str | None
+) -> str | None:
     """Determine if relationship is inner/outer based on positions and facings.
 
     Args:
@@ -589,7 +591,7 @@ def determine_inner_outer_relationship(pos1: np.ndarray, pos2: np.ndarray, facin
     return None
 
 
-def build_comprehensive_relation_matrix(objects_data: Dict, object_names: List[str]) -> Dict:
+def build_comprehensive_relation_matrix(objects_data: dict, object_names: list[str]) -> dict:
     """Build a relationship matrix including inner/outer relationships.
 
     Args:

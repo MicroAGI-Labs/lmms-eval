@@ -5,7 +5,7 @@ import re
 
 # read json files
 def read_json(path):
-    with open(path, "r") as fin:
+    with open(path) as fin:
         datas = json.load(fin)
     return datas
 
@@ -13,7 +13,7 @@ def read_json(path):
 def write_json(path, data):
     with open(path, "w") as fout:
         json.dump(data, fout)
-    print("The format file has been saved at:{}".format(path))
+    print(f"The format file has been saved at:{path}")
     return
 
 
@@ -144,4 +144,7 @@ if __name__ == "__main__":
             if cur_iou >= c_iou:
                 Result[c_iou] = Result[c_iou] + 1
 
-    print("IOU 0.3: {0}\nIOU 0.5: {1}\nIOU 0.7: {2}\nmIOU".format(Result[0.3] * 100 / num, Result[0.5] * 100 / num, Result[0.7] * 100 / num), sum(ious) * 100 / num)
+    print(
+        f"IOU 0.3: {Result[0.3] * 100 / num}\nIOU 0.5: {Result[0.5] * 100 / num}\nIOU 0.7: {Result[0.7] * 100 / num}\nmIOU",
+        sum(ious) * 100 / num,
+    )

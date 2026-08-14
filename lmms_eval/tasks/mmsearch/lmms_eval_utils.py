@@ -3,9 +3,6 @@ import os
 from pathlib import Path
 
 import yaml
-from loguru import logger as eval_logger
-from PIL import Image
-
 from lmms_eval.tasks._task_utils.file_utils import generate_submission_file
 from lmms_eval.tasks.mmsearch.constants import *
 from lmms_eval.tasks.mmsearch.prompts.prompt import *
@@ -18,8 +15,10 @@ from lmms_eval.tasks.mmsearch.utils.image_utils import pil_image_to_bytes
 from lmms_eval.tasks.mmsearch.utils.lmms_eval_utils import *
 from lmms_eval.tasks.mmsearch.utils.prompt_utils import *
 from lmms_eval.tasks.mmsearch.utils.utils import *
+from loguru import logger as eval_logger
+from PIL import Image
 
-with open(Path(__file__).parent / "mmsearch.yaml", "r") as f:
+with open(Path(__file__).parent / "mmsearch.yaml") as f:
     raw_data = f.readlines()
     safe_data = []
     for i, line in enumerate(raw_data):
@@ -35,7 +34,9 @@ fullpage_num = 1
 content_retriever = Content_Retriever()
 
 
-def mmsearch_end2end_doc_to_text(doc, lmms_eval_specific_kwargs=None, previous_output=None, round_idx=None, previous_round_info=None):
+def mmsearch_end2end_doc_to_text(
+    doc, lmms_eval_specific_kwargs=None, previous_output=None, round_idx=None, previous_round_info=None
+):
     """
     Returns:
         visuals (for next round)
@@ -45,8 +46,16 @@ def mmsearch_end2end_doc_to_text(doc, lmms_eval_specific_kwargs=None, previous_o
         previous_round_info
     """
     # prepare save dir
-    middle_result_dir = lmms_eval_specific_kwargs["middle_resules_dir"] if lmms_eval_specific_kwargs is not None and "middle_resules_dir" in lmms_eval_specific_kwargs else "mmsearch_middile_results"
-    result_cache_dir = lmms_eval_specific_kwargs["result_cache_dir"] if lmms_eval_specific_kwargs is not None and "result_cache_dir" in lmms_eval_specific_kwargs else "mmsearch_result_cache_dir"
+    middle_result_dir = (
+        lmms_eval_specific_kwargs["middle_resules_dir"]
+        if lmms_eval_specific_kwargs is not None and "middle_resules_dir" in lmms_eval_specific_kwargs
+        else "mmsearch_middile_results"
+    )
+    result_cache_dir = (
+        lmms_eval_specific_kwargs["result_cache_dir"]
+        if lmms_eval_specific_kwargs is not None and "result_cache_dir" in lmms_eval_specific_kwargs
+        else "mmsearch_result_cache_dir"
+    )
     os.makedirs(middle_result_dir, exist_ok=True)
     os.makedirs(result_cache_dir, exist_ok=True)
     # prepare query information
@@ -65,7 +74,9 @@ def mmsearch_end2end_doc_to_text(doc, lmms_eval_specific_kwargs=None, previous_o
         if not query_has_image:
             text_query = prompt_template.format(question=query)
         else:
-            text_query = prompt_template.format(question=DEFAULT_IMAGE_TOKEN + query, image_search_result=DEFAULT_IMAGE_TOKEN)
+            text_query = prompt_template.format(
+                question=DEFAULT_IMAGE_TOKEN + query, image_search_result=DEFAULT_IMAGE_TOKEN
+            )
         return text_query
     # round2: search result + rerank
     if round_idx == 1:
@@ -81,7 +92,9 @@ def mmsearch_end2end_doc_to_text(doc, lmms_eval_specific_kwargs=None, previous_o
         stage1_screenshot_dir = os.path.join(middle_result_dir, doc["sample_id"], "stage1")
 
         # search result
-        result_brief = search_text_brief_result(query=requery, max_result_num=brief_result_num, screenshot_dir=stage1_screenshot_dir)  # relative path  # [{'title', 'text','screenshot_path', 'url'}]
+        result_brief = search_text_brief_result(
+            query=requery, max_result_num=brief_result_num, screenshot_dir=stage1_screenshot_dir
+        )  # relative path  # [{'title', 'text','screenshot_path', 'url'}]
 
         if result_brief is None:  # the search engine returns None to the requery
             round_res = [requery, None, None]
@@ -94,9 +107,19 @@ def mmsearch_end2end_doc_to_text(doc, lmms_eval_specific_kwargs=None, previous_o
         prompt_template = prompt_template_dict["stage2"]
         if not query_has_image:
             image_files = input_image_list
-            text_query = prompt_template.format(brief_result_num=brief_result_num, rerank_num=fullpage_num, question=query, website_information=website_information, incontext_example=get_rerank_incontext_example(fullpage_num))
+            text_query = prompt_template.format(
+                brief_result_num=brief_result_num,
+                rerank_num=fullpage_num,
+                question=query,
+                website_information=website_information,
+                incontext_example=get_rerank_incontext_example(fullpage_num),
+            )
         else:
-            image_files = [doc["query_image"].convert("RGB"), doc["image_search_result"].convert("RGB"), *input_image_list]
+            image_files = [
+                doc["query_image"].convert("RGB"),
+                doc["image_search_result"].convert("RGB"),
+                *input_image_list,
+            ]
             text_query = prompt_template.format(
                 brief_result_num=brief_result_num,
                 rerank_num=fullpage_num,
@@ -120,7 +143,9 @@ def mmsearch_end2end_doc_to_text(doc, lmms_eval_specific_kwargs=None, previous_o
         # postprocess the rerank result
         selected_index, _ = postprocess_rerank(rerank, fullpage_num)
         selected_website = [result_brief[i] for i in selected_index]
-        result_full = search_url_full_result(urls=[web["url"] for web in selected_website], screenshot_dir=stage3_screenshot_dir)  # relative path  # [{'content', 'screenshot_fullpage_path'}]
+        result_full = search_url_full_result(
+            urls=[web["url"] for web in selected_website], screenshot_dir=stage3_screenshot_dir
+        )  # relative path  # [{'content', 'screenshot_fullpage_path'}]
 
         # add title and snippet
         for full_idx, brief_idx in enumerate(selected_index):
@@ -134,7 +159,9 @@ def mmsearch_end2end_doc_to_text(doc, lmms_eval_specific_kwargs=None, previous_o
             if inst_full["content"].strip() != "":  # some web do not contain language content
                 result_full[idx]["content"] = content_retriever.get_retrieved_content(requery, inst_full["content"])
 
-        website_full_information, input_image_list = get_full_website_information(result_full=result_full, image_dir=stage3_screenshot_dir, fullpage_split_dict=FULLPAGE_SPLIT_DICT)
+        website_full_information, input_image_list = get_full_website_information(
+            result_full=result_full, image_dir=stage3_screenshot_dir, fullpage_split_dict=FULLPAGE_SPLIT_DICT
+        )
 
         input_image_list = [Image.open(f).convert("RGB") for f in input_image_list]
         # text_query and input_image_list
@@ -147,12 +174,27 @@ def mmsearch_end2end_doc_to_text(doc, lmms_eval_specific_kwargs=None, previous_o
                 question=query,
             )
         else:
-            image_files = [*input_image_list, doc["image_search_result"].convert("RGB"), doc["query_image"].convert("RGB")]
+            image_files = [
+                *input_image_list,
+                doc["image_search_result"].convert("RGB"),
+                doc["query_image"].convert("RGB"),
+            ]
             # assume only 1 image in the query
-            text_query = prompt_template.format(rerank_num=fullpage_num, website_information=website_full_information, image_search_result=DEFAULT_IMAGE_TOKEN, question=DEFAULT_IMAGE_TOKEN + query)
+            text_query = prompt_template.format(
+                rerank_num=fullpage_num,
+                website_information=website_full_information,
+                image_search_result=DEFAULT_IMAGE_TOKEN,
+                question=DEFAULT_IMAGE_TOKEN + query,
+            )
 
         image_files[0] = image_files[0].copy()
-        return image_files, text_query, False, previous_output, dict(result_brief=result_brief, website_full_information=website_full_information)
+        return (
+            image_files,
+            text_query,
+            False,
+            previous_output,
+            dict(result_brief=result_brief, website_full_information=website_full_information),
+        )
     # the process should terminate
     if round_idx == 3:
         save_result_to_cache(doc, previous_output, previous_round_info, result_cache_dir)
@@ -162,7 +204,10 @@ def mmsearch_end2end_doc_to_text(doc, lmms_eval_specific_kwargs=None, previous_o
 def mmsearch_end2end_doc_to_visual(doc):
     if doc["query_image"] is None:
         return []
-    return [doc["query_image"].convert("RGB").copy(), doc["image_search_result"].convert("RGB")]  # .copy is a workround of the type judgement in llava-ov
+    return [
+        doc["query_image"].convert("RGB").copy(),
+        doc["image_search_result"].convert("RGB"),
+    ]  # .copy is a workround of the type judgement in llava-ov
 
 
 def mmsearch_rerank_doc_to_visual(doc):
@@ -171,7 +216,9 @@ def mmsearch_rerank_doc_to_visual(doc):
     if doc["query_image"] is not None:
         image_list.extend([doc["query_image"].convert("RGB"), doc["image_search_result"].convert("RGB")])
     # website screenshot
-    image_list.extend(doc[f"website{idx}_head_screenshot"].convert("RGB") for idx in range(brief_result_num))  # there are 8 webpages in the dataset
+    image_list.extend(
+        doc[f"website{idx}_head_screenshot"].convert("RGB") for idx in range(brief_result_num)
+    )  # there are 8 webpages in the dataset
 
     # a workround to pass the type judgement in llava-ov
     image_list[0] = image_list[0].copy()
@@ -186,7 +233,10 @@ def mmsearch_rerank_doc_to_text(doc, lmms_eval_specific_kwargs=None):
         query_has_image = True
         prompt_template_dict = image_search_text_query_dict
 
-    result_brief = [dict(**doc[f"website{i}_info"], screenshot_path=doc[f"website{i}_head_screenshot"]) for i in range(brief_result_num)]  # [{'title', 'text','screenshot_path', 'd'}]
+    result_brief = [
+        dict(**doc[f"website{i}_info"], screenshot_path=doc[f"website{i}_head_screenshot"])
+        for i in range(brief_result_num)
+    ]  # [{'title', 'text','screenshot_path', 'd'}]
     query = doc["query"]
 
     website_information, _ = get_website_information(result_brief)
@@ -194,7 +244,13 @@ def mmsearch_rerank_doc_to_text(doc, lmms_eval_specific_kwargs=None):
     # add query image
     prompt_template = prompt_template_dict["stage2"]
     if not query_has_image:
-        text_query = prompt_template.format(brief_result_num=brief_result_num, rerank_num=fullpage_num, question=query, website_information=website_information, incontext_example=get_rerank_incontext_example(fullpage_num))
+        text_query = prompt_template.format(
+            brief_result_num=brief_result_num,
+            rerank_num=fullpage_num,
+            question=query,
+            website_information=website_information,
+            incontext_example=get_rerank_incontext_example(fullpage_num),
+        )
     else:
         text_query = prompt_template.format(
             brief_result_num=brief_result_num,
@@ -231,7 +287,11 @@ def mmsearch_summarization_doc_to_visual(doc):
     if not query_has_image:
         image_files = [Image.open(f).convert("RGB") for f in input_image_list]
     else:
-        image_files = [*[Image.open(f).convert("RGB") for f in input_image_list], doc["image_search_result"].convert("RGB"), doc["query_image"].convert("RGB")]
+        image_files = [
+            *[Image.open(f).convert("RGB") for f in input_image_list],
+            doc["image_search_result"].convert("RGB"),
+            doc["query_image"].convert("RGB"),
+        ]
 
     # a workround to pass the type judgement in llava-ov
     image_files[0] = image_files[0].copy()
@@ -256,7 +316,9 @@ def mmsearch_summarization_doc_to_text(doc, lmms_eval_specific_kwargs=None):
             slimmed_website_fullpage_screenshot=pil_image_to_bytes(doc["website_fullpage_screenshot"]),
         )
     ]  # the screenshot from the dataset has already been slimmed
-    website_full_information, input_image_list = get_full_website_information(result_full=result_full, fullpage_split_dict=FULLPAGE_SPLIT_DICT)
+    website_full_information, input_image_list = get_full_website_information(
+        result_full=result_full, fullpage_split_dict=FULLPAGE_SPLIT_DICT
+    )
     query = doc["query"]
 
     # add query image in the input image files
@@ -269,7 +331,12 @@ def mmsearch_summarization_doc_to_text(doc, lmms_eval_specific_kwargs=None):
         )
     else:
         # assume only 1 image in the query
-        text_query = prompt_template.format(rerank_num=fullpage_num, website_information=website_full_information, image_search_result=DEFAULT_IMAGE_TOKEN, question=DEFAULT_IMAGE_TOKEN + query)
+        text_query = prompt_template.format(
+            rerank_num=fullpage_num,
+            website_information=website_full_information,
+            image_search_result=DEFAULT_IMAGE_TOKEN,
+            question=DEFAULT_IMAGE_TOKEN + query,
+        )
     return text_query
 
 
@@ -375,7 +442,9 @@ def mmsearch_aggregate_results_req_score(results, args, *, calculate_gain=False,
         )
         result_list.append(inst)
 
-    assert len(result_list) == 300  # assert to be the benchmark length, or the get_result_summary function will not work
+    assert (
+        len(result_list) == 300
+    )  # assert to be the benchmark length, or the get_result_summary function will not work
     # save results
     path = generate_submission_file(f"{args.tasks}_requery_results.json", args)
     with open(path, "w") as f:
@@ -413,7 +482,9 @@ def mmsearch_aggregate_results_rek_score(results, args, *, calculate_gain=False,
             )
         )
         result_list.append(inst)
-    assert len(result_list) == 300  # assert to be the benchmark length, or the get_result_summary function will not work
+    assert (
+        len(result_list) == 300
+    )  # assert to be the benchmark length, or the get_result_summary function will not work
 
     # save results
     path = generate_submission_file(f"{args.tasks}_rerank_results.json", args)

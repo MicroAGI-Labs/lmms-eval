@@ -1,5 +1,4 @@
 import re
-from typing import Optional
 
 
 def mindcube_doc_to_text(doc):
@@ -30,7 +29,7 @@ def mindcube_doc_to_visual(doc):
 
 
 # This is taken directly from the official mindcube codebase
-def extract_answer(text: str) -> Optional[str]:
+def extract_answer(text: str) -> str | None:
     """
     Extract the answer from model response text using regular expressions.
     Returns the last occurrence of the letter of the answer (A, B, C, D, or E)
@@ -56,7 +55,13 @@ def extract_answer(text: str) -> Optional[str]:
     if answer_section_match:
         answer_section = answer_section_match.group(1)
         # Check for specific patterns in the answer section
-        for pattern in [r"[Mm]y answer is ([A-E])", r"[Mm]y answer is ([A-E])\.", r"[Tt]he answer is ([A-E])", r"(?:Answer: )?([A-E])\.", r"\b([A-E])\b"]:
+        for pattern in [
+            r"[Mm]y answer is ([A-E])",
+            r"[Mm]y answer is ([A-E])\.",
+            r"[Tt]he answer is ([A-E])",
+            r"(?:Answer: )?([A-E])\.",
+            r"\b([A-E])\b",
+        ]:
             matches = list(re.finditer(pattern, answer_section))
             if matches:
                 return matches[-1].group(1)

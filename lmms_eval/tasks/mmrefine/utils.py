@@ -4,13 +4,12 @@ from pathlib import Path
 
 import pandas as pd
 import yaml
+from lmms_eval.tasks._task_utils.file_utils import generate_submission_file
+from lmms_eval.tasks.mmrefine.mmrefine_evals import MMRefineEvaluator
 from loguru import logger as eval_logger
 from PIL import Image
 
-from lmms_eval.tasks._task_utils.file_utils import generate_submission_file
-from lmms_eval.tasks.mmrefine.mmrefine_evals import MMRefineEvaluator
-
-with open(Path(__file__).parent / "mmrefine.yaml", "r") as f:
+with open(Path(__file__).parent / "mmrefine.yaml") as f:
     raw_data = f.readlines()
     safe_data = []
     for i, line in enumerate(raw_data):
@@ -95,12 +94,24 @@ def mmrefine_aggregate_results(results, args=None, **kwargs):
 
     vc = results["eval_result"].value_counts()
     scores = {
-        "Refinement Failure": vc.loc["Refinement Failure"] / n_incorrect_solutions if "Refinement Failure" in vc.keys() else 0.0,
-        "Error Detection Success": vc.loc["Error Detection Success"] / n_incorrect_solutions if "Error Detection Success" in vc.keys() else 0.0,
-        "Error Correction Success": vc.loc["Error Correction Success"] / n_incorrect_solutions if "Error Correction Success" in vc.keys() else 0.0,
-        "Refinement Success": vc.loc["Refinement Success"] / n_incorrect_solutions if "Refinement Success" in vc.keys() else 0.0,
-        "False Error Detection": vc.loc["False Error Detection"] / n_correct_solutions if "False Error Detection" in vc.keys() else 0.0,
-        "Validation Success": vc.loc["Validation Success"] / n_correct_solutions if "Validation Success" in vc.keys() else 0.0,
+        "Refinement Failure": vc.loc["Refinement Failure"] / n_incorrect_solutions
+        if "Refinement Failure" in vc.keys()
+        else 0.0,
+        "Error Detection Success": vc.loc["Error Detection Success"] / n_incorrect_solutions
+        if "Error Detection Success" in vc.keys()
+        else 0.0,
+        "Error Correction Success": vc.loc["Error Correction Success"] / n_incorrect_solutions
+        if "Error Correction Success" in vc.keys()
+        else 0.0,
+        "Refinement Success": vc.loc["Refinement Success"] / n_incorrect_solutions
+        if "Refinement Success" in vc.keys()
+        else 0.0,
+        "False Error Detection": vc.loc["False Error Detection"] / n_correct_solutions
+        if "False Error Detection" in vc.keys()
+        else 0.0,
+        "Validation Success": vc.loc["Validation Success"] / n_correct_solutions
+        if "Validation Success" in vc.keys()
+        else 0.0,
     }
 
     scores["RefScore"] = scores["Refinement Success"] - scores["False Error Detection"]

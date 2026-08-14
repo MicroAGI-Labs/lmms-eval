@@ -1,6 +1,6 @@
 import re
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 import numpy as np
 import yaml
@@ -13,7 +13,7 @@ PROMPT_SUFFIX_0_999 = (
 
 FORMAT = "Return only list of tuples, don't add anything else."
 
-with open(Path(__file__).parent / "_default_template_yaml", "r") as f:
+with open(Path(__file__).parent / "_default_template_yaml") as f:
     raw_data = f.readlines()
     safe_data = []
     for i, line in enumerate(raw_data):
@@ -36,7 +36,9 @@ def refspatial_doc_to_visual(doc: dict) -> list:
 
 
 # from original repo: https://github.com/Zhoues/RoboRefer/blob/main/Evaluation/summarize_acc.py
-def _text2pts(text: str, width: int = 640, height: int = 480, normalization_constant: int = 1, is_absolute: bool = False) -> np.ndarray:
+def _text2pts(
+    text: str, width: int = 640, height: int = 480, normalization_constant: int = 1, is_absolute: bool = False
+) -> np.ndarray:
     pattern = r"\(([-+]?\d+\.?\d*(?:,\s*[-+]?\d+\.?\d*)*?)\)"
     matches = re.findall(pattern, text)
     points = []
@@ -54,7 +56,7 @@ def _text2pts(text: str, width: int = 640, height: int = 480, normalization_cons
 
 
 # inspired by original work: https://github.com/Zhoues/RoboRefer/blob/main/Evaluation/summarize_acc.py
-def refspatial_process_results(doc: Dict, result: List[str]) -> Dict[str, Dict]:
+def refspatial_process_results(doc: dict, result: list[str]) -> dict[str, dict]:
     key_name = "refspatial_acc"
 
     mask = np.array(doc["mask"]) / 255.0
@@ -76,13 +78,23 @@ def refspatial_process_results(doc: Dict, result: List[str]) -> Dict[str, Dict]:
     # process the answer
     acc = 0.0
     if len(points) > 0:
-        in_range = (points[:, 0] >= 0) & (points[:, 0] < mask.shape[1]) & (points[:, 1] >= 0) & (points[:, 1] < mask.shape[0])
-        acc = np.concatenate([mask[points[in_range, 1], points[in_range, 0]], np.zeros(points.shape[0] - in_range.sum())]).mean()
+        in_range = (
+            (points[:, 0] >= 0) & (points[:, 0] < mask.shape[1]) & (points[:, 1] >= 0) & (points[:, 1] < mask.shape[0])
+        )
+        acc = np.concatenate(
+            [mask[points[in_range, 1], points[in_range, 0]], np.zeros(points.shape[0] - in_range.sum())]
+        ).mean()
 
     query = refspatial_doc_to_text(doc)
-    omnispatial_submission = {"id": doc["id"], "query": query, "pred": response, "parsed_points": list(map(tuple, points)), "accuracy": acc}
+    omnispatial_submission = {
+        "id": doc["id"],
+        "query": query,
+        "pred": response,
+        "parsed_points": list(map(tuple, points)),
+        "accuracy": acc,
+    }
     return {key_name: omnispatial_submission}
 
 
-def refspatial_aggregate_results(results: List[Dict]) -> float:
+def refspatial_aggregate_results(results: list[dict]) -> float:
     return float(np.mean([sample["accuracy"] for sample in results]))

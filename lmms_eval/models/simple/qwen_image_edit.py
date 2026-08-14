@@ -1,20 +1,15 @@
-import base64
 import json
 import os
 import re
-from io import BytesIO
-from typing import List, Optional, Tuple, Union
 
 import torch
 from accelerate import Accelerator, DistributedType
+from lmms_eval import utils
+from lmms_eval.api.model import lmms
+from lmms_eval.api.registry import register_model
 from loguru import logger as eval_logger
 from PIL import Image
 from tqdm import tqdm
-
-from lmms_eval import utils
-from lmms_eval.api.instance import Instance
-from lmms_eval.api.model import lmms
-from lmms_eval.api.registry import register_model
 
 try:
     from diffusers import DiffusionPipeline
@@ -25,7 +20,9 @@ try:
         Qwen2_5_VLForConditionalGeneration,
     )
 except ImportError:
-    eval_logger.warning("Failed to import diffusers or transformers; Please install via `pip install diffusers transformers qwen-vl-utils`")
+    eval_logger.warning(
+        "Failed to import diffusers or transformers; Please install via `pip install diffusers transformers qwen-vl-utils`"
+    )
 
 
 @register_model("qwen_image_edit")
@@ -45,9 +42,9 @@ class QwenImageEdit(lmms):
         self,
         pretrained: str = "Qwen/Qwen2-VL-7B-Instruct",  # Qwen2.5-VL for understanding
         mode: str = "understanding",  # "understanding" or "editing"
-        device: Optional[str] = "cuda",
-        device_map: Optional[str] = "auto",
-        batch_size: Optional[Union[int, str]] = 1,
+        device: str | None = "cuda",
+        device_map: str | None = "auto",
+        batch_size: int | str | None = 1,
         torch_dtype: str = "bfloat16",
         # Understanding mode parameters
         max_pixels: int = 1605632,
@@ -60,14 +57,17 @@ class QwenImageEdit(lmms):
         save_generated_images: bool = True,
         generated_image_dir: str = "./qwen_edit_generated_images",
         # Visual CoT parameters (triggered by gen_kwargs visual_cot: true)
-        pretrained_edit: Optional[str] = None,
-        pretrained_understand: Optional[str] = None,
+        pretrained_edit: str | None = None,
+        pretrained_understand: str | None = None,
         stage2_max_new_tokens: int = 512,
         stage2_temperature: float = 0.0,
         stage2_do_sample: bool = False,
-        generation_prompt_template: str = ("Based on this image and question, generate an annotated " "or highlighted version that helps answer: {question}"),
+        generation_prompt_template: str = (
+            "Based on this image and question, generate an annotated "
+            "or highlighted version that helps answer: {question}"
+        ),
         save_intermediate: bool = False,
-        intermediate_dir: Optional[str] = None,
+        intermediate_dir: str | None = None,
         fail_gracefully: bool = True,
         **kwargs,
     ) -> None:
@@ -129,7 +129,7 @@ class QwenImageEdit(lmms):
                 self.system_prompt = system_prompt
                 self.max_pixels = max_pixels
                 self.min_pixels = min_pixels
-                eval_logger.info(f"Successfully loaded Qwen2.5-VL for understanding mode")
+                eval_logger.info("Successfully loaded Qwen2.5-VL for understanding mode")
             except Exception as e:
                 eval_logger.error(f"Failed to load Qwen2.5-VL: {e}")
                 raise
@@ -143,7 +143,7 @@ class QwenImageEdit(lmms):
                     device_map=pipeline_device_map,
                     use_safetensors=True,
                 )
-                eval_logger.info(f"Successfully loaded Qwen-Image-Edit pipeline for editing mode")
+                eval_logger.info("Successfully loaded Qwen-Image-Edit pipeline for editing mode")
             except Exception as e:
                 eval_logger.error(f"Failed to load Qwen-Image-Edit: {e}")
                 raise
@@ -223,7 +223,7 @@ class QwenImageEdit(lmms):
                 new_list.append(j)
         return new_list
 
-    def load_image(self, image_input: Union[str, Image.Image]) -> Image.Image:
+    def load_image(self, image_input: str | Image.Image) -> Image.Image:
         """Load image from path or return PIL Image directly."""
         if isinstance(image_input, str):
             return Image.open(image_input).convert("RGB")
@@ -245,13 +245,13 @@ class QwenImageEdit(lmms):
 
     def generate_uni_mmmu_interleaved(
         self,
-        input_images: List,
+        input_images: list,
         prompt: str,
         doc_id: str,
         task: str,
         interleaved_config: dict,
         doc: dict = None,
-    ) -> Tuple[str, List[str]]:
+    ) -> tuple[str, list[str]]:
         """
         Uni-MMMU interleaved generation - Fully aligned with Bagel implementation.
 
@@ -300,7 +300,7 @@ class QwenImageEdit(lmms):
 
         # Ensure we have both editing and understanding capabilities
         if self.mode != "editing":
-            raise ValueError("Uni-MMMU interleaved mode requires editing mode. " "Use: --model_args mode=editing")
+            raise ValueError("Uni-MMMU interleaved mode requires editing mode. Use: --model_args mode=editing")
 
         # We need understanding model for text generation
         # Load it temporarily if not already loaded
@@ -364,7 +364,11 @@ class QwenImageEdit(lmms):
                 eval_logger.info(f"Saved jigsaw image 1: {img1_path}")
 
             # Generate final answer using understanding model
-            final_prompt = f"{prompt}\n\n" f"Two completion images have been generated. " f'Now output EXACTLY ONE <FINAL_ANSWER_JSON>{{"choice": 0 or 1, "rationale": "≤30 words"}}</FINAL_ANSWER_JSON>'
+            final_prompt = (
+                f"{prompt}\n\n"
+                f"Two completion images have been generated. "
+                f'Now output EXACTLY ONE <FINAL_ANSWER_JSON>{{"choice": 0 or 1, "rationale": "≤30 words"}}</FINAL_ANSWER_JSON>'
+            )
 
             # Load generated images
             completion_images = []
@@ -429,7 +433,9 @@ class QwenImageEdit(lmms):
                     self._understanding_model.task_dict[task]["test"] = {}
                 self._understanding_model.task_dict[task]["test"][doc_id] = {}
 
-                mock_request = MockUnderstandRequest(doc_id, task, "test", plan_prompt, [current_image] if current_image else [])
+                mock_request = MockUnderstandRequest(
+                    doc_id, task, "test", plan_prompt, [current_image] if current_image else []
+                )
                 plan_text = self._understanding_model._generate_understanding([mock_request])[0]
 
                 eval_logger.info(f"Step {i} plan: {plan_text}")
@@ -462,7 +468,11 @@ class QwenImageEdit(lmms):
                     eval_logger.info(f"Saved step {i} image: {img_path}")
 
             # Generate final answer
-            final_prompt = f"{accumulated_text}\n\n" f"After the images, emit EXACTLY ONE LINE containing ONLY the final move list " f"as <ANSWER_JSON>[...]</ANSWER_JSON>."
+            final_prompt = (
+                f"{accumulated_text}\n\n"
+                f"After the images, emit EXACTLY ONE LINE containing ONLY the final move list "
+                f"as <ANSWER_JSON>[...]</ANSWER_JSON>."
+            )
 
             all_step_images = [Image.open(p).convert("RGB") for p in generated_images if os.path.exists(p)]
             all_images = (input_images if input_images else []) + all_step_images
@@ -534,7 +544,7 @@ class QwenImageEdit(lmms):
         question: str,
         image_path: str,
         doc_id: str,
-        original_image: Optional[Image.Image] = None,
+        original_image: Image.Image | None = None,
     ) -> str:
         """Stage 2: Answer question using original + auxiliary image."""
         understand_model = self if self.mode == "understanding" else self._get_complementary_model()
@@ -598,11 +608,11 @@ class QwenImageEdit(lmms):
 
     # ── Main entry point ────────────────────────────────────────────
 
-    def generate_visual_cot(self, requests) -> List[str]:
+    def generate_visual_cot(self, requests) -> list[str]:
         """Visual CoT (GtA) generation — delegates to generate_until which handles GtA routing."""
         return self.generate_until(requests)
 
-    def generate_until(self, requests) -> List[str]:
+    def generate_until(self, requests) -> list[str]:
         """
         Generate outputs. Mode selection:
         - gen_kwargs visual_cot: true -> Visual CoT two-stage pipeline
@@ -623,7 +633,7 @@ class QwenImageEdit(lmms):
         else:
             return self._generate_editing(requests)
 
-    def _generate_visual_cot(self, requests) -> List[str]:
+    def _generate_visual_cot(self, requests) -> list[str]:
         """Visual CoT: triggered by gen_kwargs visual_cot: true."""
         res = []
         pbar = tqdm(
@@ -708,7 +718,7 @@ class QwenImageEdit(lmms):
         pbar.close()
         return res
 
-    def _generate_interleaved(self, requests) -> List[str]:
+    def _generate_interleaved(self, requests) -> list[str]:
         """Uni-MMMU interleaved generation."""
         res = []
         pbar = tqdm(
@@ -748,7 +758,7 @@ class QwenImageEdit(lmms):
         pbar.close()
         return res
 
-    def _generate_understanding(self, requests) -> List[str]:
+    def _generate_understanding(self, requests) -> list[str]:
         """Image understanding mode: VQA using Qwen2.5-VL"""
         res = []
 
@@ -796,7 +806,10 @@ class QwenImageEdit(lmms):
                 batched_messages.append(message)
 
             # Process with Qwen2.5-VL
-            texts = [self.processor.apply_chat_template(msg, tokenize=False, add_generation_prompt=True) for msg in batched_messages]
+            texts = [
+                self.processor.apply_chat_template(msg, tokenize=False, add_generation_prompt=True)
+                for msg in batched_messages
+            ]
             image_inputs, video_inputs = process_vision_info(batched_messages)
 
             inputs = self.processor(
@@ -817,8 +830,12 @@ class QwenImageEdit(lmms):
 
             with torch.inference_mode():
                 generated_ids = self.model.generate(**inputs, **generation_kwargs)
-                generated_ids_trimmed = [out_ids[len(in_ids) :] for in_ids, out_ids in zip(inputs.input_ids, generated_ids)]
-                output_texts = self.processor.batch_decode(generated_ids_trimmed, skip_special_tokens=True, clean_up_tokenization_spaces=False)
+                generated_ids_trimmed = [
+                    out_ids[len(in_ids) :] for in_ids, out_ids in zip(inputs.input_ids, generated_ids)
+                ]
+                output_texts = self.processor.batch_decode(
+                    generated_ids_trimmed, skip_special_tokens=True, clean_up_tokenization_spaces=False
+                )
 
             for output_text in output_texts:
                 res.append(output_text)
@@ -827,7 +844,7 @@ class QwenImageEdit(lmms):
         pbar.close()
         return res
 
-    def _generate_editing(self, requests) -> List[str]:
+    def _generate_editing(self, requests) -> list[str]:
         """Image editing mode: Generate edited images"""
         res = []
         pbar = tqdm(total=len(requests), disable=(self.rank != 0), desc="Model Responding (Editing)")
@@ -876,17 +893,19 @@ class QwenImageEdit(lmms):
         pbar.close()
         return res
 
-    def loglikelihood(self, requests) -> List[Tuple[float, bool]]:
+    def loglikelihood(self, requests) -> list[tuple[float, bool]]:
         """
         Compute log-likelihood for image editing tasks.
 
         Note: This is not typically applicable for diffusion-based image editing models.
         Returns dummy values.
         """
-        eval_logger.warning("loglikelihood is not supported for Qwen-Image-Edit (diffusion model). " "Returning dummy values.")
+        eval_logger.warning(
+            "loglikelihood is not supported for Qwen-Image-Edit (diffusion model). Returning dummy values."
+        )
         return [(0.0, False) for _ in requests]
 
-    def generate_until_multi_round(self, requests) -> List[str]:
+    def generate_until_multi_round(self, requests) -> list[str]:
         """Multi-round generation"""
         if self.mode == "understanding":
             eval_logger.warning("Multi-round generation not fully implemented. Using single-round.")

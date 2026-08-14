@@ -1,6 +1,7 @@
 import math
 import os
 import re
+from collections.abc import Callable
 from functools import partial
 from pathlib import Path
 
@@ -39,13 +40,14 @@ SPECIAL_QUESTION_TYPES = [
     "view_change_infer",
 ]
 
-METRICS_FOR_NA = {
-    "MRA:.5:.95:.05": "partial(mean_relative_accuracy, start=.5, end=.95, interval=.05)",
-}
-
-METRICS_FOR_MCA = {
-    "accuracy": "exact_match",
-}
+# Metric registries are populated *below* where the metric functions are
+# defined. Values are direct ``Callable`` objects rather than the upstream
+# pattern of ``eval()``-able source strings — see the same refactor in
+# ``vsibench/utils.py`` for the rationale (string-eval'd lookups defer name
+# resolution to process-results time, hiding missing imports as silent
+# NameErrors mid-run).
+METRICS_FOR_NA: dict[str, Callable[..., float]] = {}
+METRICS_FOR_MCA: dict[str, Callable[..., float]] = {}
 
 Low = [
     "depth_prediction_oc",
@@ -76,7 +78,7 @@ High = [
     "distance_infer_center_oo_mv",
 ]
 
-with open(Path(__file__).parent / "_default_template_yaml", "r") as f:
+with open(Path(__file__).parent / "_default_template_yaml") as f:
     raw_data = f.readlines()
     safe_data = []
     for i, line in enumerate(raw_data):
@@ -96,7 +98,10 @@ def sparbench_doc_to_text(doc, lmms_eval_specific_kwargs=None):
     pre_prompt = lmms_eval_specific_kwargs.get("pre_prompt", "")  # or "These are frames of a video."
 
     if doc["task"] in NA_QUESTION_TYPES:
-        post_prompt = lmms_eval_specific_kwargs.get("na_post_prompt", "") or "Please answer the question using a single word or phrase."
+        post_prompt = (
+            lmms_eval_specific_kwargs.get("na_post_prompt", "")
+            or "Please answer the question using a single word or phrase."
+        )
         return pre_prompt + "\n" + question + "\n" + post_prompt
     elif doc["task"] in MCA_QUESTION_TYPES:
         post_prompt = ""
@@ -114,7 +119,7 @@ def sparbench_doc_to_text(doc, lmms_eval_specific_kwargs=None):
 
 def process_docs(dataset: datasets.Dataset) -> datasets.Dataset:
     if os.getenv("LMMS_EVAL_SHUFFLE_DOCS", None):
-        eval_logger.info(f"Environment variable LMMS_EVAL_SHUFFLE_DOCS detected, dataset will be shuffled.")
+        eval_logger.info("Environment variable LMMS_EVAL_SHUFFLE_DOCS detected, dataset will be shuffled.")
         return dataset.shuffle(seed=42)
     return dataset
 
@@ -149,8 +154,18 @@ def parse_instruction(instruction):
 
 
 def compute_vci_metric(pred, answer):
-
-    acion_list = ["move_right", "move_left", "move_forward", "move_backward", "move_up", "move_down", "rotate_right", "rotate_left", "rotate_up", "rotate_down"]
+    acion_list = [
+        "move_right",
+        "move_left",
+        "move_forward",
+        "move_backward",
+        "move_up",
+        "move_down",
+        "rotate_right",
+        "rotate_left",
+        "rotate_up",
+        "rotate_down",
+    ]
     action_order = ["move_right_left", "move_up_down", "move_forward_backward", "rotate_right_left", "rotate_up_down"]
 
     answer_dict = parse_instruction(pred)
@@ -192,7 +207,7 @@ def parse_cmi(text):
     eval_logger.debug(f"[parse_cmi] initial matches: {matches}")
 
     if len(matches) < 2:
-        eval_logger.warning(f"[parse_cmi] Less than 2 matches found, applying fallback logic")
+        eval_logger.warning("[parse_cmi] Less than 2 matches found, applying fallback logic")
         if len(matches) == 1 and "(" in matches[0]:
             matches.append("0.0")
             eval_logger.debug(f"[parse_cmi] Appended '0.0', matches now: {matches}")
@@ -210,7 +225,7 @@ def parse_cmi(text):
 
     eval_logger.debug(f"[parse_cmi] final result (len={len(result)}): {result}")
     if len(result) < 3:
-        eval_logger.warning(f"[parse_cmi] Result has fewer than 3 elements! Accessing result[2] will fail.")
+        eval_logger.warning("[parse_cmi] Result has fewer than 3 elements! Accessing result[2] will fail.")
     return result
 
 
@@ -220,10 +235,18 @@ def compute_cmi_metric(pred, answer):
     ans_process = parse_cmi(answer)
     eval_logger.debug(f"[compute_cmi_metric] pred_process: {pred_process}, ans_process: {ans_process}")
     try:
-        dist = math.sqrt((pred_process[0] / 1000 - ans_process[0] / 1000) ** 2 + (pred_process[1] / 1000 - ans_process[1] / 1000) ** 2 + (pred_process[2] - ans_process[2]) ** 2)
-        eval_logger.debug(f"[compute_cmi_metric] computed distance: {dist} (note: lower is better, but raw distance returned)")
+        dist = math.sqrt(
+            (pred_process[0] / 1000 - ans_process[0] / 1000) ** 2
+            + (pred_process[1] / 1000 - ans_process[1] / 1000) ** 2
+            + (pred_process[2] - ans_process[2]) ** 2
+        )
+        eval_logger.debug(
+            f"[compute_cmi_metric] computed distance: {dist} (note: lower is better, but raw distance returned)"
+        )
     except IndexError as e:
-        eval_logger.error(f"[compute_cmi_metric] IndexError: {e}. pred_process has {len(pred_process)} elements, ans_process has {len(ans_process)} elements")
+        eval_logger.error(
+            f"[compute_cmi_metric] IndexError: {e}. pred_process has {len(pred_process)} elements, ans_process has {len(ans_process)} elements"
+        )
         raise
     return dist
 
@@ -234,16 +257,18 @@ def exact_match(pred, target):
     target = target.lower()
     eval_logger.debug(f"[exact_match] pred: '{pred}', target: '{target}'")
     if pred.lower() == target.lower():
-        eval_logger.debug(f"[exact_match] Matched via exact match")
+        eval_logger.debug("[exact_match] Matched via exact match")
         return 1.0
     elif pred in target:
-        eval_logger.debug(f"[exact_match] Matched via 'pred in target'")
+        eval_logger.debug("[exact_match] Matched via 'pred in target'")
         return 1.0
     elif pred[0] == target:
-        eval_logger.warning(f"[exact_match] SUSPICIOUS: Matched via pred[0]==target. pred[0]='{pred[0]}', target='{target}'. This compares first char to entire string!")
+        eval_logger.warning(
+            f"[exact_match] SUSPICIOUS: Matched via pred[0]==target. pred[0]='{pred[0]}', target='{target}'. This compares first char to entire string!"
+        )
         return 1.0
     else:
-        eval_logger.debug(f"[exact_match] No match")
+        eval_logger.debug("[exact_match] No match")
         return 0
 
 
@@ -261,6 +286,10 @@ def mean_relative_accuracy(pred, target, start, end, interval):
     return accuracy.mean()
 
 
+METRICS_FOR_MCA["accuracy"] = exact_match
+METRICS_FOR_NA["MRA:.5:.95:.05"] = partial(mean_relative_accuracy, start=0.5, end=0.95, interval=0.05)
+
+
 WORST_CASE_FOR_METRICS = {
     "accuracy": 0.0,
     "MRA:.5:.95:.05": 0.0,
@@ -270,23 +299,25 @@ WORST_CASE_FOR_METRICS = {
 def to_float(pred):
     try:
         pred = float(pred)
-    except BaseException as e:
+    except BaseException:
         pred = None
     return pred
 
 
 def sparbench_process_results(doc, results):
-
     doc["prediction"] = results[0]
     if doc["task"] in MCA_QUESTION_TYPES:
-        for key, value in METRICS_FOR_MCA.items():
-            doc[key] = eval(value)(doc["prediction"], doc["answer"])
-        pass
+        for key, metric_fn in METRICS_FOR_MCA.items():
+            doc[key] = metric_fn(doc["prediction"], doc["answer"])
     elif doc["task"] in NA_QUESTION_TYPES:
-        for key, value in METRICS_FOR_NA.items():
+        for key, metric_fn in METRICS_FOR_NA.items():
             try:
-                doc[key] = eval(value)(to_float(process_na(doc["prediction"], doc["task"])), to_float(doc["answer"]))
-            except:
+                doc[key] = metric_fn(to_float(process_na(doc["prediction"], doc["task"])), to_float(doc["answer"]))
+            except (TypeError, ValueError):
+                # ``to_float`` returns None for non-numeric predictions and the
+                # metric then raises TypeError on the arithmetic; ValueError is
+                # included for the rare case where ``process_na`` returns a
+                # string that cannot be float-coerced cleanly.
                 doc[key] = WORST_CASE_FOR_METRICS[key]
     elif doc["task"] in SPECIAL_QUESTION_TYPES:
         if doc["task"] == "view_change_infer":

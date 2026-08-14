@@ -53,7 +53,9 @@ def _question_to_content(question: list[dict], lmms_eval_specific_kwargs=None) -
         elif entry["type"] == "video":
             content.append(_process_video_entry(entry))
         else:
-            raise Exception("Your copy of the benchmark is corrupted. Please re-download the `benchmarks/` folder from HuggingFace.")
+            raise Exception(
+                "Your copy of the benchmark is corrupted. Please re-download the `benchmarks/` folder from HuggingFace."
+            )
     return content
 
 

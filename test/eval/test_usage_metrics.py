@@ -2,7 +2,6 @@ import os
 import unittest
 
 import pytest
-
 from lmms_eval.evaluator import simple_evaluate
 
 OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
@@ -39,7 +38,6 @@ def _run_eval(limit=2, max_tokens=None):
 @pytest.mark.slow
 @unittest.skipUnless(OPENROUTER_API_KEY, SKIP_REASON)
 class TestUsageTrackingE2E(unittest.TestCase):
-
     _cached_results = None
 
     @classmethod
@@ -93,7 +91,6 @@ class TestUsageTrackingE2E(unittest.TestCase):
 @pytest.mark.slow
 @unittest.skipUnless(OPENROUTER_API_KEY, SKIP_REASON)
 class TestBudgetEnforcement(unittest.TestCase):
-
     def test_budget_exceeded_with_tiny_limit(self):
         results = _run_eval(limit=2, max_tokens=1)
         usage = results["usage"]

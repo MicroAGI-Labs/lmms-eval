@@ -14,7 +14,7 @@ prefix convention (e.g. ``anthropic/claude-3-5-sonnet-20241022``).
 from __future__ import annotations
 
 import os
-from typing import Any, Optional
+from typing import Any
 
 from lmms_eval.api.registry import register_model
 from lmms_eval.models.simple.openai import OpenAICompatible as OpenAICompatibleBase
@@ -29,7 +29,7 @@ _PLACEHOLDER_API_KEY = "sk-litellm-placeholder"
 class _LiteLLMChatCompletions:
     """Duck-typed ``openai.OpenAI().chat.completions`` surface backed by ``litellm.completion``."""
 
-    def __init__(self, api_key: Optional[str], base_url: Optional[str]) -> None:
+    def __init__(self, api_key: str | None, base_url: str | None) -> None:
         self._api_key = api_key
         self._base_url = base_url
 
@@ -57,7 +57,7 @@ class _LiteLLMClientShim:
     provider-specific env vars (``ANTHROPIC_API_KEY``, ``GEMINI_API_KEY``, ``AWS_*``, ...).
     """
 
-    def __init__(self, api_key: Optional[str], base_url: Optional[str]) -> None:
+    def __init__(self, api_key: str | None, base_url: str | None) -> None:
         self.chat = _LiteLLMChat(_LiteLLMChatCompletions(api_key=api_key, base_url=base_url))
 
 
@@ -73,9 +73,9 @@ class LiteLLMCompatible(OpenAICompatibleBase):
     def __init__(
         self,
         model_version: str = "openai/gpt-4o-mini",
-        model: Optional[str] = None,
-        base_url: Optional[str] = None,
-        api_key: Optional[str] = None,
+        model: str | None = None,
+        base_url: str | None = None,
+        api_key: str | None = None,
         **kwargs: Any,
     ) -> None:
         resolved_api_key = api_key or os.getenv("OPENAI_API_KEY")

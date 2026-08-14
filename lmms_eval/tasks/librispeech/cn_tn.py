@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# coding=utf-8
 # copied from https://github.com/speechio/chinese_text_normalization/blob/master/python/cn_tn.py
 # Authors:
 #   2019.5 Zhiyang Zhou (https://github.com/Joee1995/chn_text_norm.git)
@@ -51,7 +50,10 @@ ER_WHITELIST_PATTERN = re.compile(ER_WHITELIST)
 # 中文数字系统类型
 NUMBERING_TYPES = ["low", "mid", "high"]
 
-CURRENCY_NAMES = "(人民币|美元|日元|英镑|欧元|马克|法郎|加拿大元|澳元|港币|先令|芬兰马克|爱尔兰镑|" "里拉|荷兰盾|埃斯库多|比塞塔|印尼盾|林吉特|新西兰元|比索|卢布|新加坡元|韩元|泰铢)"
+CURRENCY_NAMES = (
+    "(人民币|美元|日元|英镑|欧元|马克|法郎|加拿大元|澳元|港币|先令|芬兰马克|爱尔兰镑|"
+    "里拉|荷兰盾|埃斯库多|比塞塔|印尼盾|林吉特|新西兰元|比索|卢布|新加坡元|韩元|泰铢)"
+)
 CURRENCY_UNITS = "((亿|千万|百万|万|千|百)|(亿|千万|百万|万|千|百|)元|(亿|千万|百万|万|千|百|)块|角|毛|分)"
 COM_QUANTIFIERS = (
     "(匹|张|座|回|场|尾|条|个|首|阙|阵|网|炮|顶|丘|棵|只|支|袭|辆|挑|担|颗|壳|窠|曲|墙|群|腔|"
@@ -395,7 +397,7 @@ IN_VALID_CHARS = {c: True for c in VALID_CHARS}
 # ================================================================================ #
 #                                    basic class
 # ================================================================================ #
-class ChineseChar(object):
+class ChineseChar:
     """
     中文字符
     每个字符对应简体和繁体,
@@ -429,20 +431,28 @@ class ChineseNumberUnit(ChineseChar):
         self.big_t = big_t
 
     def __str__(self):
-        return "10^{}".format(self.power)
+        return f"10^{self.power}"
 
     @classmethod
     def create(cls, index, value, numbering_type=NUMBERING_TYPES[1], small_unit=False):
         if small_unit:
-            return ChineseNumberUnit(power=index + 1, simplified=value[0], traditional=value[1], big_s=value[1], big_t=value[1])
+            return ChineseNumberUnit(
+                power=index + 1, simplified=value[0], traditional=value[1], big_s=value[1], big_t=value[1]
+            )
         elif numbering_type == NUMBERING_TYPES[0]:
-            return ChineseNumberUnit(power=index + 8, simplified=value[0], traditional=value[1], big_s=value[0], big_t=value[1])
+            return ChineseNumberUnit(
+                power=index + 8, simplified=value[0], traditional=value[1], big_s=value[0], big_t=value[1]
+            )
         elif numbering_type == NUMBERING_TYPES[1]:
-            return ChineseNumberUnit(power=(index + 2) * 4, simplified=value[0], traditional=value[1], big_s=value[0], big_t=value[1])
+            return ChineseNumberUnit(
+                power=(index + 2) * 4, simplified=value[0], traditional=value[1], big_s=value[0], big_t=value[1]
+            )
         elif numbering_type == NUMBERING_TYPES[2]:
-            return ChineseNumberUnit(power=pow(2, index + 3), simplified=value[0], traditional=value[1], big_s=value[0], big_t=value[1])
+            return ChineseNumberUnit(
+                power=pow(2, index + 3), simplified=value[0], traditional=value[1], big_s=value[0], big_t=value[1]
+            )
         else:
-            raise ValueError("Counting type should be in {0} ({1} provided).".format(NUMBERING_TYPES, numbering_type))
+            raise ValueError(f"Counting type should be in {NUMBERING_TYPES} ({numbering_type} provided).")
 
 
 class ChineseNumberDigit(ChineseChar):
@@ -482,7 +492,7 @@ class ChineseMath(ChineseChar):
 CC, CNU, CND, CM = ChineseChar, ChineseNumberUnit, ChineseNumberDigit, ChineseMath
 
 
-class NumberSystem(object):
+class NumberSystem:
     """
     中文数字系统
     """
@@ -490,7 +500,7 @@ class NumberSystem(object):
     pass
 
 
-class MathSymbol(object):
+class MathSymbol:
     """
     用于中文数字系统的数学符号 (繁/简体), e.g.
     positive = ['正', '正']
@@ -637,12 +647,22 @@ def chn2num(chinese_string, numbering_type=NUMBERING_TYPES[1]):
     int_str = str(compute_value(int_part))
     dec_str = "".join([str(d.value) for d in dec_part])
     if dec_part:
-        return "{0}.{1}".format(int_str, dec_str)
+        return f"{int_str}.{dec_str}"
     else:
         return int_str
 
 
-def num2chn(number_string, numbering_type=NUMBERING_TYPES[1], big=False, traditional=False, alt_zero=False, alt_one=False, alt_two=True, use_zeros=True, use_units=True):
+def num2chn(
+    number_string,
+    numbering_type=NUMBERING_TYPES[1],
+    big=False,
+    traditional=False,
+    alt_zero=False,
+    alt_one=False,
+    alt_two=True,
+    use_zeros=True,
+    use_units=True,
+):
     def get_value(value_string, use_zeros=True):
         striped_string = value_string.lstrip("0")
 
@@ -673,7 +693,7 @@ def num2chn(number_string, numbering_type=NUMBERING_TYPES[1], big=False, traditi
         int_string = int_dec[0]
         dec_string = int_dec[1]
     else:
-        raise ValueError("invalid input num string with more than one dot: {}".format(number_string))
+        raise ValueError(f"invalid input num string with more than one dot: {number_string}")
 
     if use_units and len(int_string) > 1:
         result_symbols = get_value(int_string)
@@ -722,7 +742,11 @@ def num2chn(number_string, numbering_type=NUMBERING_TYPES[1], big=False, traditi
             return CHINESE_DIGIS[0] + result
 
     # ^10, 11, .., 19
-    if len(result) >= 2 and result[1] in [SMALLER_CHINESE_NUMERING_UNITS_SIMPLIFIED[0], SMALLER_CHINESE_NUMERING_UNITS_TRADITIONAL[0]] and result[0] in [CHINESE_DIGIS[1], BIG_CHINESE_DIGIS_SIMPLIFIED[1], BIG_CHINESE_DIGIS_TRADITIONAL[1]]:
+    if (
+        len(result) >= 2
+        and result[1] in [SMALLER_CHINESE_NUMERING_UNITS_SIMPLIFIED[0], SMALLER_CHINESE_NUMERING_UNITS_TRADITIONAL[0]]
+        and result[0] in [CHINESE_DIGIS[1], BIG_CHINESE_DIGIS_SIMPLIFIED[1], BIG_CHINESE_DIGIS_TRADITIONAL[1]]
+    ):
         result = result[1:]
 
     return result
@@ -1106,10 +1130,14 @@ if __name__ == "__main__":
     p.add_argument("--to_upper", action="store_true", help="convert to upper case")
     p.add_argument("--to_lower", action="store_true", help="convert to lower case")
     p.add_argument("--remove_fillers", action="store_true", help='remove filler chars such as "呃, 啊"')
-    p.add_argument("--remove_erhua", action="store_true", help='remove erhua chars such as "他女儿在那边儿 -> 他女儿在那边"')
+    p.add_argument(
+        "--remove_erhua", action="store_true", help='remove erhua chars such as "他女儿在那边儿 -> 他女儿在那边"'
+    )
     p.add_argument("--check_chars", action="store_true", help="skip sentences containing illegal chars")
     p.add_argument("--remove_space", action="store_true", help="remove whitespace")
-    p.add_argument("--cc_mode", choices=["", "t2s", "s2t"], default="", help="convert between traditional to simplified")
+    p.add_argument(
+        "--cc_mode", choices=["", "t2s", "s2t"], default="", help="convert between traditional to simplified"
+    )
 
     # I/O options
     p.add_argument("--log_interval", type=int, default=10000, help="log interval in number of processed lines")
@@ -1135,7 +1163,7 @@ if __name__ == "__main__":
     )
 
     ndone = 0
-    with open(args.ifile, "r", encoding="utf8") as istream, open(args.ofile, "w+", encoding="utf8") as ostream:
+    with open(args.ifile, encoding="utf8") as istream, open(args.ofile, "w+", encoding="utf8") as ostream:
         if args.format == "tsv":
             reader = csv.DictReader(istream, delimiter="\t")
             assert "TEXT" in reader.fieldnames

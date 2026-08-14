@@ -3,18 +3,17 @@ import os
 import time
 from copy import deepcopy
 from io import BytesIO
-from typing import Any, List, Tuple
+from typing import Any
 
 import librosa
 import numpy as np
 import soundfile as sf
 from accelerate import Accelerator, DistributedType
-from openai import AzureOpenAI, OpenAI
-from tqdm import tqdm
-
 from lmms_eval.api.instance import Instance
 from lmms_eval.api.model import lmms
 from lmms_eval.api.registry import register_model
+from openai import AzureOpenAI, OpenAI
+from tqdm import tqdm
 
 try:
     from scipy import signal
@@ -60,7 +59,9 @@ class GPT4OAudio(lmms):
         super().__init__()
 
         if librosa is None or sf is None:
-            raise ImportError("librosa and soundfile are required for GPT-4o audio. Please install with: pip install librosa soundfile")
+            raise ImportError(
+                "librosa and soundfile are required for GPT-4o audio. Please install with: pip install librosa soundfile"
+            )
 
         self.model_version = model_version
         self.modality = modality
@@ -76,7 +77,11 @@ class GPT4OAudio(lmms):
 
         accelerator = Accelerator()
         if accelerator.num_processes > 1:
-            assert accelerator.distributed_type in [DistributedType.FSDP, DistributedType.MULTI_GPU, DistributedType.DEEPSPEED], "Unsupported distributed type provided. Only DDP and FSDP are supported."
+            assert accelerator.distributed_type in [
+                DistributedType.FSDP,
+                DistributedType.MULTI_GPU,
+                DistributedType.DEEPSPEED,
+            ], "Unsupported distributed type provided. Only DDP and FSDP are supported."
             self.accelerator = accelerator
             if self.accelerator.is_local_main_process:
                 eval_logger.info(f"Using {accelerator.num_processes} devices with data parallelism")
@@ -107,7 +112,9 @@ class GPT4OAudio(lmms):
             audio_array = audio_input["array"]
             sample_rate = audio_input.get("sampling_rate", 16000)
         else:
-            raise ValueError(f"Unsupported audio input type: {type(audio_input)}. Only HuggingFace dataset format (dict with 'array' and 'sampling_rate' keys) is supported.")
+            raise ValueError(
+                f"Unsupported audio input type: {type(audio_input)}. Only HuggingFace dataset format (dict with 'array' and 'sampling_rate' keys) is supported."
+            )
 
         if hasattr(audio_array, "dtype") and audio_array.dtype != np.float32:
             audio_array = audio_array.astype(np.float32)
@@ -141,7 +148,9 @@ class GPT4OAudio(lmms):
                     compressed_audio = signal.resample(audio_array, target_length)
                     compressed_sr = attempt["sample_rate"]
                 elif attempt["sample_rate"] != sample_rate:
-                    compressed_audio = librosa.resample(audio_array, orig_sr=sample_rate, target_sr=attempt["sample_rate"])
+                    compressed_audio = librosa.resample(
+                        audio_array, orig_sr=sample_rate, target_sr=attempt["sample_rate"]
+                    )
                     compressed_sr = attempt["sample_rate"]
                 else:
                     compressed_audio = audio_array.copy()
@@ -157,7 +166,9 @@ class GPT4OAudio(lmms):
                 audio_bytes = buffer.getvalue()
 
                 if len(audio_bytes) <= max_bytes:
-                    eval_logger.info(f"Audio compressed: {len(audio_array)/sample_rate:.1f}s@{sample_rate}Hz -> {len(compressed_audio)/compressed_sr:.1f}s@{compressed_sr}Hz ({len(audio_bytes)/(1024*1024):.2f}MB)")
+                    eval_logger.info(
+                        f"Audio compressed: {len(audio_array) / sample_rate:.1f}s@{sample_rate}Hz -> {len(compressed_audio) / compressed_sr:.1f}s@{compressed_sr}Hz ({len(audio_bytes) / (1024 * 1024):.2f}MB)"
+                    )
                     break
 
             except Exception as e:
@@ -176,7 +187,9 @@ class GPT4OAudio(lmms):
                 audio_bytes = buffer.getvalue()
 
                 if len(audio_bytes) <= max_bytes:
-                    eval_logger.info(f"Audio truncated to {len(truncated_audio)/sample_rate:.1f}s ({len(audio_bytes)/(1024*1024):.2f}MB)")
+                    eval_logger.info(
+                        f"Audio truncated to {len(truncated_audio) / sample_rate:.1f}s ({len(audio_bytes) / (1024 * 1024):.2f}MB)"
+                    )
                     compressed_audio = truncated_audio
                     compressed_sr = sample_rate
                     break
@@ -185,7 +198,12 @@ class GPT4OAudio(lmms):
             eval_logger.warning(f"Could not compress audio below {max_size_mb}MB limit. Using truncated version.")
 
         buffer = BytesIO()
-        sf.write(buffer, compressed_audio if "compressed_audio" in locals() else audio_array, compressed_sr if "compressed_sr" in locals() else sample_rate, format="WAV")
+        sf.write(
+            buffer,
+            compressed_audio if "compressed_audio" in locals() else audio_array,
+            compressed_sr if "compressed_sr" in locals() else sample_rate,
+            format="WAV",
+        )
         audio_bytes = buffer.getvalue()
 
         if len(audio_bytes) == 0:
@@ -207,7 +225,7 @@ class GPT4OAudio(lmms):
                 new_list.append(j)
         return new_list
 
-    def generate_until(self, requests) -> List[str]:
+    def generate_until(self, requests) -> list[str]:
         res = []
         pbar = tqdm(total=len(requests), disable=(self.rank != 0), desc="Model Responding")
 
@@ -239,7 +257,9 @@ class GPT4OAudio(lmms):
 
             for encoded_audio in encoded_audios:
                 if encoded_audio and len(encoded_audio) > 0:
-                    user_content.append({"type": "input_audio", "input_audio": {"data": encoded_audio, "format": "wav"}})
+                    user_content.append(
+                        {"type": "input_audio", "input_audio": {"data": encoded_audio, "format": "wav"}}
+                    )
 
             if contexts and contexts.strip():
                 user_content.append({"type": "text", "text": contexts})
@@ -296,7 +316,9 @@ class GPT4OAudio(lmms):
 
             # Check if audio size is reasonable (OpenAI has limits)
             if total_audio_size > 20 * 1024 * 1024:  # 20MB limit (conservative)
-                eval_logger.warning(f"Audio data size ({total_audio_size / (1024*1024):.2f} MB) may exceed API limits")
+                eval_logger.warning(
+                    f"Audio data size ({total_audio_size / (1024 * 1024):.2f} MB) may exceed API limits"
+                )
 
             for attempt in range(MAX_RETRIES):
                 try:
@@ -306,7 +328,9 @@ class GPT4OAudio(lmms):
                     # eval_logger.info(f"API type: {API_TYPE}")
 
                     if "audio" not in payload["model"].lower():
-                        eval_logger.warning(f"Model name '{payload['model']}' may not support audio. Consider using 'gpt-4o-audio-preview'")
+                        eval_logger.warning(
+                            f"Model name '{payload['model']}' may not support audio. Consider using 'gpt-4o-audio-preview'"
+                        )
 
                     response = self.client.chat.completions.create(**payload)
 
@@ -370,9 +394,9 @@ class GPT4OAudio(lmms):
     def world_size(self):
         return self._world_size
 
-    def generate_until_multi_round(self, requests) -> List[str]:
+    def generate_until_multi_round(self, requests) -> list[str]:
         raise NotImplementedError("GPT4O-Audio not support")
 
-    def loglikelihood(self, requests: List[Instance]) -> List[Tuple[float, bool]]:
+    def loglikelihood(self, requests: list[Instance]) -> list[tuple[float, bool]]:
         # TODO
         assert False, "GPT4O-Audio not support"

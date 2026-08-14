@@ -4,15 +4,14 @@ import time
 from copy import deepcopy
 
 import numpy as np
-from loguru import logger as eval_logger
-
 from lmms_eval.llm_judge import Request, ServerConfig, get_server
+from loguru import logger as eval_logger
 
 NUM_SECONDS_TO_SLEEP = 5
 
 LLAVA_W_METRICS = ["gpt_eval_llava_conv", "gpt_eval_llava_detail", "gpt_eval_llava_complex"]
 
-rule_dict = json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "rule.json"), "r"))
+rule_dict = json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "rule.json")))
 
 # Config loading removed - now using environment variables directly
 
@@ -104,7 +103,13 @@ def llava_process_results(doc, result):
         rule = rule_dict.get(category, {})
         prompt = rule.get("prompt", "")
         role = rule.get("role", "user")
-        content = f"[Context]\n{context}\n\n" f"[Question]\n{question}\n\n" f"[{role} 1]\n{ans1}\n\n[End of {role} 1]\n\n" f"[{role} 2]\n{ans2}\n\n[End of {role} 2]\n\n" f"[System]\n{prompt}\n\n"
+        content = (
+            f"[Context]\n{context}\n\n"
+            f"[Question]\n{question}\n\n"
+            f"[{role} 1]\n{ans1}\n\n[End of {role} 1]\n\n"
+            f"[{role} 2]\n{ans2}\n\n[End of {role} 2]\n\n"
+            f"[System]\n{prompt}\n\n"
+        )
 
         review, model_name = get_eval(content, 1024)
         scores = parse_score(review)
@@ -115,7 +120,17 @@ def llava_process_results(doc, result):
         scores = [-1, -1]
 
     metric = f"gpt_eval_llava_{doc.get('category', 'all')}"
-    category_review_dict = {"question": question, "ans1": ans1, "ans2": ans2, "context": context, "category": category, "review": review, "scores": scores, "eval_model": model_name, "content": content}
+    category_review_dict = {
+        "question": question,
+        "ans1": ans1,
+        "ans2": ans2,
+        "context": context,
+        "category": category,
+        "review": review,
+        "scores": scores,
+        "eval_model": model_name,
+        "content": content,
+    }
 
     non_category_review_dict = deepcopy(category_review_dict)
     non_category_review_dict["scores"] = [-999, -999]

@@ -6,11 +6,10 @@ from pathlib import Path
 
 import yaml
 from latex2sympy2 import latex2sympy
-from sympy import simplify
-from word2number import w2n
-
 from lmms_eval.llm_judge import get_server
 from lmms_eval.llm_judge.protocol import ServerConfig
+from sympy import simplify
+from word2number import w2n
 
 eval_logger = logging.getLogger("lmms-eval")
 
@@ -18,11 +17,14 @@ dir_name = os.path.dirname(os.path.abspath(__file__))
 
 
 stare_config = {
-    "Strategy_Instruction": {"CoT": "Please solve the problem step by step.", "Directly": "Please ensure that your output only contains the final answer without any additional content (such as intermediate reasoning steps)."},
+    "Strategy_Instruction": {
+        "CoT": "Please solve the problem step by step.",
+        "Directly": "Please ensure that your output only contains the final answer without any additional content (such as intermediate reasoning steps).",
+    },
     "multi_choice_format": '\n{question}\nAnswer with the option\'s letter from the given choices and put the letter in one "\\boxed{{}}". ',
 }
 
-with open(Path(__file__).parent / "_default_template_yaml", "r") as f:
+with open(Path(__file__).parent / "_default_template_yaml") as f:
     raw_data = f.readlines()
     safe_data = []
     for i, line in enumerate(raw_data):
@@ -136,7 +138,15 @@ def stare_process_results(doc, results):
                 # Parse the judge result to determine correctness
                 is_correct = "correct" in judge_result and "incorrect" not in judge_result
 
-                stare_submission = {"id": doc["qid"], "query": query, "gt_content": gt, "pred": pred, "category": doc["category"], "judge_response": judge_response, "is_correct": is_correct}
+                stare_submission = {
+                    "id": doc["qid"],
+                    "query": query,
+                    "gt_content": gt,
+                    "pred": pred,
+                    "category": doc["category"],
+                    "judge_response": judge_response,
+                    "is_correct": is_correct,
+                }
 
             except Exception as e:
                 eval_logger.error(f"Error using LMM judge: {e}")
@@ -144,12 +154,27 @@ def stare_process_results(doc, results):
                 pred_extracted = fast_extract_answer(pred)
                 is_correct = is_equal(pred_extracted, gt)
 
-                stare_submission = {"id": doc["qid"], "query": query, "gt_content": gt, "pred": pred, "category": doc["category"], "judge_error": str(e), "is_correct": is_correct}
+                stare_submission = {
+                    "id": doc["qid"],
+                    "query": query,
+                    "gt_content": gt,
+                    "pred": pred,
+                    "category": doc["category"],
+                    "judge_error": str(e),
+                    "is_correct": is_correct,
+                }
 
         else:
             # for no lmms judge, use fast_extract_answer only
             pred = fast_extract_answer(pred)
-            stare_submission = {"id": doc["qid"], "query": query, "gt_content": gt, "pred": pred, "category": doc["category"], "is_correct": is_equal(pred, gt)}
+            stare_submission = {
+                "id": doc["qid"],
+                "query": query,
+                "gt_content": gt,
+                "pred": pred,
+                "category": doc["category"],
+                "is_correct": is_equal(pred, gt),
+            }
         return {key_name: stare_submission}
 
 
@@ -232,7 +257,6 @@ def is_number(s):
 
 
 def is_equal(md_ans, gt_ans):
-
     md_ans = md_ans.lower()
     gt_ans = gt_ans.lower()
 

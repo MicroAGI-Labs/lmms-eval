@@ -3,11 +3,14 @@ import warnings
 warnings.simplefilter("ignore", category=DeprecationWarning)
 warnings.filterwarnings("ignore")
 
-from typing import List, Optional, Tuple, Union
 
 import torch
 from accelerate import Accelerator, DistributedType
 from accelerate.state import AcceleratorState
+from lmms_eval import utils
+from lmms_eval.api.instance import Instance
+from lmms_eval.api.model import lmms
+from lmms_eval.api.registry import register_model
 from loguru import logger as eval_logger
 from tqdm import tqdm
 from transformers import (
@@ -16,11 +19,6 @@ from transformers import (
     FuyuImageProcessor,
     FuyuProcessor,
 )
-
-from lmms_eval import utils
-from lmms_eval.api.instance import Instance
-from lmms_eval.api.model import lmms
-from lmms_eval.api.registry import register_model
 
 
 @register_model("fuyu")
@@ -32,9 +30,9 @@ class Fuyu(lmms):
     def __init__(
         self,
         pretrained: str = "adept/fuyu-8b",
-        device: Optional[str] = "cuda",
+        device: str | None = "cuda",
         max_new_tokens: int = 256,
-        batch_size: Optional[Union[int, str]] = 1,
+        batch_size: int | str | None = 1,
         **kwargs,
     ) -> None:
         super().__init__()
@@ -59,7 +57,11 @@ class Fuyu(lmms):
         self.batch_size_per_gpu = int(batch_size)
         accelerator = Accelerator()
         if accelerator.num_processes > 1:
-            assert accelerator.distributed_type in [DistributedType.FSDP, DistributedType.MULTI_GPU, DistributedType.DEEPSPEED], "Unsupported distributed type provided. Only DDP and FSDP are supported."
+            assert accelerator.distributed_type in [
+                DistributedType.FSDP,
+                DistributedType.MULTI_GPU,
+                DistributedType.DEEPSPEED,
+            ], "Unsupported distributed type provided. Only DDP and FSDP are supported."
             # If you want to use DistributedType.DEEPSPEED, you have to run accelerate config before using the model
             # Also, you have to select zero stage 0 (equivalent to DDP) in order to make the prepare model works
             # I tried to set different parameters in the kwargs to let default zero 2 stage works, but it didn't work.
@@ -69,8 +71,13 @@ class Fuyu(lmms):
                     "train_batch_size": self.batch_size_per_gpu * accelerator.num_processes,
                 }
                 AcceleratorState().deepspeed_plugin.deepspeed_config_process(must_match=True, **kwargs)
-                eval_logger.info("Detected that you are using DistributedType.DEEPSPEED. Make sure you run `accelerate config` and set zero stage to 0")
-            if accelerator.distributed_type == DistributedType.FSDP or accelerator.distributed_type == DistributedType.DEEPSPEED:
+                eval_logger.info(
+                    "Detected that you are using DistributedType.DEEPSPEED. Make sure you run `accelerate config` and set zero stage to 0"
+                )
+            if (
+                accelerator.distributed_type == DistributedType.FSDP
+                or accelerator.distributed_type == DistributedType.DEEPSPEED
+            ):
                 self._model = accelerator.prepare(self.model)
             else:
                 self._model = accelerator.prepare_model(self.model, evaluation_mode=True)
@@ -151,7 +158,7 @@ class Fuyu(lmms):
                     break
         return new_list
 
-    def generate_until(self, requests: List[Instance]) -> List[str]:
+    def generate_until(self, requests: list[Instance]) -> list[str]:
         res = []
 
         def _collate(x):
@@ -166,7 +173,11 @@ class Fuyu(lmms):
 
         re_ords = utils.Collator([reg.args for reg in requests], _collate, grouping=True)
         chunks = re_ords.get_batched(n=self.batch_size, batch_fn=None)
-        num_iters = len(requests) // self.batch_size if len(requests) % self.batch_size == 0 else len(requests) // self.batch_size + 1
+        num_iters = (
+            len(requests) // self.batch_size
+            if len(requests) % self.batch_size == 0
+            else len(requests) // self.batch_size + 1
+        )
         pbar = tqdm(total=num_iters, disable=(self.rank != 0), desc="Model Responding")
 
         for chunk in chunks:
@@ -185,10 +196,16 @@ class Fuyu(lmms):
             formatted_contexts = [f"{context}\n" for context in contexts]
             model_inputs = self.processor(text=formatted_contexts, images=visuals, device=self.device)
             for k, v in model_inputs.items():
-                model_inputs[k] = v.to(self.device, non_blocking=True) if isinstance(v, torch.Tensor) else [vv.to(self.device, non_blocking=True) for vv in v]
+                model_inputs[k] = (
+                    v.to(self.device, non_blocking=True)
+                    if isinstance(v, torch.Tensor)
+                    else [vv.to(self.device, non_blocking=True) for vv in v]
+                )
 
             for index in range(len(model_inputs["image_patches"])):
-                model_inputs["image_patches"][index] = model_inputs["image_patches"][index].to(dtype=next(self.model.parameters()).dtype)
+                model_inputs["image_patches"][index] = model_inputs["image_patches"][index].to(
+                    dtype=next(self.model.parameters()).dtype
+                )
 
             # preconfigure gen_kwargs with defaults
             gen_kwargs["image_sizes"] = [visuals[idx].size for idx in range(len(visuals))]
@@ -203,7 +220,9 @@ class Fuyu(lmms):
             # generation_output = self.model.generate(
             #     **model_inputs, temperature=gen_kwargs["temperature"], max_new_tokens=gen_kwargs["max_new_tokens"], top_p=gen_kwargs["top_p"], num_beams=gen_kwargs["num_beams"], pad_token_id=self.tokenizer.eos_token_id
             # )
-            generation_output = self.model.generate(**model_inputs, max_new_tokens=gen_kwargs["max_new_tokens"], pad_token_id=self.tokenizer.eos_token_id)
+            generation_output = self.model.generate(
+                **model_inputs, max_new_tokens=gen_kwargs["max_new_tokens"], pad_token_id=self.tokenizer.eos_token_id
+            )
             generation_texts = self.processor.batch_decode(generation_output, skip_special_tokens=True)
             response = [gen_text.split("\x04")[1].strip(" ").strip("\n") for gen_text in generation_texts]
             res.extend(response)
@@ -212,7 +231,7 @@ class Fuyu(lmms):
         pbar.close()
         return res
 
-    def loglikelihood(self, requests: List[Instance]) -> List[Tuple[float, bool]]:
+    def loglikelihood(self, requests: list[Instance]) -> list[tuple[float, bool]]:
         # TODO
         res = []
         pbar = tqdm(total=len(requests), disable=(self.rank != 0), desc="Model Responding")
@@ -229,10 +248,16 @@ class Fuyu(lmms):
             formatted_continuation = [f"{contexts}\n{continuation}"]
             model_inputs = self.processor(text=formatted_continuation, images=visuals, device=self.device)
             for k, v in model_inputs.items():
-                model_inputs[k] = v.to(self.device, non_blocking=True) if isinstance(v, torch.Tensor) else [vv.to(self.device, non_blocking=True) for vv in v]
+                model_inputs[k] = (
+                    v.to(self.device, non_blocking=True)
+                    if isinstance(v, torch.Tensor)
+                    else [vv.to(self.device, non_blocking=True) for vv in v]
+                )
 
             for index in range(len(model_inputs["image_patches"])):
-                model_inputs["image_patches"][index] = model_inputs["image_patches"][index].to(dtype=next(self.model.parameters()).dtype)
+                model_inputs["image_patches"][index] = model_inputs["image_patches"][index].to(
+                    dtype=next(self.model.parameters()).dtype
+                )
 
             labels = model_inputs["input_ids"].clone()
             contxt_id = self.processor(text=formatted_contexts, return_tensors="pt")["input_ids"]
@@ -252,7 +277,7 @@ class Fuyu(lmms):
         pbar.close()
         return res
 
-    def tok_encode(self, string: str, left_truncate_len=None, add_special_tokens=None) -> List[int]:
+    def tok_encode(self, string: str, left_truncate_len=None, add_special_tokens=None) -> list[int]:
         """ """
         add_special_tokens = False if add_special_tokens is None else add_special_tokens
         encoding = self.tokenizer.encode(string, add_special_tokens=add_special_tokens)
@@ -264,5 +289,5 @@ class Fuyu(lmms):
     def tok_decode(self, tokens):
         return self.tokenizer.decode(tokens)
 
-    def generate_until_multi_round(self, requests) -> List[str]:
+    def generate_until_multi_round(self, requests) -> list[str]:
         raise NotImplementedError("TODO: Implement multi-round generation for Fuyu")

@@ -14,9 +14,7 @@ from videomathqa.utils import (
 )
 from vllm import LLM, SamplingParams
 
-mcq_prompt = (
-    "Given the original multiple-choice options and a model-generated answer containing reasoning and a final answer, identify the option that best matches the final answer and return only the corresponding letter (A, B, C, D, or E)."
-)
+mcq_prompt = "Given the original multiple-choice options and a model-generated answer containing reasoning and a final answer, identify the option that best matches the final answer and return only the corresponding letter (A, B, C, D, or E)."
 mbin_prommpt = "Given the original binary options and a model-generated answer containing reasoning and a final answer, identify the option that best matches the final answer and return only the corresponding letter (A or B)."
 
 
@@ -50,7 +48,7 @@ Only return the letter A, B, C, D, or E. If none is found, return "None".""",
 
 def refine_samples_vllm(llm, sampling_params, tokenizer, sample_jsonl, output_jsonl, mcq=True):
     raw_samples = []
-    with open(sample_jsonl, "r") as f:
+    with open(sample_jsonl) as f:
         for line in f:
             raw_samples.append(json.loads(line))
     print(f"Loaded {len(raw_samples)} samples from {sample_jsonl}")
@@ -114,8 +112,12 @@ def postprocess_jsonl(llm, sampling_params, tokenizer, sample_jsonl, output_json
 def main():
     parser = argparse.ArgumentParser(description="Postprocess a CoT predictions using the Qwen model.")
     parser.add_argument("--input_file", type=str, required=True, help="Path to the input JSONL file.")
-    parser.add_argument("--output_file", type=str, required=True, help="Path to save the postprocessed output JSONL file.")
-    parser.add_argument("--model_path", type=str, default="Qwen/Qwen3-4B", help="Path to the pretrained Qwen model (default: Qwen3-4B).")
+    parser.add_argument(
+        "--output_file", type=str, required=True, help="Path to save the postprocessed output JSONL file."
+    )
+    parser.add_argument(
+        "--model_path", type=str, default="Qwen/Qwen3-4B", help="Path to the pretrained Qwen model (default: Qwen3-4B)."
+    )
 
     args = parser.parse_args()
 

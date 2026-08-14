@@ -1,6 +1,5 @@
 import re
 from math import isclose
-from typing import Dict, List
 
 
 def parse_math_answer(raw_string):
@@ -132,7 +131,7 @@ def clean_number_string(s):
     return s.replace(",", "").replace("−", "-").strip()
 
 
-def scibench_doc_to_text(doc: Dict, lmms_eval_specific_kwargs: Dict) -> str:
+def scibench_doc_to_text(doc: dict, lmms_eval_specific_kwargs: dict) -> str:
     pre_prompt = lmms_eval_specific_kwargs["pre_prompt"]
     post_prompt = lmms_eval_specific_kwargs["post_prompt"]
     question = doc["problem_text"]
@@ -146,7 +145,7 @@ def scibench_doc_to_text(doc: Dict, lmms_eval_specific_kwargs: Dict) -> str:
     return f"{pre_prompt}\nQuestion: {question}{post_prompt}"
 
 
-def scibench_process_results(doc: Dict, result: List[str]) -> Dict[str, float]:
+def scibench_process_results(doc: dict, result: list[str]) -> dict[str, float]:
     """Fixed version with proper null handling"""
     pred = result[0]
 

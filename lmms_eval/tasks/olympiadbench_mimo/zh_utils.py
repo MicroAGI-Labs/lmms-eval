@@ -40,7 +40,9 @@ def olympiadbench_doc_to_text(doc):
         post_prompt += f"答案类型为{ans_type}。\n"
     else:
         post_prompt += f"题目有多个答案，答案类型均为{ans_type}。\n"
-    post_prompt += "请根据题目的要求和所提供的信息计算得出答案。解答过程和结果中使用的变量和公式请使用LaTeX格式表示。请在最后以"
+    post_prompt += (
+        "请根据题目的要求和所提供的信息计算得出答案。解答过程和结果中使用的变量和公式请使用LaTeX格式表示。请在最后以"
+    )
     if not mul_ans:
         post_prompt += '"所以最终答案是\\boxed{答案}。"\n'
     else:

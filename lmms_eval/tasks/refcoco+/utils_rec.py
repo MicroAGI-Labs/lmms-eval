@@ -17,7 +17,16 @@ def refcoco_bbox_rec_preprocess_dataset(dataset: Dataset):
     # Convert to (top-left x, top-left y, bottom-right x, bottom-right y)
     # Normalize the bounding box coordinates to be between 0 and 1
     # using the image width and height
-    dataset = dataset.map(lambda x: {"bbox": [x["bbox"][0] / x["image_width"], x["bbox"][1] / x["image_height"], (x["bbox"][0] + x["bbox"][2]) / x["image_width"], (x["bbox"][1] + x["bbox"][3]) / x["image_height"]]})
+    dataset = dataset.map(
+        lambda x: {
+            "bbox": [
+                x["bbox"][0] / x["image_width"],
+                x["bbox"][1] / x["image_height"],
+                (x["bbox"][0] + x["bbox"][2]) / x["image_width"],
+                (x["bbox"][1] + x["bbox"][3]) / x["image_height"],
+            ]
+        }
+    )
 
     # currently, the dataset has `answer` as a list of strings
     # each answer should be its own row

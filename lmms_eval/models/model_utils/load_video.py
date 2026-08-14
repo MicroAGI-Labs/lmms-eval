@@ -1,12 +1,11 @@
 import importlib
 import os
-from typing import Optional, Union
 
 import av
 import numpy as np
 
 
-def _resolve_video_path(video_path: Union[str, tuple, list]) -> str:
+def _resolve_video_path(video_path: str | tuple | list) -> str:
     if isinstance(video_path, str):
         return video_path
     if isinstance(video_path, (tuple, list)) and len(video_path) > 0 and isinstance(video_path[0], str):
@@ -14,14 +13,14 @@ def _resolve_video_path(video_path: Union[str, tuple, list]) -> str:
     raise TypeError(f"Unsupported video_path type: {type(video_path).__name__}")
 
 
-def _normalize_decode_backend(backend: Optional[str]) -> str:
+def _normalize_decode_backend(backend: str | None) -> str:
     selected = (backend or os.getenv("LMMS_VIDEO_DECODE_BACKEND", "pyav")).strip().lower()
     if selected not in {"pyav", "torchcodec", "dali"}:
         raise ValueError(f"Unsupported video decode backend: {selected}. Expected one of: pyav, torchcodec, dali")
     return selected
 
 
-def _probe_video_metadata(video_path: str) -> tuple[int, Optional[float]]:
+def _probe_video_metadata(video_path: str) -> tuple[int, float | None]:
     container = av.open(video_path)
     try:
         stream = container.streams.video[0]
@@ -32,7 +31,7 @@ def _probe_video_metadata(video_path: str) -> tuple[int, Optional[float]]:
         container.close()
 
 
-def _compute_sample_count(total_frames: int, num_frm: int, fps: Optional[float], frame_rate: Optional[float]) -> int:
+def _compute_sample_count(total_frames: int, num_frm: int, fps: float | None, frame_rate: float | None) -> int:
     if total_frames <= 0:
         return max(1, num_frm)
     sampled = min(total_frames, num_frm)
@@ -104,7 +103,7 @@ def record_video_length_packet(container):
     return frames
 
 
-def load_video_stream(container, num_frm: int = 8, fps: Optional[float] = None, force_include_last_frame=False):
+def load_video_stream(container, num_frm: int = 8, fps: float | None = None, force_include_last_frame=False):
     # container = av.open(video_path)
     total_frames = container.streams.video[0].frames
     frame_rate = container.streams.video[0].average_rate
@@ -122,7 +121,7 @@ def load_video_stream(container, num_frm: int = 8, fps: Optional[float] = None, 
     return record_video_length_stream(container, indices)
 
 
-def load_video_packet(container, num_frm: int = 8, fps: Optional[float] = None):
+def load_video_packet(container, num_frm: int = 8, fps: float | None = None):
     frames = record_video_length_packet(container)
     total_frames = len(frames)
     frame_rate = container.streams.video[0].average_rate
@@ -140,10 +139,10 @@ def load_video_packet(container, num_frm: int = 8, fps: Optional[float] = None):
 
 
 def read_video_torchcodec(
-    video_path: Union[str, tuple, list],
+    video_path: str | tuple | list,
     *,
     num_frm: int = 8,
-    fps: Optional[float] = None,
+    fps: float | None = None,
     format="rgb24",
     force_include_last_frame=False,
 ) -> np.ndarray:
@@ -202,10 +201,10 @@ def read_video_torchcodec(
 
 
 def read_video_dali(
-    video_path: Union[str, tuple, list],
+    video_path: str | tuple | list,
     *,
     num_frm: int = 8,
-    fps: Optional[float] = None,
+    fps: float | None = None,
     format="rgb24",
     force_include_last_frame=False,
 ) -> np.ndarray:
@@ -218,7 +217,9 @@ def read_video_dali(
         dali_types = importlib.import_module("nvidia.dali.types")
         pipeline_def = importlib.import_module("nvidia.dali").pipeline_def
     except ModuleNotFoundError as exc:
-        raise ImportError("DALI backend requires `nvidia-dali`. Install a matching build for your CUDA/runtime.") from exc
+        raise ImportError(
+            "DALI backend requires `nvidia-dali`. Install a matching build for your CUDA/runtime."
+        ) from exc
 
     total_frames, frame_rate = _probe_video_metadata(resolved_path)
     sampled_frm = _compute_sample_count(total_frames, num_frm, fps, frame_rate)
@@ -260,13 +261,13 @@ def read_video_dali(
 
 
 def read_video(
-    video_path: Union[str, tuple, list],
+    video_path: str | tuple | list,
     *,
     num_frm: int = 8,
-    fps: Optional[float] = None,
+    fps: float | None = None,
     format="rgb24",
     force_include_last_frame=False,
-    backend: Optional[str] = None,
+    backend: str | None = None,
 ) -> np.ndarray:
     """
     Read and uniformly sample video frames.

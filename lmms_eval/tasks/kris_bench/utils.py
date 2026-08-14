@@ -36,7 +36,7 @@ import re
 import time
 from collections import defaultdict
 from io import BytesIO
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import numpy as np
 from loguru import logger as eval_logger
@@ -123,7 +123,7 @@ PROCEDURAL_LOGICAL_CATEGORIES = {"abstract_reasoning", "rule-based_reasoning"}
 PROCEDURAL_INSTR_DECOMP_CATEGORIES = {"multi-instruction_execution", "multi-element_composition"}
 
 
-def _temporal_target_frame_from_doc(doc) -> Optional[int]:
+def _temporal_target_frame_from_doc(doc) -> int | None:
     """
     For temporal_prediction samples, infer which frame is the target (ground-truth) frame.
 
@@ -137,7 +137,7 @@ def _temporal_target_frame_from_doc(doc) -> Optional[int]:
     ori = doc.get("ori_img") or []
     if isinstance(ori, str):
         ori = [ori]
-    frame_numbers: List[int] = []
+    frame_numbers: list[int] = []
     for fn in ori:
         m = re.search(r"(\d+)-(\d+)", os.path.basename(str(fn)))
         if m:
@@ -148,7 +148,7 @@ def _temporal_target_frame_from_doc(doc) -> Optional[int]:
     return None
 
 
-def _kris_dimension_group(doc) -> Tuple[Optional[str], Optional[str]]:
+def _kris_dimension_group(doc) -> tuple[str | None, str | None]:
     """
     Return (dimension_group_id, big_class_id) in snake_case.
     """
@@ -240,7 +240,7 @@ def _get_openai_client(*, api_key: str, base_url: str, timeout: int):
     return OpenAI(api_key=api_key, base_url=base_url, timeout=timeout)
 
 
-def _get_eval_config() -> Dict[str, Any]:
+def _get_eval_config() -> dict[str, Any]:
     api_key = os.getenv("KRIS_BENCH_API_KEY")
     base_url = os.getenv("KRIS_BENCH_BASE_URL")
     if not api_key:
@@ -263,12 +263,14 @@ def _get_eval_config() -> Dict[str, Any]:
 _OPENAI_CLIENT = None
 
 
-def _get_or_create_client(cfg: Dict[str, Any]):
+def _get_or_create_client(cfg: dict[str, Any]):
     global _OPENAI_CLIENT
     if _OPENAI_CLIENT is not None:
         return _OPENAI_CLIENT
     _OPENAI_CLIENT = _get_openai_client(api_key=cfg["api_key"], base_url=cfg["base_url"], timeout=int(cfg["timeout"]))
-    eval_logger.info(f"Initialized KRIS-Bench judge client (eval_model={cfg.get('eval_model')}, judge_model={cfg.get('judge_model')})")
+    eval_logger.info(
+        f"Initialized KRIS-Bench judge client (eval_model={cfg.get('eval_model')}, judge_model={cfg.get('judge_model')})"
+    )
     return _OPENAI_CLIENT
 
 
@@ -282,7 +284,9 @@ def _detect_default_model_name(client) -> str:
     return "default"
 
 
-def _call_chat(messages: List[Dict[str, Any]], *, max_tokens: int, temperature: float, model_override: Optional[str] = None) -> str:
+def _call_chat(
+    messages: list[dict[str, Any]], *, max_tokens: int, temperature: float, model_override: str | None = None
+) -> str:
     cfg = _get_eval_config()
     client = _get_or_create_client(cfg)
     model_name = model_override or cfg.get("eval_model", "default")
@@ -292,7 +296,7 @@ def _call_chat(messages: List[Dict[str, Any]], *, max_tokens: int, temperature: 
 
     max_retries = int(cfg.get("max_retries", 3))
     call_delay = float(cfg.get("call_delay", 0.5))
-    last_error: Optional[Exception] = None
+    last_error: Exception | None = None
     for attempt in range(max_retries):
         try:
             if attempt > 0 or call_delay > 0:
@@ -307,10 +311,14 @@ def _call_chat(messages: List[Dict[str, Any]], *, max_tokens: int, temperature: 
         except Exception as e:
             last_error = e
             s = str(e).lower()
-            retryable = any(k in s for k in ["timeout", "timed out", "504", "502", "503", "gateway", "rate limit", "overloaded"])
+            retryable = any(
+                k in s for k in ["timeout", "timed out", "504", "502", "503", "gateway", "rate limit", "overloaded"]
+            )
             if retryable and attempt < max_retries - 1:
                 wait = (2**attempt) * 2
-                eval_logger.warning(f"KRIS judge call failed (attempt {attempt+1}/{max_retries}), retrying in {wait}s: {str(e)[:200]}")
+                eval_logger.warning(
+                    f"KRIS judge call failed (attempt {attempt + 1}/{max_retries}), retrying in {wait}s: {str(e)[:200]}"
+                )
                 time.sleep(wait)
                 continue
             raise
@@ -324,11 +332,11 @@ def image_to_base64(image: Any) -> str:
     return base64.b64encode(buf.getvalue()).decode("utf-8")
 
 
-def _msg_text(text: str) -> Dict[str, Any]:
+def _msg_text(text: str) -> dict[str, Any]:
     return {"type": "text", "text": text}
 
 
-def _msg_image_jpeg(b64: str) -> Dict[str, Any]:
+def _msg_image_jpeg(b64: str) -> dict[str, Any]:
     return {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}}
 
 
@@ -337,7 +345,7 @@ def _msg_image_jpeg(b64: str) -> Dict[str, Any]:
 # -----------------------------------------------------------------------------
 
 
-def _extract_json_field(response: str, score_key: str, reason_key: str) -> Tuple[Optional[int], Optional[str]]:
+def _extract_json_field(response: str, score_key: str, reason_key: str) -> tuple[int | None, str | None]:
     pattern = r"\{[^{}]*" + re.escape(score_key) + r"[^{}]*\}"
     m = re.search(pattern, response, re.DOTALL)
     if not m:
@@ -362,7 +370,9 @@ _DEFAULT_PATTERNS = [
 ]
 
 
-def _extract_score_and_reason(response: str, *, score_key: str, reason_fields: List[str], prefix_patterns: Optional[List[str]] = None) -> Tuple[Optional[int], Optional[str]]:
+def _extract_score_and_reason(
+    response: str, *, score_key: str, reason_fields: list[str], prefix_patterns: list[str] | None = None
+) -> tuple[int | None, str | None]:
     for rf in reason_fields:
         score, reason = _extract_json_field(response, score_key, rf)
         if score is not None:
@@ -375,7 +385,7 @@ def _extract_score_and_reason(response: str, *, score_key: str, reason_fields: L
     return None, None
 
 
-def _extract_consistency_score_and_reason(response: str) -> Tuple[Optional[int], Optional[str]]:
+def _extract_consistency_score_and_reason(response: str) -> tuple[int | None, str | None]:
     return _extract_score_and_reason(
         response,
         score_key="consistency_score",
@@ -384,7 +394,7 @@ def _extract_consistency_score_and_reason(response: str) -> Tuple[Optional[int],
     )
 
 
-def _extract_instruction_score_and_reason(response: str) -> Tuple[Optional[int], Optional[str]]:
+def _extract_instruction_score_and_reason(response: str) -> tuple[int | None, str | None]:
     return _extract_score_and_reason(
         response,
         score_key="instruction_score",
@@ -393,7 +403,7 @@ def _extract_instruction_score_and_reason(response: str) -> Tuple[Optional[int],
     )
 
 
-def _extract_quality_score_and_reason(response: str) -> Tuple[Optional[int], Optional[str]]:
+def _extract_quality_score_and_reason(response: str) -> tuple[int | None, str | None]:
     return _extract_score_and_reason(
         response,
         score_key="quality_score",
@@ -402,7 +412,7 @@ def _extract_quality_score_and_reason(response: str) -> Tuple[Optional[int], Opt
     )
 
 
-def _extract_dual_scores(response: str) -> Dict[str, Any]:
+def _extract_dual_scores(response: str) -> dict[str, Any]:
     def _clamp(v):
         """Clamp score to valid 1-5 range."""
         if v is None:
@@ -442,7 +452,7 @@ def _extract_dual_scores(response: str) -> Dict[str, Any]:
 # -----------------------------------------------------------------------------
 
 
-def _get_doc_metadata(doc) -> Tuple[str, str, str]:
+def _get_doc_metadata(doc) -> tuple[str, str, str]:
     """Extract key, category, image_id from doc."""
     category = str(doc.get("category") or "").strip()
     image_id = str(doc.get("image_id") or doc.get("id") or "").strip()
@@ -455,10 +465,10 @@ def _evaluate_one(
     category: str,
     instruction: str,
     explanation: str,
-    ori_images: List[Any],
+    ori_images: list[Any],
     edited_image: Any,
-    gt_image: Optional[Any] = None,
-) -> Dict[str, Any]:
+    gt_image: Any | None = None,
+) -> dict[str, Any]:
     """Evaluate generated image with judge."""
     # Encode original images
     ori_b64_list = [image_to_base64(img) for img in ori_images]
@@ -469,7 +479,7 @@ def _evaluate_one(
     # Encode GT image if provided
     gt_b64 = image_to_base64(gt_image) if gt_image is not None else None
 
-    out: Dict[str, Any] = {
+    out: dict[str, Any] = {
         "consistency_score": None,
         "consistency_reasoning": None,
         "instruction_score": None,
@@ -642,7 +652,7 @@ def kris_bench_process_results(doc, results, **kwargs):
     edited_image_pil = Image.open(model_images[0]).convert("RGB") if model_images else None
 
     # Evaluate using judge
-    scores: Dict[str, Any] = {}
+    scores: dict[str, Any] = {}
     if edited_image_pil and ori_images_list:
         try:
             scores = _evaluate_one(
@@ -660,7 +670,7 @@ def kris_bench_process_results(doc, results, **kwargs):
     # Get edited image path for logging
     edited_image_path = model_images[0] if model_images else None
 
-    def _pack(score: Optional[float], reasoning: Optional[str]) -> Dict[str, Any]:
+    def _pack(score: float | None, reasoning: str | None) -> dict[str, Any]:
         # NOTE: score must be a float (not None) to avoid np.std crash in lmms-eval's
         # calculate_clt_aggregate_metric. If evaluation failed, we return -1.0 as a
         # sentinel value which aggregation functions will filter out.
@@ -674,7 +684,11 @@ def kris_bench_process_results(doc, results, **kwargs):
             "valid": score is not None,  # Flag to indicate if this score should be used
         }
 
-    overall_vals = [float(scores[k]) for k in ("consistency_score", "instruction_score", "quality_score", "knowledge_score") if scores.get(k) is not None]
+    overall_vals = [
+        float(scores[k])
+        for k in ("consistency_score", "instruction_score", "quality_score", "knowledge_score")
+        if scores.get(k) is not None
+    ]
     overall_avg = float(np.mean(overall_vals)) if overall_vals else None
 
     dim_group, big_class = _kris_dimension_group(doc)
@@ -688,11 +702,19 @@ def kris_bench_process_results(doc, results, **kwargs):
     }
 
     if dim_group:
-        out[f"kris_bench_{dim_group}_consistency_score"] = _pack(scores.get("consistency_score"), scores.get("consistency_reasoning"))
-        out[f"kris_bench_{dim_group}_instruction_score"] = _pack(scores.get("instruction_score"), scores.get("instruction_reasoning"))
-        out[f"kris_bench_{dim_group}_quality_score"] = _pack(scores.get("quality_score"), scores.get("quality_reasoning"))
+        out[f"kris_bench_{dim_group}_consistency_score"] = _pack(
+            scores.get("consistency_score"), scores.get("consistency_reasoning")
+        )
+        out[f"kris_bench_{dim_group}_instruction_score"] = _pack(
+            scores.get("instruction_score"), scores.get("instruction_reasoning")
+        )
+        out[f"kris_bench_{dim_group}_quality_score"] = _pack(
+            scores.get("quality_score"), scores.get("quality_reasoning")
+        )
         if scores.get("knowledge_score") is not None:
-            out[f"kris_bench_{dim_group}_knowledge_score"] = _pack(scores.get("knowledge_score"), scores.get("knowledge_reasoning"))
+            out[f"kris_bench_{dim_group}_knowledge_score"] = _pack(
+                scores.get("knowledge_score"), scores.get("knowledge_reasoning")
+            )
         out[f"kris_bench_{dim_group}_avg"] = _pack(overall_avg, None)
 
     if big_class:
@@ -709,8 +731,8 @@ def kris_bench_process_results(doc, results, **kwargs):
 def _aggregate_metric(results, metric_name: str) -> float:
     if not results:
         return 0.0
-    cat_scores: Dict[str, List[float]] = defaultdict(list)
-    scores: List[float] = []
+    cat_scores: dict[str, list[float]] = defaultdict(list)
+    scores: list[float] = []
     for r in results:
         if not isinstance(r, dict) or not r.get("valid", True):
             continue
@@ -725,7 +747,9 @@ def _aggregate_metric(results, metric_name: str) -> float:
     eval_logger.info(f"[kris_bench] {metric_name} overall={overall:.2f} (0-100) (n={len(scores)})")
     for cat in sorted(cat_scores.keys()):
         cat_avg = float(np.mean(cat_scores[cat]))
-        eval_logger.info(f"[kris_bench] {metric_name} {cat}: {_normalize_score(cat_avg):.2f} (0-100) (n={len(cat_scores[cat])})")
+        eval_logger.info(
+            f"[kris_bench] {metric_name} {cat}: {_normalize_score(cat_avg):.2f} (0-100) (n={len(cat_scores[cat])})"
+        )
     return overall
 
 
@@ -733,7 +757,11 @@ def kris_bench_aggregate_mean(results) -> float:
     """Quiet mean aggregation (no per-category logging)."""
     if not results:
         return 0.0
-    scores = [float(r["score"]) for r in results if isinstance(r, dict) and r.get("valid", True) and r.get("score") is not None and r["score"] >= 0]
+    scores = [
+        float(r["score"])
+        for r in results
+        if isinstance(r, dict) and r.get("valid", True) and r.get("score") is not None and r["score"] >= 0
+    ]
     return _normalize_score(float(np.mean(scores))) if scores else 0.0
 
 

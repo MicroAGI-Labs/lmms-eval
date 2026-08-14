@@ -8,7 +8,7 @@ import requests
 import yaml
 from loguru import logger as eval_logger
 
-with open(Path(__file__).parent / "_default_template_yaml", "r") as f:
+with open(Path(__file__).parent / "_default_template_yaml") as f:
     raw_data = f.readlines()
     safe_data = []
     for i, line in enumerate(raw_data):
@@ -194,8 +194,26 @@ def activitynetqa_process_results(doc, result):
         scores = ["no", 0]
 
     return {
-        "gpt_eval_score": {"video_name": doc["video_name"], "question": doc["question"], "answer": doc["answer"], "pred": pred, "question_id": doc["question_id"], "type": doc["type"], "Correctness": scores[0], "score": scores[1]},
-        "gpt_eval_accuracy": {"video_name": doc["video_name"], "question": doc["question"], "answer": doc["answer"], "pred": pred, "question_id": doc["question_id"], "type": doc["type"], "Correctness": scores[0], "score": scores[1]},
+        "gpt_eval_score": {
+            "video_name": doc["video_name"],
+            "question": doc["question"],
+            "answer": doc["answer"],
+            "pred": pred,
+            "question_id": doc["question_id"],
+            "type": doc["type"],
+            "Correctness": scores[0],
+            "score": scores[1],
+        },
+        "gpt_eval_accuracy": {
+            "video_name": doc["video_name"],
+            "question": doc["question"],
+            "answer": doc["answer"],
+            "pred": pred,
+            "question_id": doc["question_id"],
+            "type": doc["type"],
+            "Correctness": scores[0],
+            "score": scores[1],
+        },
     }
 
 
@@ -228,7 +246,16 @@ def activitynetqa_gpt_eval(results, args):
             scores = ["no", 0]
 
         # Update the dictionary with the new entries
-        updated_dict = {"video_name": data_dict["video_name"], "Correctness": scores[0], "score": scores[1], "Q": question, "A": answer, "pred": pred, "question_id": data_dict.get("question_id"), "type": data_dict.get("type")}
+        updated_dict = {
+            "video_name": data_dict["video_name"],
+            "Correctness": scores[0],
+            "score": scores[1],
+            "Q": question,
+            "A": answer,
+            "pred": pred,
+            "question_id": data_dict.get("question_id"),
+            "type": data_dict.get("type"),
+        }
         evaluated_results.append(updated_dict)
 
     return evaluated_results

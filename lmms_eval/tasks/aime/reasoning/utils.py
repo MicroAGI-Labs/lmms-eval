@@ -1,7 +1,5 @@
-from typing import Dict, List, Optional
 
 import datasets
-
 from lmms_eval.tasks._task_utils.reasoning_utils import compute_score
 
 SYSTEM_PROMPT = (
@@ -43,7 +41,7 @@ def process_docs(dataset: datasets.Dataset) -> datasets.Dataset:
     return dataset.map(_process_doc)
 
 
-def process_results(doc: dict, results: List[str]) -> Dict[str, int]:
+def process_results(doc: dict, results: list[str]) -> dict[str, int]:
     metrics = {"exact_match": None, "extracted_answers": []}
     # bp()
     # Multiple results -> we are measuring cov/maj etc
@@ -69,7 +67,6 @@ def process_results(doc: dict, results: List[str]) -> Dict[str, int]:
     question = doc_to_text(doc)
     extra_info = {"question": question}
     for i, a in enumerate(results, start=1):
-
         score_dict = compute_score(data_source="aime", solution_str=a.strip(), ground_truth=gt, extra_info=extra_info)
         acc_score = score_dict["acc_score"]
 
@@ -88,7 +85,7 @@ def process_results(doc: dict, results: List[str]) -> Dict[str, int]:
     return metrics
 
 
-def last_boxed_only_string(string: str) -> Optional[str]:
+def last_boxed_only_string(string: str) -> str | None:
     idx = string.rfind("\\boxed")
     if "\\boxed " in string:
         return "\\boxed " + string.split("\\boxed ")[-1].split("$")[0]

@@ -1,13 +1,10 @@
 # MMSI-Video-Bench: A Holistic Benchmark for Video-Based Spatial Intelligence
 # https://huggingface.co/datasets/rbler/MMSI-Video-Bench
 
-import json
 import os
 import re
-from collections import defaultdict
 from pathlib import Path
 
-import datasets
 import yaml
 from loguru import logger as eval_logger
 from PIL import Image
@@ -18,7 +15,7 @@ hf_home = os.getenv("HF_HOME", "~/.cache/huggingface/")
 base_cache_dir = os.path.expanduser(hf_home)
 
 # Read cache_dir from YAML config
-with open(Path(__file__).parent / "_default_template_yaml", "r") as f:
+with open(Path(__file__).parent / "_default_template_yaml") as f:
     raw_data = f.readlines()
     safe_data = []
     for line in raw_data:

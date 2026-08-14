@@ -20,7 +20,7 @@ Example usage:
 
 import asyncio
 import time
-from typing import Any, Dict, List, Literal, Optional, Union
+from typing import Any, Literal
 
 import httpx
 
@@ -28,7 +28,7 @@ import httpx
 ExcInfo = tuple[type[BaseException], BaseException, Any] | tuple[None, None, None]
 
 
-def _process_job_status(job: Dict[str, Any], job_id: str, verbose: bool) -> tuple[bool, Dict[str, Any] | None]:
+def _process_job_status(job: dict[str, Any], job_id: str, verbose: bool) -> tuple[bool, dict[str, Any] | None]:
     """
     Process job status and handle terminal states.
 
@@ -69,7 +69,7 @@ class EvalClient:
     def __init__(
         self,
         base_url: str = "http://localhost:8000",
-        timeout: Optional[float] = None,
+        timeout: float | None = None,
     ):
         """
         Initialize the client.
@@ -103,7 +103,7 @@ class EvalClient:
         except Exception:
             pass
 
-    def _request(self, method: str, endpoint: str, **kwargs) -> Dict[str, Any]:
+    def _request(self, method: str, endpoint: str, **kwargs) -> dict[str, Any]:
         """Make an HTTP request and return JSON response."""
         url = f"{self.base_url}{endpoint}"
         response = self.client.request(method, url, **kwargs)
@@ -114,7 +114,7 @@ class EvalClient:
     # Health & Info
     # =========================================================================
 
-    def health(self) -> Dict[str, Any]:
+    def health(self) -> dict[str, Any]:
         """Check server health."""
         return self._request("GET", "/health")
 
@@ -126,12 +126,12 @@ class EvalClient:
         except Exception:
             return False
 
-    def list_tasks(self) -> List[str]:
+    def list_tasks(self) -> list[str]:
         """List available evaluation tasks."""
         response = self._request("GET", "/tasks")
         return response.get("tasks", [])
 
-    def list_models(self) -> List[str]:
+    def list_models(self) -> list[str]:
         """List available model types."""
         response = self._request("GET", "/models")
         return response.get("models", [])
@@ -143,18 +143,18 @@ class EvalClient:
     def evaluate(
         self,
         model: str,
-        tasks: List[str],
-        model_args: Optional[Dict[str, Any]] = None,
-        num_fewshot: Optional[int] = None,
-        batch_size: Optional[Union[int, str]] = None,
-        device: Optional[str] = None,
-        limit: Optional[Union[int, float]] = None,
-        gen_kwargs: Optional[str] = None,
+        tasks: list[str],
+        model_args: dict[str, Any] | None = None,
+        num_fewshot: int | None = None,
+        batch_size: int | str | None = None,
+        device: str | None = None,
+        limit: int | float | None = None,
+        gen_kwargs: str | None = None,
         log_samples: bool = True,
         predict_only: bool = False,
         num_gpus: int = 1,
-        output_dir: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        output_dir: str | None = None,
+    ) -> dict[str, Any]:
         """
         Submit an evaluation job.
 
@@ -194,7 +194,7 @@ class EvalClient:
 
         return self._request("POST", "/evaluate", json=payload)
 
-    def get_job(self, job_id: str) -> Dict[str, Any]:
+    def get_job(self, job_id: str) -> dict[str, Any]:
         """
         Get job status and results.
 
@@ -206,7 +206,7 @@ class EvalClient:
         """
         return self._request("GET", f"/jobs/{job_id}")
 
-    def cancel_job(self, job_id: str) -> Dict[str, Any]:
+    def cancel_job(self, job_id: str) -> dict[str, Any]:
         """
         Cancel a queued job.
 
@@ -222,9 +222,9 @@ class EvalClient:
         self,
         job_id: str,
         poll_interval: float = 5.0,
-        timeout: Optional[float] = None,
+        timeout: float | None = None,
         verbose: bool = True,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Wait for a job to complete and return results.
 
@@ -258,7 +258,7 @@ class EvalClient:
     # Queue Management
     # =========================================================================
 
-    def get_queue_status(self) -> Dict[str, Any]:
+    def get_queue_status(self) -> dict[str, Any]:
         """
         Get queue status.
 
@@ -270,9 +270,9 @@ class EvalClient:
     def merge_checkpoint(
         self,
         checkpoint_path: str,
-        output_path: Optional[str] = None,
+        output_path: str | None = None,
         checkpoint_type: Literal["regular", "ema"] = "regular",
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Merge FSDP2 sharded checkpoint into a single consolidated checkpoint.
 
@@ -308,7 +308,7 @@ class AsyncEvalClient:
     def __init__(
         self,
         base_url: str = "http://localhost:8000",
-        timeout: Optional[float] = None,
+        timeout: float | None = None,
     ):
         self.base_url = base_url.rstrip("/")
         self.client = httpx.AsyncClient(timeout=timeout)
@@ -342,38 +342,38 @@ class AsyncEvalClient:
         except Exception:
             pass
 
-    async def _request(self, method: str, endpoint: str, **kwargs) -> Dict[str, Any]:
+    async def _request(self, method: str, endpoint: str, **kwargs) -> dict[str, Any]:
         url = f"{self.base_url}{endpoint}"
         response = await self.client.request(method, url, **kwargs)
         response.raise_for_status()
         return response.json()
 
-    async def health(self) -> Dict[str, Any]:
+    async def health(self) -> dict[str, Any]:
         return await self._request("GET", "/health")
 
     async def evaluate(
         self,
         model: str,
-        tasks: List[str],
+        tasks: list[str],
         **kwargs,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         payload = {"model": model, "tasks": tasks, **kwargs}
         payload = {k: v for k, v in payload.items() if v is not None}
         return await self._request("POST", "/evaluate", json=payload)
 
-    async def get_job(self, job_id: str) -> Dict[str, Any]:
+    async def get_job(self, job_id: str) -> dict[str, Any]:
         return await self._request("GET", f"/jobs/{job_id}")
 
-    async def cancel_job(self, job_id: str) -> Dict[str, Any]:
+    async def cancel_job(self, job_id: str) -> dict[str, Any]:
         return await self._request("DELETE", f"/jobs/{job_id}")
 
     async def wait_for_job(
         self,
         job_id: str,
         poll_interval: float = 5.0,
-        timeout: Optional[float] = None,
+        timeout: float | None = None,
         verbose: bool = True,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         start_time = time.time()
 
         while True:
@@ -387,5 +387,5 @@ class AsyncEvalClient:
 
             await asyncio.sleep(poll_interval)
 
-    async def get_queue_status(self) -> Dict[str, Any]:
+    async def get_queue_status(self) -> dict[str, Any]:
         return await self._request("GET", "/queue")

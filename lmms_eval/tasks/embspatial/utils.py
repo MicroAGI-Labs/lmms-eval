@@ -2,13 +2,13 @@ import logging
 import re
 from collections import defaultdict
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import yaml
 
 eval_logger = logging.getLogger("lmms-eval")
 
-with open(Path(__file__).parent / "_default_template_yaml", "r") as f:
+with open(Path(__file__).parent / "_default_template_yaml") as f:
     raw_data = f.readlines()
     safe_data = []
     for i, line in enumerate(raw_data):
@@ -40,7 +40,7 @@ def _extract_answer_letter(text: str) -> str:
     return ""
 
 
-def embspatial_doc_to_text(doc: dict[str, Any], lmms_eval_specific_kwargs: Optional[dict[str, Any]] = None) -> str:
+def embspatial_doc_to_text(doc: dict[str, Any], lmms_eval_specific_kwargs: dict[str, Any] | None = None) -> str:
     if lmms_eval_specific_kwargs is None:
         lmms_eval_specific_kwargs = {}
 
@@ -72,7 +72,14 @@ def embspatial_process_results(doc, results):
     flag = pred_letter == grounded_output
 
     data_source = doc.get("data_source", "unknown")
-    entry = {"id": doc["question_id"], "gt_content": grounded_output, "pred": response, "sub_task": doc["relation"], "is_correct": flag, "data_source": data_source}
+    entry = {
+        "id": doc["question_id"],
+        "gt_content": grounded_output,
+        "pred": response,
+        "sub_task": doc["relation"],
+        "is_correct": flag,
+        "data_source": data_source,
+    }
 
     result = {"embspatial_acc": entry}
     for src in DATA_SOURCES:
@@ -81,7 +88,7 @@ def embspatial_process_results(doc, results):
     return result
 
 
-def embspatial_aggregate_results(results: List[Dict]):
+def embspatial_aggregate_results(results: list[dict]):
     sub_task_to_eval_samples = defaultdict(list)
     total_samples = len(results)
     total_correct = 0

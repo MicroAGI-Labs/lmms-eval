@@ -1,5 +1,4 @@
 import time
-from typing import List, Optional, Tuple, Union
 
 import torch
 
@@ -8,6 +7,12 @@ try:
 except ImportError:
     decord = None
 from accelerate import Accelerator, DistributedType
+from lmms_eval import utils
+from lmms_eval.api.instance import GenerationResult, Instance, TokenCounts
+from lmms_eval.api.model import lmms
+from lmms_eval.api.registry import register_model
+from lmms_eval.models.model_utils.gen_metrics import log_metrics
+from lmms_eval.protocol import ChatMessages
 from loguru import logger as eval_logger
 from tqdm import tqdm
 from transformers import (
@@ -18,13 +23,6 @@ from transformers import (
     AutoProcessor,
     AutoTokenizer,
 )
-
-from lmms_eval import utils
-from lmms_eval.api.instance import GenerationResult, Instance, TokenCounts
-from lmms_eval.api.model import lmms
-from lmms_eval.api.registry import register_model
-from lmms_eval.models.model_utils.gen_metrics import log_metrics
-from lmms_eval.protocol import ChatMessages
 
 try:
     from qwen_vl_utils import process_vision_info
@@ -44,19 +42,19 @@ class Huggingface(lmms):
     def __init__(
         self,
         pretrained: str = "Qwen/Qwen2.5-VL-3B-Instruct",
-        device: Optional[str] = "cuda",
-        device_map: Optional[str] = "auto",
-        batch_size: Optional[Union[int, str]] = 1,
+        device: str | None = "cuda",
+        device_map: str | None = "auto",
+        batch_size: int | str | None = 1,
         use_cache=True,
-        attn_implementation: Optional[str] = None,
+        attn_implementation: str | None = None,
         max_num_frames: int = 32,
-        use_custom_video_loader: Optional[bool] = False,
-        fps: Optional[float] = None,  # Only applicable if use_custom_video_loader is True
-        max_image_size: Optional[int] = None,  # Only applicable if use_custom_video_loader is True
-        system_prompt: Optional[str] = None,
-        interleave_visuals: Optional[bool] = False,
-        reasoning_prompt: Optional[str] = None,
-        trust_remote_code: Optional[bool] = False,
+        use_custom_video_loader: bool | None = False,
+        fps: float | None = None,  # Only applicable if use_custom_video_loader is True
+        max_image_size: int | None = None,  # Only applicable if use_custom_video_loader is True
+        system_prompt: str | None = None,
+        interleave_visuals: bool | None = False,
+        reasoning_prompt: str | None = None,
+        trust_remote_code: bool | None = False,
         **kwargs,
     ) -> None:
         super().__init__()
@@ -66,7 +64,9 @@ class Huggingface(lmms):
         # Validate attention implementation
         valid_attn_implementations = [None, "flash_attention_2", "sdpa", "eager"]
         if attn_implementation not in valid_attn_implementations:
-            raise ValueError(f"attn_implementation must be one of {valid_attn_implementations}, got {attn_implementation}")
+            raise ValueError(
+                f"attn_implementation must be one of {valid_attn_implementations}, got {attn_implementation}"
+            )
 
         accelerator = Accelerator()
         self.accelerator = accelerator
@@ -172,7 +172,7 @@ class Huggingface(lmms):
     def world_size(self):
         return self._world_size
 
-    def loglikelihood(self, requests: List[Instance]) -> List[Tuple[float, bool]]:
+    def loglikelihood(self, requests: list[Instance]) -> list[tuple[float, bool]]:
         raise NotImplementedError("Loglikelihood is not implemented for Qwen2.5_VL")
 
     def flatten(self, input):
@@ -182,7 +182,7 @@ class Huggingface(lmms):
                 new_list.append(j)
         return new_list
 
-    def generate_until(self, requests: List[Instance]) -> List[GenerationResult]:
+    def generate_until(self, requests: list[Instance]) -> list[GenerationResult]:
         res = []
 
         # A dummy collate here to sort by doc id
@@ -199,16 +199,22 @@ class Huggingface(lmms):
             grouping=True,
         )
         chunks = re_ords.get_batched(n=self.batch_size, batch_fn=None)
-        num_iters = len(requests) // self.batch_size if len(requests) % self.batch_size == 0 else len(requests) // self.batch_size + 1
+        num_iters = (
+            len(requests) // self.batch_size
+            if len(requests) % self.batch_size == 0
+            else len(requests) // self.batch_size + 1
+        )
         pbar = tqdm(total=num_iters, disable=(self.rank != 0), desc="Model Responding")
         total_elapsed_time = 0
         total_tokens = 0
         for chunk in chunks:
             ctx, doc_to_messages, all_gen_kwargs, doc_id, task, split = zip(*chunk)
-            chat_messages = [doc_to_messages[0](self.task_dict[task][split][ids]) for ids, task, split in zip(doc_id, task, split)]
+            chat_messages = [
+                doc_to_messages[0](self.task_dict[task][split][ids]) for ids, task, split in zip(doc_id, task, split)
+            ]
             if self.system_prompt:
                 chat_messages = [self._apply_system_prompt(messages, self.system_prompt) for messages in chat_messages]
-            chat_messages: List[ChatMessages] = [ChatMessages(**{"messages": message}) for message in chat_messages]
+            chat_messages: list[ChatMessages] = [ChatMessages(**{"messages": message}) for message in chat_messages]
             visuals = []
             videos = []
             for messages in chat_messages:
@@ -221,7 +227,10 @@ class Huggingface(lmms):
 
             # Apply chat template
             batched_messages = [chat_message.to_hf_messages() for chat_message in chat_messages]
-            texts = [self.processor.apply_chat_template(msg, tokenize=False, add_generation_prompt=True) for msg in batched_messages]
+            texts = [
+                self.processor.apply_chat_template(msg, tokenize=False, add_generation_prompt=True)
+                for msg in batched_messages
+            ]
             images = []
             videos = []
             audios = []
@@ -285,7 +294,9 @@ class Huggingface(lmms):
             total_tokens += sum(len(ids) for ids in generated_ids_trimmed)
 
             for i, (ans, context) in enumerate(zip(answers, texts)):
-                res.append(GenerationResult(text=ans, token_counts=TokenCounts(output_tokens=len(generated_ids_trimmed[i]))))
+                res.append(
+                    GenerationResult(text=ans, token_counts=TokenCounts(output_tokens=len(generated_ids_trimmed[i])))
+                )
                 self.cache_hook.add_partial("generate_until", (context, gen_kwargs), ans)
                 pbar.update(1)
 
@@ -306,5 +317,5 @@ class Huggingface(lmms):
         pbar.close()
         return res
 
-    def generate_until_multi_round(self, requests) -> List[str]:
+    def generate_until_multi_round(self, requests) -> list[str]:
         raise NotImplementedError("TODO: Implement multi-round generation")

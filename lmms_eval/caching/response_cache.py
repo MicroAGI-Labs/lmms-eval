@@ -39,12 +39,15 @@ import uuid
 from contextlib import contextmanager
 from functools import partial
 from glob import glob
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 
 from loguru import logger as eval_logger
 
-from lmms_eval.api.instance import GenerationResult, Instance
-from lmms_eval.caching.fs_detect import FsType, detect_fs_type, find_local_scratch
+from lmms_eval.api.instance import GenerationResult
+from lmms_eval.api.instance import Instance
+from lmms_eval.caching.fs_detect import FsType
+from lmms_eval.caching.fs_detect import detect_fs_type
+from lmms_eval.caching.fs_detect import find_local_scratch
 
 CACHE_RELEVANT_KEYS = frozenset(
     {
@@ -71,8 +74,12 @@ _LAYERED_MERGED_MARKER = ".merged"
 _LAYERED_LOCK_DIRNAME = ".merge.lock"
 _CHECKPOINT_INTERVAL = 256  # responses between crash-safety checkpoints
 _CHECKPOINT_INTERVAL_ENV = "LMMS_CACHE_CHECKPOINT_INTERVAL"
+_MODEL_BATCH_SIZE = 64
+_MODEL_BATCH_SIZE_ENV = "LMMS_CACHE_MODEL_BATCH_SIZE"
+_FAILURE_RESPONSE_PREFIXES = ("[LMMS_EVAL_REQUEST_FAILED", "[LMMS_EVAL_BUDGET_EXCEEDED]")
 
 _FUNC_ADDR_RE = re.compile(r" at 0x[0-9a-fA-F]+>")
+_API_KEY_RE = re.compile(r"(?i)(api_key\s*=\s*)[^,\s]+")
 
 
 def _get_env_int(name: str, default: int, minimum: int = 1) -> int:
@@ -114,6 +121,21 @@ def _sanitize_run_id(run_id: str) -> str:
     return sanitized or "run"
 
 
+def _redact_model_args(model_args: Any) -> Any:
+    if isinstance(model_args, dict):
+        return {
+            key: "<redacted>" if str(key).strip().lower() == "api_key" else _redact_model_args(value)
+            for key, value in model_args.items()
+        }
+    if isinstance(model_args, list):
+        return [_redact_model_args(value) for value in model_args]
+    if isinstance(model_args, tuple):
+        return tuple(_redact_model_args(value) for value in model_args)
+    if isinstance(model_args, str):
+        return _API_KEY_RE.sub(r"\1<redacted>", model_args)
+    return model_args
+
+
 def _resolve_cache_run_id(world_size: int) -> str:
     for env_key in _CACHE_RUN_ID_ENV_KEYS:
         env_value = os.environ.get(env_key)
@@ -132,6 +154,17 @@ def _touch_text(path: str, content: str = "") -> None:
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as handle:
         handle.write(content)
+
+
+def _atomic_copy(source: str, destination: str) -> None:
+    os.makedirs(os.path.dirname(destination), exist_ok=True)
+    temporary_path = f"{destination}.tmp.{os.getpid()}.{uuid.uuid4().hex}"
+    try:
+        shutil.copy2(source, temporary_path)
+        os.replace(temporary_path, destination)
+    finally:
+        if os.path.exists(temporary_path):
+            os.remove(temporary_path)
 
 
 @contextmanager
@@ -175,7 +208,7 @@ def _merge_lock(lock_dir: str, timeout_seconds: int = 60, poll_interval_seconds:
             pass
 
 
-def canonicalize_gen_kwargs(gen_kwargs: Optional[dict]) -> str:
+def canonicalize_gen_kwargs(gen_kwargs: dict | None) -> str:
     """Normalize gen_kwargs for consistent hashing.
 
     Only includes keys that affect generation output.
@@ -193,7 +226,7 @@ def canonicalize_gen_kwargs(gen_kwargs: Optional[dict]) -> str:
     return json.dumps(filtered, sort_keys=True, ensure_ascii=True, separators=(",", ":"))
 
 
-def is_deterministic(request_type: str, gen_kwargs: Optional[dict]) -> bool:
+def is_deterministic(request_type: str, gen_kwargs: dict | None) -> bool:
     """Check if a request produces deterministic output (safe to cache).
 
     ``loglikelihood`` is always deterministic.  For generation requests,
@@ -269,7 +302,9 @@ def fingerprint_callable(fn) -> str:
 
     if partial_args or partial_kwargs:
         try:
-            partial_repr = json.dumps({"args": list(partial_args), "kwargs": partial_kwargs}, sort_keys=True, default=str)
+            partial_repr = json.dumps(
+                {"args": list(partial_args), "kwargs": partial_kwargs}, sort_keys=True, default=str
+            )
             parts.append(partial_repr)
         except (TypeError, ValueError):
             parts.append(f"partial({len(partial_args)},{len(partial_kwargs)})")
@@ -303,7 +338,7 @@ def _extract_content_hash(instance: Instance) -> str:
 def compute_cache_key(
     request_type: str,
     task_name: str,
-    doc_id: Union[int, str],
+    doc_id: int | str,
     gen_kwargs: dict,
     idx: int = 0,
     task_fingerprint: str = "",
@@ -391,16 +426,14 @@ class ResponseCache:
         cache_root: str,
         *,
         model: str = "",
-        model_args: Union[str, dict] = "",
-        task_dict: Optional[dict] = None,
+        model_args: str | dict = "",
+        task_dict: dict | None = None,
         world_size: int = 1,
         global_rank: int = 0,
     ) -> "ResponseCache":
-        from lmms_eval.utils import (
-            get_lmms_eval_cache_version,
-            hash_string,
-            simple_parse_args_string,
-        )
+        from lmms_eval.utils import get_lmms_eval_cache_version
+        from lmms_eval.utils import hash_string
+        from lmms_eval.utils import simple_parse_args_string
 
         # Normalize cache_root
         if cache_root.endswith(".db"):
@@ -418,16 +451,21 @@ class ResponseCache:
 
         # Model fingerprint
         if isinstance(model_args, dict):
-            model_args_fp = json.dumps(model_args, sort_keys=True, ensure_ascii=True, separators=(",", ":"), default=str)
+            model_args_fp = json.dumps(
+                _redact_model_args(model_args), sort_keys=True, ensure_ascii=True, separators=(",", ":"), default=str
+            )
         elif isinstance(model_args, str):
             try:
                 parsed = simple_parse_args_string(model_args)
             except Exception:
                 parsed = model_args
+            parsed = _redact_model_args(parsed)
             if isinstance(parsed, dict):
-                model_args_fp = json.dumps(parsed, sort_keys=True, ensure_ascii=True, separators=(",", ":"), default=str)
+                model_args_fp = json.dumps(
+                    parsed, sort_keys=True, ensure_ascii=True, separators=(",", ":"), default=str
+                )
             else:
-                model_args_fp = str(model_args)
+                model_args_fp = str(parsed)
         else:
             model_args_fp = str(model_args)
         model_fp = f"{model}|{model_args_fp}"
@@ -449,19 +487,31 @@ class ResponseCache:
 
         rank_db_name = f"rank_{global_rank}.db"
         rank_audit_name = f"rank_{global_rank}.audit.jsonl"
+        remote_rank_db = os.path.join(run_dir, rank_db_name)
+        remote_rank_audit = os.path.join(run_dir, rank_audit_name)
 
         if local_scratch is not None:
             scratch_dir = os.path.join(local_scratch, "lmms_eval_cache", model_hash, "runs", run_id)
             os.makedirs(scratch_dir, exist_ok=True)
             write_db = os.path.join(scratch_dir, rank_db_name)
             write_audit = os.path.join(scratch_dir, rank_audit_name)
+            if os.path.exists(remote_rank_db):
+                if os.path.exists(write_db):
+                    cls.merge_shards([remote_rank_db], write_db)
+                else:
+                    shutil.copy2(remote_rank_db, write_db)
+                    if os.path.exists(remote_rank_audit):
+                        shutil.copy2(remote_rank_audit, write_audit)
             use_scratch = True
         else:
             write_db = os.path.join(run_dir, rank_db_name)
             write_audit = os.path.join(run_dir, rank_audit_name)
             use_scratch = False
 
-        eval_logger.info(f"ResponseCache: root={cache_root}, run={run_id}, rank={global_rank}/{world_size}, " f"writes={'scratch' if use_scratch else 'direct'}")
+        eval_logger.info(
+            f"ResponseCache: root={cache_root}, run={run_id}, rank={global_rank}/{world_size}, "
+            f"writes={'scratch' if use_scratch else 'direct'}"
+        )
 
         instance = cls(
             db_path=write_db,
@@ -479,10 +529,11 @@ class ResponseCache:
         instance._world_size = world_size
         instance._use_scratch = use_scratch
         instance._checkpoint_interval = _get_env_int(_CHECKPOINT_INTERVAL_ENV, _CHECKPOINT_INTERVAL)
+        instance._model_batch_size = _get_env_int(_MODEL_BATCH_SIZE_ENV, _MODEL_BATCH_SIZE)
         instance._entries_since_checkpoint = 0
         if use_scratch:
-            instance._remote_rank_db = os.path.join(run_dir, rank_db_name)
-            instance._remote_rank_audit = os.path.join(run_dir, rank_audit_name)
+            instance._remote_rank_db = remote_rank_db
+            instance._remote_rank_audit = remote_rank_audit
         else:
             instance._remote_rank_db = None
             instance._remote_rank_audit = None
@@ -493,35 +544,36 @@ class ResponseCache:
         db_path: str,
         audit_path: str,
         model_fingerprint: str = "",
-        task_fingerprints: Optional[Dict[str, str]] = None,
-        shared_db_path: Optional[str] = None,
+        task_fingerprints: dict[str, str] | None = None,
+        shared_db_path: str | None = None,
         eval_version: str = "",
     ):
         self.db_path = db_path
         self.audit_path = audit_path
         self.model_fingerprint = model_fingerprint
         self._model_fingerprint_hash = _short_hash(model_fingerprint)
-        self._task_fingerprints: Dict[str, str] = task_fingerprints or {}
+        self._task_fingerprints: dict[str, str] = task_fingerprints or {}
         self._eval_version = eval_version
-        self.db: Optional[sqlite3.Connection] = None
+        self.db: sqlite3.Connection | None = None
         self._audit_file = None
 
         # Metadata set by create() for finalize()
-        self._cache_root: Optional[str] = None
+        self._cache_root: str | None = None
         self._run_id: str = ""
         self._run_dir: str = ""
         self._global_rank: int = 0
         self._world_size: int = 1
         self._use_scratch: bool = False
-        self._remote_rank_db: Optional[str] = None
-        self._remote_rank_audit: Optional[str] = None
+        self._remote_rank_db: str | None = None
+        self._remote_rank_audit: str | None = None
         self._checkpoint_interval: int = _CHECKPOINT_INTERVAL
+        self._model_batch_size: int = _MODEL_BATCH_SIZE
         self._entries_since_checkpoint: int = 0
 
         self._open_local_handles()
 
         # Optional shared (read-only) DB for two-tier caching.
-        self._shared_db: Optional[sqlite3.Connection] = None
+        self._shared_db: sqlite3.Connection | None = None
         self._shared_db_path = shared_db_path
         if shared_db_path and os.path.exists(shared_db_path):
             try:
@@ -547,15 +599,27 @@ class ResponseCache:
         self.db.executescript(_SCHEMA_SQL)
 
         if self.model_fingerprint:
-            self.db.execute("INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)", ("model_fingerprint", self.model_fingerprint))
+            self.db.execute(
+                "INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)", ("model_fingerprint", self.model_fingerprint)
+            )
         if self._model_fingerprint_hash:
-            self.db.execute("INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)", ("model_fingerprint_hash", self._model_fingerprint_hash))
-        self.db.execute("INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)", ("schema_version", str(_SCHEMA_VERSION)))
+            self.db.execute(
+                "INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)",
+                ("model_fingerprint_hash", self._model_fingerprint_hash),
+            )
+        self.db.execute(
+            "INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)", ("schema_version", str(_SCHEMA_VERSION))
+        )
         if self._eval_version:
             row = self.db.execute("SELECT value FROM meta WHERE key = 'eval_version'").fetchone()
             if row and row[0] != self._eval_version:
-                eval_logger.warning(f"ResponseCache: DB was last written by lmms-eval {row[0]}, current version is {self._eval_version}. " f"Cache keys now include version — old entries will not match (safe, but no reuse).")
-            self.db.execute("INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)", ("eval_version", self._eval_version))
+                eval_logger.warning(
+                    f"ResponseCache: DB was last written by lmms-eval {row[0]}, current version is {self._eval_version}. "
+                    f"Cache keys now include version — old entries will not match (safe, but no reuse)."
+                )
+            self.db.execute(
+                "INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)", ("eval_version", self._eval_version)
+            )
         self.db.commit()
         self._replay_audit_log()
         self._audit_file = open(self.audit_path, "a", encoding="utf-8")
@@ -599,7 +663,7 @@ class ResponseCache:
 
         replayed = 0
         try:
-            with open(self.audit_path, "r", encoding="utf-8") as f:
+            with open(self.audit_path, encoding="utf-8") as f:
                 for line in f:
                     line = line.strip()
                     if not line:
@@ -608,11 +672,23 @@ class ResponseCache:
                         rec = json.loads(line)
                         if not rec.get("deterministic", True) or not rec.get("cache_key"):
                             continue
+                        response = _deserialize_response(rec["response"])
+                        if not self._is_valid_response(response, rec["request_type"]):
+                            continue
                         cur = self.db.execute("SELECT 1 FROM responses WHERE cache_key = ?", (rec["cache_key"],))
                         if cur.fetchone() is None:
                             self.db.execute(
                                 "INSERT INTO responses (cache_key, request_type, task_name, doc_id, idx, gen_kwargs, response, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                                (rec["cache_key"], rec["request_type"], rec["task_name"], rec["doc_id"], rec.get("idx", 0), rec.get("gen_kwargs", "{}"), rec["response"], rec.get("created_at", time.time())),
+                                (
+                                    rec["cache_key"],
+                                    rec["request_type"],
+                                    rec["task_name"],
+                                    rec["doc_id"],
+                                    rec.get("idx", 0),
+                                    rec.get("gen_kwargs", "{}"),
+                                    rec["response"],
+                                    rec.get("created_at", time.time()),
+                                ),
                             )
                             replayed += 1
                     except (json.JSONDecodeError, KeyError):
@@ -646,7 +722,7 @@ class ResponseCache:
         self,
         request_type: str,
         task_name: str,
-        doc_id: Union[int, str],
+        doc_id: int | str,
         idx: int,
         gen_kwargs: dict,
         response: Any,
@@ -687,7 +763,16 @@ class ResponseCache:
         self._audit_file.flush()
         os.fsync(self._audit_file.fileno())
 
-    def _store(self, cache_key: str, request_type: str, task_name: str, doc_id: Union[int, str], idx: int, gen_kwargs: dict, response: Any) -> None:
+    def _store(
+        self,
+        cache_key: str,
+        request_type: str,
+        task_name: str,
+        doc_id: int | str,
+        idx: int,
+        gen_kwargs: dict,
+        response: Any,
+    ) -> None:
         """Store a deterministic response in the SQLite cache (JSONL logging is handled separately by ``_log_to_audit``)."""
         now = time.time()
         gen_kwargs_str = canonicalize_gen_kwargs(gen_kwargs)
@@ -714,15 +799,15 @@ class ResponseCache:
     def _is_valid_response(response: Any, request_type: str) -> bool:
         if response is None:
             return False
-        if isinstance(response, GenerationResult):
-            return bool(response.text and response.text.strip())
         if request_type == "loglikelihood":
             return isinstance(response, (list, tuple)) and len(response) == 2
-        if isinstance(response, str) and response.strip() == "":
-            return False
+        text = response.text if isinstance(response, GenerationResult) else response
+        if isinstance(text, str):
+            stripped = text.strip()
+            return bool(stripped) and not stripped.startswith(_FAILURE_RESPONSE_PREFIXES)
         return True
 
-    def execute(self, lm: Any, reqtype: str, requests: List[Instance]) -> list:
+    def execute(self, lm: Any, reqtype: str, requests: list[Instance]) -> list:
         """Check cache -> run model on misses -> store results -> return merged list.
 
         Maintains positional ordering so the caller can ``zip(resps, requests)``.
@@ -731,8 +816,8 @@ class ResponseCache:
             return []
 
         results: list = [None] * len(requests)
-        uncached: List[Instance] = []
-        uncached_indices: List[int] = []
+        uncached: list[Instance] = []
+        uncached_indices: list[int] = []
 
         for i, req in enumerate(requests):
             gen_kwargs = extract_gen_kwargs(req)
@@ -767,53 +852,64 @@ class ResponseCache:
 
         n_hit_this_batch = len(requests) - len(uncached)
         if n_hit_this_batch > 0:
-            eval_logger.info(f"ResponseCache: {n_hit_this_batch}/{len(requests)} cache hits ({self._skipped} non-deterministic skipped)")
+            eval_logger.info(
+                f"ResponseCache: {n_hit_this_batch}/{len(requests)} cache hits ({self._skipped} non-deterministic skipped)"
+            )
 
         if uncached:
-            new_resps = getattr(lm, reqtype)(uncached)
-            for idx_pos, req, resp in zip(uncached_indices, uncached, new_resps):
-                results[idx_pos] = resp
-                cacheable = self._extract_cacheable(resp)
-                gen_kwargs = extract_gen_kwargs(req)
-                deterministic = is_deterministic(reqtype, gen_kwargs)
-                ch = _extract_content_hash(req)
-                tf = self._task_fingerprints.get(req.task_name, "")
-                cache_key = (
-                    compute_cache_key(
-                        request_type=reqtype,
-                        task_name=req.task_name,
-                        doc_id=req.doc_id,
-                        gen_kwargs=gen_kwargs,
-                        idx=req.idx,
-                        content_hash=ch,
-                        task_fingerprint=tf,
-                        model_fingerprint_hash=self._model_fingerprint_hash,
-                        eval_version=self._eval_version,
+            for start in range(0, len(uncached), self._model_batch_size):
+                chunk_requests = uncached[start : start + self._model_batch_size]
+                chunk_indices = uncached_indices[start : start + self._model_batch_size]
+                new_resps = getattr(lm, reqtype)(chunk_requests)
+                if len(new_resps) != len(chunk_requests):
+                    raise RuntimeError(
+                        f"Model returned {len(new_resps)} responses for {len(chunk_requests)} requests"
                     )
-                    if deterministic
-                    else ""
-                )
-                self._log_to_audit(
-                    reqtype,
-                    req.task_name,
-                    req.doc_id,
-                    req.idx,
-                    gen_kwargs,
-                    cacheable,
-                    cache_key=cache_key,
-                    deterministic=deterministic,
-                    task_fingerprint=tf,
-                    content_hash=ch,
-                    model_fingerprint_hash=self._model_fingerprint_hash,
-                )
-                if deterministic and self._is_valid_response(resp, reqtype):
-                    self._store(cache_key, reqtype, req.task_name, req.doc_id, req.idx, gen_kwargs, cacheable)
-                    if self._use_scratch:
-                        self._entries_since_checkpoint += 1
-                        if self._entries_since_checkpoint >= self._checkpoint_interval:
-                            self._checkpoint_to_run_dir()
+                for idx_pos, req, resp in zip(chunk_indices, chunk_requests, new_resps):
+                    results[idx_pos] = resp
+                    cacheable = self._extract_cacheable(resp)
+                    gen_kwargs = extract_gen_kwargs(req)
+                    deterministic = is_deterministic(reqtype, gen_kwargs)
+                    ch = _extract_content_hash(req)
+                    tf = self._task_fingerprints.get(req.task_name, "")
+                    cache_key = (
+                        compute_cache_key(
+                            request_type=reqtype,
+                            task_name=req.task_name,
+                            doc_id=req.doc_id,
+                            gen_kwargs=gen_kwargs,
+                            idx=req.idx,
+                            content_hash=ch,
+                            task_fingerprint=tf,
+                            model_fingerprint_hash=self._model_fingerprint_hash,
+                            eval_version=self._eval_version,
+                        )
+                        if deterministic
+                        else ""
+                    )
+                    self._log_to_audit(
+                        reqtype,
+                        req.task_name,
+                        req.doc_id,
+                        req.idx,
+                        gen_kwargs,
+                        cacheable,
+                        cache_key=cache_key,
+                        deterministic=deterministic,
+                        task_fingerprint=tf,
+                        content_hash=ch,
+                        model_fingerprint_hash=self._model_fingerprint_hash,
+                    )
+                    if deterministic and self._is_valid_response(resp, reqtype):
+                        self._store(cache_key, reqtype, req.task_name, req.doc_id, req.idx, gen_kwargs, cacheable)
+                        if self._use_scratch:
+                            self._entries_since_checkpoint += 1
+                            if self._entries_since_checkpoint >= self._checkpoint_interval:
+                                self._checkpoint_to_run_dir()
         else:
-            eval_logger.info(f"ResponseCache: all {len(requests)} requests served from cache — skipping model inference")
+            eval_logger.info(
+                f"ResponseCache: all {len(requests)} requests served from cache — skipping model inference"
+            )
 
         return results
 
@@ -824,15 +920,15 @@ class ResponseCache:
         try:
             self.db.execute("PRAGMA wal_checkpoint(TRUNCATE)")
             self.db.commit()
-            shutil.copy2(self.db_path, self._remote_rank_db)
-            if os.path.exists(self.audit_path):
-                shutil.copy2(self.audit_path, self._remote_rank_audit)
+            _atomic_copy(self.db_path, self._remote_rank_db)
+            if os.path.exists(self.audit_path) and self._remote_rank_audit:
+                _atomic_copy(self.audit_path, self._remote_rank_audit)
             self._entries_since_checkpoint = 0
             eval_logger.debug(f"ResponseCache: checkpoint to {self._remote_rank_db}")
         except Exception as e:
             eval_logger.warning(f"ResponseCache: checkpoint failed: {e}")
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         total_lookups = self._hits + self._misses
         stats = {
             "hits": self._hits,
@@ -885,14 +981,18 @@ class ResponseCache:
         try:
             stats = self.get_stats()
             shared_info = f", {stats.get('hits_shared', 0)} from shared DB" if stats.get("hits_shared", 0) else ""
-            eval_logger.info(f"ResponseCache stats: {stats['hits']} hits{shared_info}, " f"{stats['misses']} misses, {stats['skipped_non_deterministic']} skipped, " f"hit rate: {stats['hit_rate']:.1%}")
+            eval_logger.info(
+                f"ResponseCache stats: {stats['hits']} hits{shared_info}, "
+                f"{stats['misses']} misses, {stats['skipped_non_deterministic']} skipped, "
+                f"hit rate: {stats['hit_rate']:.1%}"
+            )
         except Exception:
             pass
 
         # 2. Close DB (flushes WAL)
         self.close()
 
-        if not success or self._cache_root is None:
+        if self._cache_root is None:
             return
 
         # 3. Copy scratch to run dir
@@ -900,11 +1000,16 @@ class ResponseCache:
             try:
                 os.makedirs(self._run_dir, exist_ok=True)
                 if os.path.exists(self.db_path):
-                    shutil.copy2(self.db_path, self._remote_rank_db)
+                    _atomic_copy(self.db_path, self._remote_rank_db)
                 if os.path.exists(self.audit_path) and self._remote_rank_audit:
-                    shutil.copy2(self.audit_path, self._remote_rank_audit)
+                    _atomic_copy(self.audit_path, self._remote_rank_audit)
             except Exception as e:
                 eval_logger.warning(f"ResponseCache: failed to copy scratch to run dir: {e}")
+
+        if not success:
+            if self._world_size == 1 and self._global_rank == 0:
+                self._merge_run_to_root()
+            return
 
         # 4. Barrier
         self._distributed_barrier(dist_backend, accelerator)
@@ -965,7 +1070,9 @@ class ResponseCache:
                 # Merge current run
                 if shard_dbs:
                     merged = ResponseCache.merge_shards(shard_dbs, target_db)
-                    eval_logger.info(f"ResponseCache: merged {merged} entries from {len(shard_dbs)} rank(s) into {target_db}")
+                    eval_logger.info(
+                        f"ResponseCache: merged {merged} entries from {len(shard_dbs)} rank(s) into {target_db}"
+                    )
                 if shard_audits:
                     merged_lines = ResponseCache.merge_audit_logs(shard_audits, target_audit)
                     eval_logger.info(f"ResponseCache: merged {merged_lines} audit entries into {target_audit}")
@@ -1011,7 +1118,7 @@ class ResponseCache:
             eval_logger.info(f"ResponseCache: merged stale run {entry.name}")
 
     @staticmethod
-    def merge_shards(shard_paths: List[str], output_path: str) -> int:
+    def merge_shards(shard_paths: list[str], output_path: str) -> int:
         """Merge per-rank SQLite shards into a consolidated DB.
 
         Uses INSERT OR IGNORE so existing entries in ``output_path`` are preserved.
@@ -1028,7 +1135,9 @@ class ResponseCache:
             if not os.path.exists(shard_path):
                 continue
             shard_db = sqlite3.connect(shard_path)
-            rows = shard_db.execute("SELECT cache_key, request_type, task_name, doc_id, idx, gen_kwargs, response, created_at FROM responses").fetchall()
+            rows = shard_db.execute(
+                "SELECT cache_key, request_type, task_name, doc_id, idx, gen_kwargs, response, created_at FROM responses"
+            ).fetchall()
             for row in rows:
                 try:
                     out_db.execute(
@@ -1049,7 +1158,7 @@ class ResponseCache:
         return total
 
     @staticmethod
-    def merge_audit_logs(audit_paths: List[str], output_path: str) -> int:
+    def merge_audit_logs(audit_paths: list[str], output_path: str) -> int:
         """Merge per-rank JSONL audit logs into a single file.
 
         Appends entries from all ``audit_paths`` into ``output_path``,
@@ -1063,7 +1172,7 @@ class ResponseCache:
         for path in audit_paths:
             if not os.path.exists(path):
                 continue
-            with open(path, "r", encoding="utf-8") as f:
+            with open(path, encoding="utf-8") as f:
                 for line in f:
                     line = line.strip()
                     if not line:

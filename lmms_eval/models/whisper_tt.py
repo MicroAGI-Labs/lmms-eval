@@ -3,7 +3,6 @@ import base64
 import os
 import time
 from io import BytesIO
-from typing import List, Tuple
 
 import aiohttp
 import numpy as np
@@ -188,7 +187,9 @@ class WhisperTT(lmms):
 
         return ""
 
-    async def _generate_audio_transcription(self, session, audio_array: np.ndarray, sampling_rate: int, audio_index: int = None) -> str:
+    async def _generate_audio_transcription(
+        self, session, audio_array: np.ndarray, sampling_rate: int, audio_index: int = None
+    ) -> str:
         """
         Transcribe audio using the tt-media-server HTTP API.
 
@@ -215,7 +216,12 @@ class WhisperTT(lmms):
         payload = {"file": base64_audio, "stream": False}
 
         try:
-            async with session.post(f"{self.base_url}/audio/transcriptions", json=payload, headers=headers, timeout=aiohttp.ClientTimeout(total=15000)) as response:
+            async with session.post(
+                f"{self.base_url}/audio/transcriptions",
+                json=payload,
+                headers=headers,
+                timeout=aiohttp.ClientTimeout(total=15000),
+            ) as response:
                 elapsed = time.time() - start_time
 
                 if response.status != 200:
@@ -245,7 +251,7 @@ class WhisperTT(lmms):
 
         return ""
 
-    def loglikelihood(self, requests: List[Instance]) -> List[Tuple[float, bool]]:
+    def loglikelihood(self, requests: list[Instance]) -> list[tuple[float, bool]]:
         raise NotImplementedError("Loglikelihood is not implemented for Whisper")
 
     def flatten(self, input):
@@ -255,7 +261,7 @@ class WhisperTT(lmms):
                 new_list.append(j)
         return new_list
 
-    def generate_until(self, requests: List[Instance]) -> List[str]:
+    def generate_until(self, requests: list[Instance]) -> list[str]:
         res = []
 
         def _collate(x):
@@ -290,7 +296,9 @@ class WhisperTT(lmms):
                 if isinstance(until, str):
                     until = [until]
                 elif not isinstance(until, list):
-                    raise ValueError(f"Expected `gen_kwargs['until']` to be of type Union[str,list] but got {type(until)}")
+                    raise ValueError(
+                        f"Expected `gen_kwargs['until']` to be of type Union[str,list] but got {type(until)}"
+                    )
 
             if isinstance(contexts, tuple):
                 contexts = list(contexts)
@@ -298,7 +306,9 @@ class WhisperTT(lmms):
             # Process inputs
             sampling_rate = self.processor.feature_extractor.sampling_rate
             assert sampling_rate == SAMPLING_RATE, f"Expected sampling rate {SAMPLING_RATE}, but got {sampling_rate}"
-            audios = [downsample_audio(audio["array"], audio["sampling_rate"], sampling_rate) for audio in flattened_audios]
+            audios = [
+                downsample_audio(audio["array"], audio["sampling_rate"], sampling_rate) for audio in flattened_audios
+            ]
 
             # Collect all data
             all_audios.extend(audios)
@@ -311,14 +321,19 @@ class WhisperTT(lmms):
         # Now run all transcriptions in parallel
         async def run_transcriptions():
             async with aiohttp.ClientSession() as session:
-                tasks = [self._generate_audio_transcription(session, audio, sampling_rate, i) for i, audio in enumerate(all_audios)]
+                tasks = [
+                    self._generate_audio_transcription(session, audio, sampling_rate, i)
+                    for i, audio in enumerate(all_audios)
+                ]
                 return await asyncio.gather(*tasks)
 
         answers = asyncio.run(run_transcriptions())
 
         time_end_process = time.time()
 
-        eval_logger.info(f"Total time for {len(all_audios)} requests across all chunks {time_end_process - time_start:.2f}s")
+        eval_logger.info(
+            f"Total time for {len(all_audios)} requests across all chunks {time_end_process - time_start:.2f}s"
+        )
 
         # Process results and apply until tokens
         processed_answers = []
@@ -348,9 +363,11 @@ class WhisperTT(lmms):
 
         time_end_process = time.time()
 
-        eval_logger.info(f"Total time for {len(all_audios)} requests across all chunks {time_end_process - time_start:.2f}s")
+        eval_logger.info(
+            f"Total time for {len(all_audios)} requests across all chunks {time_end_process - time_start:.2f}s"
+        )
 
         return res
 
-    def generate_until_multi_round(self, requests) -> List[str]:
+    def generate_until_multi_round(self, requests) -> list[str]:
         raise NotImplementedError("TODO: Implement multi-round generation")

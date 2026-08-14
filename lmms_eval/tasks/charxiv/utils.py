@@ -1,9 +1,6 @@
 import os
 
 from datasets import Dataset
-from openai import OpenAI
-from tqdm import tqdm
-
 from lmms_eval.tasks.charxiv.constant import REASONING_RESP_INST
 from lmms_eval.tasks.charxiv.descriptive_utils import (
     build_descriptive_grading_queries,
@@ -16,6 +13,8 @@ from lmms_eval.tasks.charxiv.reasoning_utils import (
     get_number_instruction,
     get_reasoning_result_gpt,
 )
+from openai import OpenAI
+from tqdm import tqdm
 
 # get environment else return dummy values, in a single line
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "YOUR_OPENAI_API_KEY")
@@ -41,7 +40,9 @@ def charxiv_reasoning_doc_to_text_cot(doc, lmms_eval_specific_kwargs=None):
         question = REASONING_RESP_INST[inst_category].format(doc["reasoning_q"])
     # 4: number-in-general -> need to specify the number of decimal places
     elif inst_category == 4:
-        question = REASONING_RESP_INST[inst_category].format(doc["reasoning_q"], get_number_instruction(doc["reasoning_a"]))
+        question = REASONING_RESP_INST[inst_category].format(
+            doc["reasoning_q"], get_number_instruction(doc["reasoning_a"])
+        )
     return question
 
 
@@ -111,7 +112,9 @@ def charxiv_descriptive_aggregate_results(results):
     queries = build_descriptive_grading_queries(groups)
     combined_queries = []
     for query in tqdm(queries):
-        result = get_descriptive_result_gpt(_get_client(), query["grading_query"], len(query["resp_keys"]), model=MODEL_VERSION)
+        result = get_descriptive_result_gpt(
+            _get_client(), query["grading_query"], len(query["resp_keys"]), model=MODEL_VERSION
+        )
         # query contains resp_keys, grading_query, extract_answer and score
         combined_queries.append({**query, **result})
     queries = combined_queries

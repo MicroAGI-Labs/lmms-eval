@@ -4,7 +4,6 @@
 
 import os
 import re
-from functools import partial
 from pathlib import Path
 
 import numpy as np
@@ -40,7 +39,7 @@ TRAJECTORY_LENGTH_CATEGORIES = ["trajectory_length"]
 hf_home = os.getenv("HF_HOME", "~/.cache/huggingface/")
 base_cache_dir = os.path.expanduser(hf_home)
 
-with open(Path(__file__).parent / "_default_template_yaml", "r") as f:
+with open(Path(__file__).parent / "_default_template_yaml") as f:
     raw_data = f.readlines()
     safe_data = []
     for line in raw_data:
@@ -169,7 +168,11 @@ def build_prompt(doc, lmms_eval_specific_kwargs=None, include_video_length=False
     options = doc.get("options", [])
 
     # Preamble for numeric-tagged objects
-    preamble_num_tagged = "These are frames of a video.\n" "In the video, objects are identified by numeric tags shown nearby.\n" "With that in mind, please answer the following question based on the video."
+    preamble_num_tagged = (
+        "These are frames of a video.\n"
+        "In the video, objects are identified by numeric tags shown nearby.\n"
+        "With that in mind, please answer the following question based on the video."
+    )
 
     prompt_text = ""
 
@@ -184,7 +187,12 @@ def build_prompt(doc, lmms_eval_specific_kwargs=None, include_video_length=False
         prompt_text = f"{preamble_num_tagged}\nQuestion: {question_text}\n\n{instruction}"
 
     # MCQ categories
-    elif category in ["relative_distance", "relative_direction_categorical", "relative_direction_categorical_cardinal", "relative_direction_categorical_ordinal"]:
+    elif category in [
+        "relative_distance",
+        "relative_direction_categorical",
+        "relative_direction_categorical_cardinal",
+        "relative_direction_categorical_ordinal",
+    ]:
         instruction = "Your answer must be only the single letter (e.g., A, B, C, or D) of the correct option."
         options_text = "\n".join(options) if options else ""
         prompt_text = f"{preamble_num_tagged}\nQuestion: {question_text}\n{options_text}\n\n{instruction}"
@@ -259,7 +267,9 @@ def osi_bench_doc_to_visual_frames(doc, lmms_eval_specific_kwargs=None):
     if total_frames <= num_frames:
         # Use all available frames
         indices = np.arange(total_frames)
-        eval_logger.debug(f"[osi_bench] Video has only {total_frames} frames, using all of them (requested {num_frames})")
+        eval_logger.debug(
+            f"[osi_bench] Video has only {total_frames} frames, using all of them (requested {num_frames})"
+        )
     else:
         # Sample uniformly
         indices = np.linspace(0, total_frames - 1, num_frames, dtype=int)
@@ -341,7 +351,11 @@ def osi_bench_doc_to_text_frames(doc, lmms_eval_specific_kwargs=None, include_vi
 
         # 1. Add time context first (if video_length available)
         if video_length and video_length > 0:
-            time_context = f"The video is {round(video_length, 2)} seconds long. " f"The following {num_frames} frames are uniformly sampled from it " "in chronological order:"
+            time_context = (
+                f"The video is {round(video_length, 2)} seconds long. "
+                f"The following {num_frames} frames are uniformly sampled from it "
+                "in chronological order:"
+            )
             parts.append(time_context)
 
         # 2. Add image tokens
@@ -360,7 +374,11 @@ def osi_bench_doc_to_text_frames(doc, lmms_eval_specific_kwargs=None, include_vi
 
         # Append frame context AFTER main prompt if video_length is available
         if video_length and video_length > 0:
-            frame_context = f"The video is {round(video_length, 2)} seconds long. " f"The following {num_frames} frames are uniformly sampled from it " "in chronological order:"
+            frame_context = (
+                f"The video is {round(video_length, 2)} seconds long. "
+                f"The following {num_frames} frames are uniformly sampled from it "
+                "in chronological order:"
+            )
             prompt = prompt + "\n" + frame_context
 
         # Append <image> tokens for simple models that don't use doc_to_messages
@@ -434,7 +452,11 @@ def osi_bench_doc_to_messages_frames(doc, lmms_eval_specific_kwargs=None):
 
         # 1. Add time context prompt first (if video_length available)
         if video_length and video_length > 0:
-            time_context_prompt = f"The video is {round(video_length, 2)} seconds long. " f"The following {actual_num_frames} frames are uniformly sampled from it " "in chronological order:"
+            time_context_prompt = (
+                f"The video is {round(video_length, 2)} seconds long. "
+                f"The following {actual_num_frames} frames are uniformly sampled from it "
+                "in chronological order:"
+            )
             messages[0]["content"].append({"type": "text", "text": time_context_prompt})
 
         # 2. Add frames

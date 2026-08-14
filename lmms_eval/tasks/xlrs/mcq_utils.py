@@ -154,13 +154,21 @@ def xlrs_aggregate_results(results, macro=False):
                 cnt_subtask += category_dict["true"]
                 sum_subtask += category_dict["false"] + category_dict["true"]
                 acc = category_dict["true"] / (category_dict["false"] + category_dict["true"])
-                eval_logger.info("-" * 4 + "\t" + "Acc " + "{:.4f}".format(acc) + f"\t{category.capitalize()} ({category_dict['false'] + category_dict['true']} items)")
+                eval_logger.info(
+                    "-" * 4
+                    + "\t"
+                    + "Acc "
+                    + f"{acc:.4f}"
+                    + f"\t{category.capitalize()} ({category_dict['false'] + category_dict['true']} items)"
+                )
 
             if sum_subtask == 0:
                 acc_subtasks = 0
             else:
                 acc_subtasks = cnt_subtask / sum_subtask
-            eval_logger.info("+" * 16 + "\t Acc " + "{:.4f}".format(acc_subtasks) + f"\t{substask} ({sum_subtask} items)")
+            eval_logger.info(
+                "+" * 16 + "\t Acc " + f"{acc_subtasks:.4f}" + f"\t{substask} ({sum_subtask} items)"
+            )
             macros.append(acc_subtasks)
             cnt_task += cnt_subtask
             sum_task += sum_subtask
@@ -171,8 +179,8 @@ def xlrs_aggregate_results(results, macro=False):
             acc_task = cnt_task / sum_task
         succ_all += cnt_task
         sum_all += sum_task
-        eval_logger.info("*" * 32 + "Acc " + "{:.4f}".format(acc_task) + f"\t{task} ({sum_task} items)\n")
-    eval_logger.info("*" * 32 + "Overall Acc " + "{:.4f}".format(succ_all / sum_all))
+        eval_logger.info("*" * 32 + "Acc " + f"{acc_task:.4f}" + f"\t{task} ({sum_task} items)\n")
+    eval_logger.info("*" * 32 + "Overall Acc " + f"{succ_all / sum_all:.4f}")
     if macro is True:
         return sum(macros) / len(macros)
     else:

@@ -1,7 +1,6 @@
 import os
 import subprocess
 from datetime import timedelta
-from typing import List, Optional, Tuple, Union
 
 import requests
 import torch
@@ -9,13 +8,12 @@ from accelerate import Accelerator, DistributedType, InitProcessGroupKwargs
 from accelerate.state import AcceleratorState
 from decord import VideoReader, cpu
 from huggingface_hub import snapshot_download
-from loguru import logger as eval_logger
-from tqdm import tqdm
-
 from lmms_eval.api.instance import Instance
 from lmms_eval.api.model import lmms
 from lmms_eval.api.registry import register_model
 from lmms_eval.models.model_utils.load_video import read_video
+from loguru import logger as eval_logger
+from tqdm import tqdm
 
 try:
     from llamavid.constants import (
@@ -40,11 +38,11 @@ class LLaMAVid(lmms):
     def __init__(
         self,
         pretrained: str = "YanweiLi/llama-vid-7b-full-224-video-fps-1",
-        truncation: Optional[bool] = True,
-        device: Optional[str] = "cuda:0",
-        dtype: Optional[Union[str, torch.dtype]] = "auto",
-        batch_size: Optional[Union[int, str]] = 1,
-        trust_remote_code: Optional[bool] = False,
+        truncation: bool | None = True,
+        device: str | None = "cuda:0",
+        dtype: str | torch.dtype | None = "auto",
+        batch_size: int | str | None = 1,
+        trust_remote_code: bool | None = False,
         revision=None,
         attn_implementation=(
             "sdpa" if torch.__version__ > "2.1.2" else "eager"
@@ -75,10 +73,17 @@ class LLaMAVid(lmms):
         self.model_name = get_model_name_from_path(pretrained)
         self.num_frames = num_frames
         if not os.path.exists("./model_zoo/LAVIS/eva_vit_g.pth") and accelerator.is_main_process:
-            eval_logger.info("\n\n Eva Encoder is not found for LLaMA-VID. Download automatically to the folder ./model_zoo/LAVIS")
+            eval_logger.info(
+                "\n\n Eva Encoder is not found for LLaMA-VID. Download automatically to the folder ./model_zoo/LAVIS"
+            )
             cache_path = "model_zoo/LAVIS"
             os.makedirs(cache_path, exist_ok=True)
-            subprocess.run(["wget https://storage.googleapis.com/sfr-vision-language-research/LAVIS/models/BLIP2/eva_vit_g.pth -O ./model_zoo/LAVIS/eva_vit_g.pth"], shell=True)
+            subprocess.run(
+                [
+                    "wget https://storage.googleapis.com/sfr-vision-language-research/LAVIS/models/BLIP2/eva_vit_g.pth -O ./model_zoo/LAVIS/eva_vit_g.pth"
+                ],
+                shell=True,
+            )
 
         accelerator.wait_for_everyone()
         self._tokenizer, self._model, self.image_processor, self._max_length = load_pretrained_model(
@@ -98,7 +103,11 @@ class LLaMAVid(lmms):
         self.truncate_context = truncate_context
         # assert self.batch_size_per_gpu == 1, "Llava currently does not support batched generation. See https://github.com/haotian-liu/LLaVA/issues/754. HF Llava also has this issue."
         if accelerator.num_processes > 1:
-            assert accelerator.distributed_type in [DistributedType.FSDP, DistributedType.MULTI_GPU, DistributedType.DEEPSPEED], "Unsupported distributed type provided. Only DDP and FSDP are supported."
+            assert accelerator.distributed_type in [
+                DistributedType.FSDP,
+                DistributedType.MULTI_GPU,
+                DistributedType.DEEPSPEED,
+            ], "Unsupported distributed type provided. Only DDP and FSDP are supported."
             # If you want to use DistributedType.DEEPSPEED, you have to run accelerate config before using the model
             # Also, you have to select zero stage 0 (equivalent to DDP) in order to make the prepare model works
             # I tried to set different parameters in the kwargs to let default zero 2 stage works, but it didn't work.
@@ -108,8 +117,13 @@ class LLaMAVid(lmms):
                     "train_batch_size": self.batch_size_per_gpu * accelerator.num_processes,
                 }
                 AcceleratorState().deepspeed_plugin.deepspeed_config_process(must_match=True, **kwargs)
-                eval_logger.info("Detected that you are using DistributedType.DEEPSPEED. Make sure you run `accelerate config` and set zero stage to 0")
-            if accelerator.distributed_type == DistributedType.FSDP or accelerator.distributed_type == DistributedType.DEEPSPEED:
+                eval_logger.info(
+                    "Detected that you are using DistributedType.DEEPSPEED. Make sure you run `accelerate config` and set zero stage to 0"
+                )
+            if (
+                accelerator.distributed_type == DistributedType.FSDP
+                or accelerator.distributed_type == DistributedType.DEEPSPEED
+            ):
                 self._model = accelerator.prepare(self.model)
             else:
                 self._model = accelerator.prepare_model(self.model, evaluation_mode=True)
@@ -177,7 +191,7 @@ class LLaMAVid(lmms):
     def max_length(self):
         return self._max_length
 
-    def tok_encode(self, string: str, left_truncate_len=None, add_special_tokens=None) -> List[int]:
+    def tok_encode(self, string: str, left_truncate_len=None, add_special_tokens=None) -> list[int]:
         """ """
         add_special_tokens = False if add_special_tokens is None else add_special_tokens
         encoding = self.tokenizer.encode(string, add_special_tokens=add_special_tokens)
@@ -204,7 +218,7 @@ class LLaMAVid(lmms):
                 new_list.append(j)
         return new_list
 
-    def generate_until(self, requests) -> List[str]:
+    def generate_until(self, requests) -> list[str]:
         res = []
         pbar = tqdm(total=len(requests), disable=(self.rank != 0), desc="Model Responding")
 
@@ -229,7 +243,11 @@ class LLaMAVid(lmms):
             conv.append_message(conv.roles[1], None)
             prompt = conv.get_prompt()
 
-            input_ids = tokenizer_image_token(prompt, self.tokenizer, IMAGE_TOKEN_INDEX, return_tensors="pt").unsqueeze(0).cuda()
+            input_ids = (
+                tokenizer_image_token(prompt, self.tokenizer, IMAGE_TOKEN_INDEX, return_tensors="pt")
+                .unsqueeze(0)
+                .cuda()
+            )
 
             stop_str = conv.sep if conv.sep_style != SeparatorStyle.TWO else conv.sep2
             keywords = [stop_str]
@@ -238,7 +256,15 @@ class LLaMAVid(lmms):
             cur_prompt = contexts
             with torch.inference_mode():
                 self.model.update_prompt([[cur_prompt]])
-                output_ids = self.model.generate(input_ids, images=video, do_sample=True, temperature=0.2, max_new_tokens=1024, use_cache=True, stopping_criteria=[stopping_criteria])
+                output_ids = self.model.generate(
+                    input_ids,
+                    images=video,
+                    do_sample=True,
+                    temperature=0.2,
+                    max_new_tokens=1024,
+                    use_cache=True,
+                    stopping_criteria=[stopping_criteria],
+                )
 
             input_token_len = input_ids.shape[1]
             n_diff_input_output = (input_ids != output_ids[:, :input_token_len]).sum().item()
@@ -254,7 +280,7 @@ class LLaMAVid(lmms):
 
         return res
 
-    def loglikelihood(self, requests: List[Instance]) -> List[Tuple[float, bool]]:
+    def loglikelihood(self, requests: list[Instance]) -> list[tuple[float, bool]]:
         return super().loglikelihood(requests)
 
     @property
@@ -273,5 +299,5 @@ class LLaMAVid(lmms):
     def world_size(self):
         return self._world_size
 
-    def generate_until_multi_round(self, requests) -> List[str]:
+    def generate_until_multi_round(self, requests) -> list[str]:
         raise NotImplementedError("TODO: Implement multi-round generation for LLaMAVid")

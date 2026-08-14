@@ -26,7 +26,11 @@ if API_TYPE == "openai":
 
 
 def get_prompt(data_obj, random_number):
-    answers = [data_obj["response"][0], data_obj["response"][1]] if random_number == 0 else [data_obj["response"][1], data_obj["response"][0]]
+    answers = (
+        [data_obj["response"][0], data_obj["response"][1]]
+        if random_number == 0
+        else [data_obj["response"][1], data_obj["response"][0]]
+    )
     prompt_str = f""" You are a highly capable multimodal AI assistant tasked with evaluating answers to visual questions. Please analyze the following image and question, then determine which of the two provided answers is better.
 
 Question: {data_obj["query"]}
@@ -55,7 +59,9 @@ def vlrewardbench_doc_to_visual(doc):
 
 def vlrewardbench_doc_to_text(doc):
     # we randomly choose the order of the answers to avoid positional bias
-    random_number = sum(len(res) for res in doc["response"]) % 2  # we use the length sum % 2 as a random number generator to decide the order of the answers
+    random_number = (
+        sum(len(res) for res in doc["response"]) % 2
+    )  # we use the length sum % 2 as a random number generator to decide the order of the answers
     query_prompt = get_prompt(doc, random_number)
     return query_prompt
 
@@ -84,7 +90,14 @@ def parse_pred_ans(pred_ans):
 
 def parse_by_llm(response, model="gpt-4o-mini", max_tokens=32):
     # get the judgement from response using gpt-4o
-    data = {"max_tokens": max_tokens, "model": model, "temperature": 0.0, "top_p": 1.0, "presence_penalty": 1, "messages": [{"role": "user", "content": LLM_PARSE_ANSWER_PROMPT.format(judgement=response)}]}
+    data = {
+        "max_tokens": max_tokens,
+        "model": model,
+        "temperature": 0.0,
+        "top_p": 1.0,
+        "presence_penalty": 1,
+        "messages": [{"role": "user", "content": LLM_PARSE_ANSWER_PROMPT.format(judgement=response)}],
+    }
     response = requests.post(API_URL, headers=headers, data=json.dumps(data).encode("utf-8"))
     result = response.content.decode("utf-8")
     dict_result = json.loads(result)
@@ -102,7 +115,9 @@ def vlrewardbench_process_results(doc, results):
     """
     pred = results[0]
     pred_ans = parse_pred_ans(pred)  # 1 or 2 indicte which one is better
-    random_number = sum(len(res) for res in doc["response"]) % 2  # we use the length sum % 2 as a random number generator to decide the order of the answers
+    random_number = (
+        sum(len(res) for res in doc["response"]) % 2
+    )  # we use the length sum % 2 as a random number generator to decide the order of the answers
     # Note: human_ranking [0, 1] -> answer 1 is better,  [1, 0] -> answer 2 is better
     gt_ans = doc["human_ranking"].index(0 if random_number == 0 else 1) + 1
 

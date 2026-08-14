@@ -17,4 +17,6 @@ def cv_bench_doc_to_text(doc: dict, lmms_eval_specific_kwargs=None) -> str:
 
 
 cv_bench_reasoning_doc_to_messages = make_reasoning_doc_to_messages(cv_bench_doc_to_visual, cv_bench_doc_to_text)
-cv_bench_reasoning_process_results = make_reasoning_process_results("cv_bench", cv_bench_doc_to_text, metrics_prefix="cv_bench_")
+cv_bench_reasoning_process_results = make_reasoning_process_results(
+    "cv_bench", cv_bench_doc_to_text, metrics_prefix="cv_bench_"
+)

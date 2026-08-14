@@ -8,7 +8,7 @@ import os
 import re
 from collections import defaultdict
 from functools import partial
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from azure.identity import (
     AzureCliCredential,
@@ -16,12 +16,11 @@ from azure.identity import (
     ManagedIdentityCredential,
     get_bearer_token_provider,
 )
+from lmms_eval.azure_openai_compat import build_client as build_azure_compat_client
+from lmms_eval.azure_openai_compat import has_endpoint_support
 from loguru import logger as eval_logger
 from openai import AzureOpenAI, OpenAI
 from PIL import Image
-
-from lmms_eval.azure_openai_compat import build_client as build_azure_compat_client
-from lmms_eval.azure_openai_compat import has_endpoint_support
 
 # ============================================================================
 # LLM Judge Client (Azure TRAPI or OpenAI)
@@ -151,7 +150,7 @@ def call_judge(question: str, groundtruth: str, modeloutput: str) -> bool:
 # ============================================================================
 
 
-def format_choices(choices: List[str]) -> str:
+def format_choices(choices: list[str]) -> str:
     """Format multiple choice options as (A), (B), (C), etc."""
     if not choices:
         return ""
@@ -161,7 +160,7 @@ def format_choices(choices: List[str]) -> str:
     return formatted.strip()
 
 
-def doc_to_visual(doc: Dict) -> List[Image.Image]:
+def doc_to_visual(doc: dict) -> list[Image.Image]:
     """Get visual input from document."""
     if "image" in doc and doc["image"]:
         img = doc["image"]
@@ -170,7 +169,7 @@ def doc_to_visual(doc: Dict) -> List[Image.Image]:
     return []
 
 
-def doc_to_text(doc: Dict, lmms_eval_specific_kwargs: Dict = None) -> str:
+def doc_to_text(doc: dict, lmms_eval_specific_kwargs: dict = None) -> str:
     """Format question with choices if applicable."""
     question = doc["question"].strip()
 
@@ -188,7 +187,7 @@ def doc_to_text(doc: Dict, lmms_eval_specific_kwargs: Dict = None) -> str:
     return question
 
 
-def extract_boxed_answer(text: str) -> Optional[str]:
+def extract_boxed_answer(text: str) -> str | None:
     """Extract answer from \\boxed{} format."""
     if not text:
         return None
@@ -208,7 +207,7 @@ def extract_boxed_answer(text: str) -> Optional[str]:
     return None
 
 
-def process_results(doc: Dict, results: List[str]) -> Dict[str, Any]:
+def process_results(doc: dict, results: list[str]) -> dict[str, Any]:
     """Process results using Azure TRAPI LLM Judge for evaluation."""
     pred_text = results[0] if results else ""
 
@@ -258,7 +257,7 @@ def process_results(doc: Dict, results: List[str]) -> Dict[str, Any]:
     }
 
 
-def aggregate_results(results: List[Dict]) -> float:
+def aggregate_results(results: list[dict]) -> float:
     """Aggregate results to compute accuracy."""
     subtype_scores = defaultdict(list)
 
@@ -313,8 +312,8 @@ VISUAL_TRACKING_GEN_PROMPT = (
 
 
 def doc_to_text_visual_cot(
-    doc: Dict,
-    lmms_eval_specific_kwargs: Dict = None,
+    doc: dict,
+    lmms_eval_specific_kwargs: dict = None,
     gen_prompt: str = "",
 ) -> str:
     """Format Visual CoT prompt with generation prompt and question."""
@@ -325,7 +324,10 @@ def doc_to_text_visual_cot(
         question = question + "\nChoices:\n" + format_choices(doc["options"])
 
     # Add auxiliary image notice
-    question = "In addition to the original image, you are also given an auxiliary " "visualization image that highlights key visual elements.\n\n" + question
+    question = (
+        "In addition to the original image, you are also given an auxiliary "
+        "visualization image that highlights key visual elements.\n\n" + question
+    )
 
     # Add pre_prompt and post_prompt
     if lmms_eval_specific_kwargs:
@@ -337,11 +339,11 @@ def doc_to_text_visual_cot(
     return f"[GEN_PROMPT]{gen_prompt}[/GEN_PROMPT][QUESTION]{question}[/QUESTION]"
 
 
-def doc_to_text_fine_grained_cot(doc: Dict, lmms_eval_specific_kwargs: Dict = None) -> str:
+def doc_to_text_fine_grained_cot(doc: dict, lmms_eval_specific_kwargs: dict = None) -> str:
     """Visual CoT prompt for Fine-grained Discrimination task."""
     return doc_to_text_visual_cot(doc, lmms_eval_specific_kwargs, FINE_GRAINED_GEN_PROMPT)
 
 
-def doc_to_text_visual_tracking_cot(doc: Dict, lmms_eval_specific_kwargs: Dict = None) -> str:
+def doc_to_text_visual_tracking_cot(doc: dict, lmms_eval_specific_kwargs: dict = None) -> str:
     """Visual CoT prompt for Visual Tracking task."""
     return doc_to_text_visual_cot(doc, lmms_eval_specific_kwargs, VISUAL_TRACKING_GEN_PROMPT)

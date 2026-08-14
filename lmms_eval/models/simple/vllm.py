@@ -2,22 +2,22 @@ import json
 import os
 import socket
 import time
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Callable, List, Optional, Tuple, Union
+from typing import Any
 
 import numpy as np
 import torch.distributed as dist
 from accelerate import Accelerator, DistributedType
 from decord import VideoReader, cpu
-from loguru import logger as eval_logger
-from PIL import Image
-
 from lmms_eval.api.instance import Instance
 from lmms_eval.api.model import lmms
 from lmms_eval.api.registry import register_model
 from lmms_eval.imports import optional_import
 from lmms_eval.models.model_utils.media_encoder import encode_image_to_base64
 from lmms_eval.models.model_utils.progress import make_progress
+from loguru import logger as eval_logger
+from PIL import Image
 
 NUM_SECONDS_TO_SLEEP = int(os.getenv("NUM_SECONDS_TO_SLEEP", "5"))
 WORKERS = int(os.getenv("WORKERS", "32"))
@@ -153,8 +153,8 @@ class VLLM(lmms):
         gpu_memory_utilization: float = 0.8,
         batch_size: int = 1,
         max_frame_num: int = 32,
-        trust_remote_code: Optional[bool] = True,
-        chat_template: Optional[str] = None,
+        trust_remote_code: bool | None = True,
+        chat_template: str | None = None,
         min_image_pixels: int = 28,  # minimum image dimension, required for Qwen 2/2.5-VL models
         disable_log_stats: bool = False,
         image_first: bool = False,
@@ -184,7 +184,7 @@ class VLLM(lmms):
                 # It appears to be a file path, so it must exist
                 if not os.path.isfile(chat_template):
                     raise FileNotFoundError(f"Chat template file not found: {chat_template}")
-                with open(chat_template, "r") as f:
+                with open(chat_template) as f:
                     self.chat_template = f.read()
             else:
                 # Treat as a template string
@@ -228,7 +228,11 @@ class VLLM(lmms):
         if accelerator.num_processes > 1:
             kwargs["distributed_executor_backend"] = "external_launcher"
             if expected_world_size > 1 and accelerator.num_processes != expected_world_size:
-                raise ValueError("For external_launcher mode, accelerate world size must equal " f"tensor_parallel_size * data_parallel_size ({expected_world_size}), " f"but got {accelerator.num_processes}.")
+                raise ValueError(
+                    "For external_launcher mode, accelerate world size must equal "
+                    f"tensor_parallel_size * data_parallel_size ({expected_world_size}), "
+                    f"but got {accelerator.num_processes}."
+                )
         self.client = LLM(
             model=self.model,
             tensor_parallel_size=self.tensor_parallel_size,
@@ -265,7 +269,10 @@ class VLLM(lmms):
             self._tp_rank_in_group = int(tp_group.rank_in_group)
         except Exception as exc:
             if self._world_size > 1:
-                raise RuntimeError("Failed to initialize vLLM TP group for synchronized request dispatch. " "This is required when tensor_parallel_size > 1 under distributed launch.") from exc
+                raise RuntimeError(
+                    "Failed to initialize vLLM TP group for synchronized request dispatch. "
+                    "This is required when tensor_parallel_size > 1 under distributed launch."
+                ) from exc
             eval_logger.warning(f"Failed to initialize TP group for request sync: {exc}")
 
     def _watchdog_rank(self) -> int:
@@ -333,7 +340,10 @@ class VLLM(lmms):
         try:
             request_max_new_tokens = int(request_max_new_tokens)
         except (TypeError, ValueError):
-            eval_logger.warning("Invalid max_new_tokens from task (%s), falling back to model setting (%s)." % (request_max_new_tokens, self.max_new_tokens))
+            eval_logger.warning(
+                "Invalid max_new_tokens from task (%s), falling back to model setting (%s)."
+                % (request_max_new_tokens, self.max_new_tokens)
+            )
             return self.max_new_tokens
         return max(request_max_new_tokens, self.max_new_tokens)
 
@@ -381,7 +391,10 @@ class VLLM(lmms):
 
         merged_outputs = run_fn(merged_inputs)
         if len(merged_outputs) != len(merged_inputs):
-            raise RuntimeError("vLLM output count mismatch after TP request synchronization: " f"expected {len(merged_inputs)}, got {len(merged_outputs)}")
+            raise RuntimeError(
+                "vLLM output count mismatch after TP request synchronization: "
+                f"expected {len(merged_inputs)}, got {len(merged_outputs)}"
+            )
 
         start = offsets[self._tp_rank_in_group]
         end = offsets[self._tp_rank_in_group + 1]
@@ -406,7 +419,7 @@ class VLLM(lmms):
         return img.resize(new_size, Image.BICUBIC)
 
     # Function to encode the image
-    def encode_image(self, image: Union[Image.Image, str]):
+    def encode_image(self, image: Image.Image | str):
         if isinstance(image, str):
             img = Image.open(image).convert("RGB")
         else:
@@ -459,7 +472,7 @@ class VLLM(lmms):
                 new_list.append(i)
         return new_list
 
-    def generate_until(self, requests) -> List[str]:
+    def generate_until(self, requests) -> list[str]:
         res = []
         pbar = make_progress(total=len(requests), disable=(self.rank != 0), desc="Model Responding")
 
@@ -487,9 +500,23 @@ class VLLM(lmms):
                         all_tasks = []
                         with ThreadPoolExecutor(max_workers=WORKERS) as executor:
                             for visual in visuals:
-                                if isinstance(visual, str) and (".mp4" in visual or ".avi" in visual or ".mov" in visual or ".flv" in visual or ".wmv" in visual):
+                                if isinstance(visual, str) and (
+                                    ".mp4" in visual
+                                    or ".avi" in visual
+                                    or ".mov" in visual
+                                    or ".flv" in visual
+                                    or ".wmv" in visual
+                                ):
                                     all_tasks.append(executor.submit(self.encode_video, visual))
-                                elif isinstance(visual, str) and (".jpg" in visual or ".jpeg" in visual or ".png" in visual or ".gif" in visual or ".bmp" in visual or ".tiff" in visual or ".webp" in visual):
+                                elif isinstance(visual, str) and (
+                                    ".jpg" in visual
+                                    or ".jpeg" in visual
+                                    or ".png" in visual
+                                    or ".gif" in visual
+                                    or ".bmp" in visual
+                                    or ".tiff" in visual
+                                    or ".webp" in visual
+                                ):
                                     all_tasks.append(executor.submit(self.encode_image, visual))
                                 elif isinstance(visual, Image.Image):
                                     all_tasks.append(executor.submit(self.encode_image, visual))
@@ -552,9 +579,9 @@ class VLLM(lmms):
         self._write_watchdog_heartbeat("complete", batch_idx=len(batched_requests))
         return res
 
-    def loglikelihood(self, requests: List[Instance]) -> List[Tuple[float, bool]]:
+    def loglikelihood(self, requests: list[Instance]) -> list[tuple[float, bool]]:
         # TODO
         assert False, "GPT4V not support"
 
-    def generate_until_multi_round(self, requests) -> List[str]:
+    def generate_until_multi_round(self, requests) -> list[str]:
         raise NotImplementedError("TODO: Implement multi-round generation")

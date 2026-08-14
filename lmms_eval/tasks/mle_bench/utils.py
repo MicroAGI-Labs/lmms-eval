@@ -20,7 +20,7 @@ The three sub-tasks correspond to object size (percentage of image pixels):
 
 import re
 from collections import defaultdict
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from loguru import logger as eval_logger
 
@@ -65,7 +65,7 @@ def _extract_answer_letter(text: str) -> str:
     return ""
 
 
-def _answer_to_letter(doc: Dict) -> str:
+def _answer_to_letter(doc: dict) -> str:
     """
     Convert the text answer to a letter (A/B/C/D) based on its position in choices.
     Returns "" if the answer is not found in choices.
@@ -89,12 +89,12 @@ def _answer_to_letter(doc: Dict) -> str:
 # ---------------------------------------------------------------------------
 
 
-def mle_bench_doc_to_visual(doc: Dict) -> List:
+def mle_bench_doc_to_visual(doc: dict) -> list:
     """Return the image as a list (lmms-eval convention)."""
     return [doc["image"].convert("RGB")]
 
 
-def mle_bench_doc_to_text(doc: Dict, lmms_eval_specific_kwargs: Optional[Dict[str, Any]] = None) -> str:
+def mle_bench_doc_to_text(doc: dict, lmms_eval_specific_kwargs: dict[str, Any] | None = None) -> str:
     """
     Format the question and choices into a text prompt.
 
@@ -119,7 +119,7 @@ def mle_bench_doc_to_text(doc: Dict, lmms_eval_specific_kwargs: Optional[Dict[st
     return f"{pre_prompt}{question}\n{choices_text}{post_prompt}"
 
 
-def mle_bench_doc_to_target(doc: Dict) -> str:
+def mle_bench_doc_to_target(doc: dict) -> str:
     """
     Return the ground-truth answer letter (A/B/C/D).
     lmms-eval compares model output against this value.
@@ -132,7 +132,7 @@ def mle_bench_doc_to_target(doc: Dict) -> str:
 # ---------------------------------------------------------------------------
 
 
-def mle_bench_process_results(doc: Dict, results: List[str]) -> Dict:
+def mle_bench_process_results(doc: dict, results: list[str]) -> dict:
     """
     Parse model output and compute per-sample correctness.
 
@@ -164,19 +164,19 @@ def mle_bench_process_results(doc: Dict, results: List[str]) -> Dict:
     }
 
 
-def mle_bench_aggregate_results(results: List[Dict]) -> float:
+def mle_bench_aggregate_results(results: list[dict]) -> float:
     """
     Compute accuracy grouped by size category, then report overall average.
 
     The final returned score is the macro-average across the three categories
     (small / medium / large), which is the primary metric used in the paper.
     """
-    category_scores: Dict[str, List[bool]] = defaultdict(list)
+    category_scores: dict[str, list[bool]] = defaultdict(list)
 
     for r in results:
         category_scores[r["category"]].append(r["is_correct"])
 
-    category_acc: Dict[str, float] = {}
+    category_acc: dict[str, float] = {}
     for cat, scores in sorted(category_scores.items()):
         acc = sum(scores) / len(scores) if scores else 0.0
         category_acc[cat] = acc

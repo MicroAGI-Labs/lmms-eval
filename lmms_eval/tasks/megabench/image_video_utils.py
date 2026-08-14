@@ -90,9 +90,15 @@ def load_media_content(media_path, max_nframes):
 
 
 def process_text_and_mixed_media(doc, max_nframes, cache_dir):
-    global_text, global_images = _process_text_and_mixed_media(doc["task_description"], doc["global_media"], max_nframes, cache_dir)
-    example_text, example_images = _process_text_and_mixed_media(doc["example_text"], doc["example_media"], max_nframes, cache_dir)
-    query_text, query_images = _process_text_and_mixed_media(doc["query_text"], doc["query_media"], max_nframes, cache_dir)
+    global_text, global_images = _process_text_and_mixed_media(
+        doc["task_description"], doc["global_media"], max_nframes, cache_dir
+    )
+    example_text, example_images = _process_text_and_mixed_media(
+        doc["example_text"], doc["example_media"], max_nframes, cache_dir
+    )
+    query_text, query_images = _process_text_and_mixed_media(
+        doc["query_text"], doc["query_media"], max_nframes, cache_dir
+    )
     prompt = "\n".join([global_text, example_text, query_text])
     images = global_images + example_images + query_images
     return prompt, images
@@ -113,7 +119,9 @@ def _process_text_and_mixed_media(text, media_paths, max_nframes, cache_dir):
 
     placeholder_count = sum(1 for chunk in text_chunks if chunk in ["<image>", "<video>"])
     if placeholder_count != len(media_paths):
-        raise ValueError(f"Mismatching # placeholders ({placeholder_count}) and # media paths ({len(media_paths)}). Please check the data...")
+        raise ValueError(
+            f"Mismatching # placeholders ({placeholder_count}) and # media paths ({len(media_paths)}). Please check the data..."
+        )
 
     media_index = 0
     images = []

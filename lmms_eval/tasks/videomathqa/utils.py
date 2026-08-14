@@ -3,7 +3,6 @@ import re
 import sys
 from collections import defaultdict
 from pathlib import Path
-from typing import List
 
 import cv2
 import numpy as np
@@ -11,10 +10,21 @@ import yaml
 from loguru import logger as eval_logger
 
 VIDEO_LENGTH = ["short", "medium", "long"]
-CATEGORIES = ["Geometry Angle", "Geometry Area", "Geometry Length", "Chart", "Statistics", "Arithmetic", "Topology", "Graph Theory", "Counting", "Puzzle"]
+CATEGORIES = [
+    "Geometry Angle",
+    "Geometry Area",
+    "Geometry Length",
+    "Chart",
+    "Statistics",
+    "Arithmetic",
+    "Topology",
+    "Graph Theory",
+    "Counting",
+    "Puzzle",
+]
 
 
-def decode_video(video_path: str) -> List[np.ndarray]:
+def decode_video(video_path: str) -> list[np.ndarray]:
     video = cv2.VideoCapture(video_path)
     video_frames = []
     while video.isOpened():
@@ -44,7 +54,7 @@ def load_video(video_path, max_frames, annot_sample_rate=1):
 
 hf_home = os.getenv("HF_HOME", "~/.cache/huggingface/")
 base_cache_dir = os.path.expanduser(hf_home)
-with open(Path(__file__).parent / "videomathqa_mcq.yaml", "r") as f:
+with open(Path(__file__).parent / "videomathqa_mcq.yaml") as f:
     raw_data = f.readlines()
     safe_data = []
     for i, line in enumerate(raw_data):
@@ -62,7 +72,7 @@ def parse_subtitle_time(time_str):
 
 def load_subtitles(subtitle_path):
     subtitles = {}
-    with open(subtitle_path, "r", encoding="utf-8") as file:
+    with open(subtitle_path, encoding="utf-8") as file:
         content = file.read().split("\n\n")
         for section in content:
             if section.strip():
@@ -119,7 +129,11 @@ def videomathqa_doc_to_text(doc, lmms_eval_specific_kwargs=None):
     question = doc["question"]
     option = "\n".join([f"{opt}" for i, opt in enumerate(doc["options"])])
     question = question + "\n" + option
-    post_prompt = lmms_eval_specific_kwargs["post_prompt"] if "post_prompt" in lmms_eval_specific_kwargs else "The best answer is:"
+    post_prompt = (
+        lmms_eval_specific_kwargs["post_prompt"]
+        if "post_prompt" in lmms_eval_specific_kwargs
+        else "The best answer is:"
+    )
     full_prompt = option_prompt + "\n" + question + "\n" + post_prompt
     return full_prompt
 
@@ -192,7 +206,11 @@ def videomathqa_doc_to_text_subtitle(doc, lmms_eval_specific_kwargs=None):
     question = doc["question"]
     option = "\n".join([f"{opt}" for i, opt in enumerate(doc["options"])])
     question = question + "\n" + option
-    post_prompt = lmms_eval_specific_kwargs["post_prompt"] if "post_prompt" in lmms_eval_specific_kwargs else "The best answer is:"
+    post_prompt = (
+        lmms_eval_specific_kwargs["post_prompt"]
+        if "post_prompt" in lmms_eval_specific_kwargs
+        else "The best answer is:"
+    )
     full_prompt = subtitles_prompt + subtitle + "\n" + option_prompt + "\n" + question + "\n" + post_prompt
     return full_prompt
 
@@ -204,8 +222,8 @@ def extract_characters_regex(s):
         "The correct answer is",
         "The answer is",
         "The answer",
-        "The best option is" "The correct option is",
-        "Best answer:" "Best option:",
+        "The best option isThe correct option is",
+        "Best answer:Best option:",
     ]
     for answer_prefix in answer_prefixes:
         s = s.replace(answer_prefix, "")
@@ -239,7 +257,13 @@ def videomathqa_process_results(doc, results):
 
     category = doc["category"]
     doc["duration"] = doc["length"]
-    data_dict = {"question_id": doc["question_id"], "duration": doc["duration"], "category": category, "pred_answer": pred_ans, "answer": doc["answer"]}
+    data_dict = {
+        "question_id": doc["question_id"],
+        "duration": doc["duration"],
+        "category": category,
+        "pred_answer": pred_ans,
+        "answer": doc["answer"],
+    }
 
     return {"videomathqa_perception_score": data_dict}
 

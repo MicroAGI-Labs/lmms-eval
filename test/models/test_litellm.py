@@ -18,7 +18,9 @@ def _install_litellm_stub() -> mock.MagicMock:
 
 
 def _fake_chat_completion(content: str = "hi", prompt_tokens: int = 3, completion_tokens: int = 5) -> SimpleNamespace:
-    usage = SimpleNamespace(prompt_tokens=prompt_tokens, completion_tokens=completion_tokens, completion_tokens_details=None)
+    usage = SimpleNamespace(
+        prompt_tokens=prompt_tokens, completion_tokens=completion_tokens, completion_tokens_details=None
+    )
     message = SimpleNamespace(content=content)
     choice = SimpleNamespace(message=message, finish_reason="stop", index=0)
     return SimpleNamespace(choices=[choice], usage=usage, id="cmpl-test", model="test")

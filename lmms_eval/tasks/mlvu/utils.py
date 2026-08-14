@@ -10,7 +10,7 @@ hf_home = os.getenv("HF_HOME", "./~/.cache/huggingface")
 base_cache_dir = os.path.expanduser(hf_home)
 
 
-with open(Path(__file__).parent / "mlvu_dev.yaml", "r") as f:
+with open(Path(__file__).parent / "mlvu_dev.yaml") as f:
     raw_data_dev = f.readlines()
     safe_data_dev = []
     for i, line in enumerate(raw_data_dev):
@@ -21,7 +21,7 @@ cache_name_dev = yaml.safe_load("".join(safe_data_dev))["dataset_kwargs"]["cache
 cache_dir_dev = os.path.join(base_cache_dir, cache_name_dev)
 
 
-with open(Path(__file__).parent / "mlvu_test.yaml", "r") as f:
+with open(Path(__file__).parent / "mlvu_test.yaml") as f:
     raw_data_test = f.readlines()
     safe_data_test = []
     for i, line in enumerate(raw_data_test):
@@ -81,7 +81,12 @@ def mlvu_process_results(doc, results):
     pred_ans = extract_characters_regex(pred)
 
     task_type = doc["task_type"]
-    data_dict = {"question_id": doc["question"], "task_type": task_type, "pred_answer": pred_ans, "answer": doc["answer"]}
+    data_dict = {
+        "question_id": doc["question"],
+        "task_type": task_type,
+        "pred_answer": pred_ans,
+        "answer": doc["answer"],
+    }
 
     return {"mlvu_percetion_score": data_dict}
 
@@ -135,7 +140,17 @@ def mlvu_aggregate_results_test(results):
     Returns:
         A score
     """
-    TASK_TYPES = {"anomaly_reco", "count", "ego", "needleQA", "order", "plotQA", "sportsQA", "topic_reasoning", "tutorialQA"}
+    TASK_TYPES = {
+        "anomaly_reco",
+        "count",
+        "ego",
+        "needleQA",
+        "order",
+        "plotQA",
+        "sportsQA",
+        "topic_reasoning",
+        "tutorialQA",
+    }
     category2score = {}
     for task_type in TASK_TYPES:
         category2score[task_type] = {"correct": 0, "answered": 0}

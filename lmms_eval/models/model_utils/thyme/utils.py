@@ -46,7 +46,7 @@ def generate_prompt_final_qa(user_question: str, user_image_path: str) -> str:
     try:
         with Image.open(user_image_path) as img:
             user_image_size = f"{img.width}x{img.height}"
-    except (FileNotFoundError, OSError, IOError):
+    except (FileNotFoundError, OSError):
         user_image_size = "Unable to determine (error reading image)"
 
     prompt = f"""<image>

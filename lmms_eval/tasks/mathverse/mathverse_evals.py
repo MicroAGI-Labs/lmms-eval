@@ -2,11 +2,10 @@ import os
 import time
 
 import pandas as pd
+from lmms_eval.llm_judge import ServerConfig, get_server
 from loguru import logger as eval_logger
 from openai import AzureOpenAI, OpenAI
 from tqdm import tqdm
-
-from lmms_eval.llm_judge import ServerConfig, get_server
 
 
 class MathVerseEvaluator:
@@ -94,7 +93,9 @@ class MathVerseEvaluator:
             return model_response == answer
 
         try:
-            result = self.server.evaluate_binary(question=question, answer=str(answer), prediction=model_response, output_format="0/1")
+            result = self.server.evaluate_binary(
+                question=question, answer=str(answer), prediction=model_response, output_format="0/1"
+            )
 
             if result["success"]:
                 judge_response = result["result"]
@@ -116,7 +117,7 @@ class MathVerseEvaluator:
         total_pd = res_pd[res_pd[key] == value]
 
         correct_pd = total_pd[total_pd["true_false"] == True]
-        acc = "{:.2f}".format(len(correct_pd) / len(total_pd) * 100) if len(total_pd) > 0 else "0.00"
+        acc = f"{len(correct_pd) / len(total_pd) * 100:.2f}" if len(total_pd) > 0 else "0.00"
         return len(correct_pd), len(total_pd), acc
 
     def create_one_query(self, problem, shot_type, hint, query_type, examples=None, shot_num=0):
@@ -200,7 +201,13 @@ class MathVerseEvaluator:
             if "true_false" in inst:
                 true_false = inst["true_false"]
             else:
-                true_false = self.score_answer(problem["question_for_eval"], problem["answer"], prediction, config["metadata"]["quick_match"]) if problem["answer"] is not None else False
+                true_false = (
+                    self.score_answer(
+                        problem["question_for_eval"], problem["answer"], prediction, config["metadata"]["quick_match"]
+                    )
+                    if problem["answer"] is not None
+                    else False
+                )
 
             inst["extraction"] = prediction  # Store the full prediction as extraction
             inst["prediction"] = prediction

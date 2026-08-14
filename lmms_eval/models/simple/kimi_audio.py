@@ -1,18 +1,16 @@
 import os
 import tempfile
-from typing import List, Optional, Tuple, Union
 
 import numpy as np
 import soundfile as sf
 import torch
 from accelerate import Accelerator, DistributedType
-from loguru import logger as eval_logger
-from tqdm import tqdm
-
 from lmms_eval import utils
 from lmms_eval.api.instance import Instance
 from lmms_eval.api.model import lmms
 from lmms_eval.api.registry import register_model
+from loguru import logger as eval_logger
+from tqdm import tqdm
 
 
 @register_model("kimi_audio")
@@ -25,8 +23,8 @@ class KimiAudio(lmms):
     def __init__(
         self,
         pretrained: str = "moonshotai/Kimi-Audio-7B-Instruct",
-        device: Optional[str] = "cuda",
-        batch_size: Optional[Union[int, str]] = 1,
+        device: str | None = "cuda",
+        batch_size: int | str | None = 1,
         load_detokenizer: bool = False,
         text_temperature: float = 0.0,
         text_top_k: int = 5,
@@ -119,7 +117,7 @@ class KimiAudio(lmms):
     def world_size(self):
         return self._world_size
 
-    def loglikelihood(self, requests: List[Instance]) -> List[Tuple[float, bool]]:
+    def loglikelihood(self, requests: list[Instance]) -> list[tuple[float, bool]]:
         raise NotImplementedError("Loglikelihood is not implemented for KimiAudio")
 
     def _save_audio_to_temp(self, audio_array: np.ndarray, sampling_rate: int) -> str:
@@ -128,7 +126,7 @@ class KimiAudio(lmms):
         sf.write(temp_file.name, audio_array, sampling_rate)
         return temp_file.name
 
-    def generate_until(self, requests: List[Instance]) -> List[str]:
+    def generate_until(self, requests: list[Instance]) -> list[str]:
         res = []
 
         def _collate(x):
@@ -234,5 +232,5 @@ class KimiAudio(lmms):
         pbar.close()
         return res
 
-    def generate_until_multi_round(self, requests) -> List[str]:
+    def generate_until_multi_round(self, requests) -> list[str]:
         raise NotImplementedError("Multi-round generation is not implemented")

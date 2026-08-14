@@ -105,7 +105,9 @@ if __name__ == "__main__":
         if args.cot_prompt_path is not None:
             description = cot_file[subject]
         else:
-            description = f"The following are multiple choice questions (with answers) about {' '.join(subject.split('_'))}.\n\n"
+            description = (
+                f"The following are multiple choice questions (with answers) about {' '.join(subject.split('_'))}.\n\n"
+            )
 
         yaml_dict = {
             "include": base_yaml_name,

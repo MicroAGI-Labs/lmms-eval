@@ -16,7 +16,7 @@ import json
 import re
 import unicodedata
 from collections import Counter
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import Levenshtein
 from loguru import logger as eval_logger
@@ -42,7 +42,7 @@ _DOC_TO_MARKDOWN_PROMPT = (
 # ---------------------------------------------------------------------------
 
 
-def _to_rgb(image_obj: Any) -> Optional[Image.Image]:
+def _to_rgb(image_obj: Any) -> Image.Image | None:
     import base64
 
     if isinstance(image_obj, Image.Image):
@@ -134,7 +134,7 @@ _FORMULA_CATEGORIES = {"equation_isolated", "equation_inline"}
 _TABLE_CATEGORIES = {"table"}
 
 
-def _extract_gt_elements(doc) -> Dict[str, List[str]]:
+def _extract_gt_elements(doc) -> dict[str, list[str]]:
     """Parse ground truth into {'text': [...], 'formula': [...], 'table': [...]}."""
     answer_raw = doc.get("answer", "")
     if isinstance(answer_raw, list):
@@ -304,7 +304,7 @@ def _strip_reasoning_prefix(text: str) -> str:
     return text
 
 
-def _parse_prediction(text: str) -> Dict[str, List[str]]:
+def _parse_prediction(text: str) -> dict[str, list[str]]:
     """Parse model markdown output into typed element lists."""
     if not text:
         return {"text": [], "formula": [], "table": []}
@@ -442,7 +442,7 @@ def _normalize_formula(s: str) -> str:
 _MATCH_COST_THRESHOLD = 0.7  # Pairs with cost above this are treated as unmatched
 
 
-def _edit_distance_matrix(gt_list: List[str], pred_list: List[str], normalize_fn) -> List[List[float]]:
+def _edit_distance_matrix(gt_list: list[str], pred_list: list[str], normalize_fn) -> list[list[float]]:
     """Compute normalized edit distance matrix between GT and predicted elements."""
     n_gt = len(gt_list)
     n_pred = len(pred_list)
@@ -464,7 +464,7 @@ def _edit_distance_matrix(gt_list: List[str], pred_list: List[str], normalize_fn
     return cost
 
 
-def _hungarian_match(gt_list: List[str], pred_list: List[str], normalize_fn) -> List[Tuple[int, int, float]]:
+def _hungarian_match(gt_list: list[str], pred_list: list[str], normalize_fn) -> list[tuple[int, int, float]]:
     """Match GT to predicted elements using Hungarian algorithm.
 
     Returns list of (gt_idx, pred_idx, normalized_edit_distance) for valid matches.
@@ -491,7 +491,7 @@ def _hungarian_match(gt_list: List[str], pred_list: List[str], normalize_fn) -> 
         return _greedy_match(cost)
 
 
-def _greedy_match(cost: List[List[float]]) -> List[Tuple[int, int, float]]:
+def _greedy_match(cost: list[list[float]]) -> list[tuple[int, int, float]]:
     """Greedy fallback when scipy is not available."""
     n_gt = len(cost)
     n_pred = len(cost[0]) if cost else 0
@@ -523,7 +523,7 @@ def _greedy_match(cost: List[List[float]]) -> List[Tuple[int, int, float]]:
 # ---------------------------------------------------------------------------
 
 
-def _compute_text_edit_distance(gt_texts: List[str], pred_texts: List[str]) -> Dict[str, float]:
+def _compute_text_edit_distance(gt_texts: list[str], pred_texts: list[str]) -> dict[str, float]:
     """Compute weighted edit distance for text elements on a single page.
 
     Returns dict with 'distance' (weighted NED) and 'weight' (total max_len).
@@ -559,7 +559,7 @@ def _compute_text_edit_distance(gt_texts: List[str], pred_texts: List[str]) -> D
     return {"distance": total_dist / total_max_len, "weight": total_max_len}
 
 
-def _compute_formula_edit_distance(gt_formulas: List[str], pred_formulas: List[str]) -> Dict[str, float]:
+def _compute_formula_edit_distance(gt_formulas: list[str], pred_formulas: list[str]) -> dict[str, float]:
     """Compute weighted edit distance for formula elements on a single page."""
     if not gt_formulas:
         return {"distance": 0.0, "weight": 0.0}
@@ -618,7 +618,7 @@ def _compute_teds(gt_html: str, pred_html: str) -> float:
         return 1.0 - dist / max_len
 
 
-def _compute_table_teds(gt_tables: List[str], pred_tables: List[str]) -> Dict[str, float]:
+def _compute_table_teds(gt_tables: list[str], pred_tables: list[str]) -> dict[str, float]:
     """Compute average TEDS for matched table pairs on a single page."""
     if not gt_tables:
         return {"teds": 0.0, "count": 0}

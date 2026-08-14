@@ -23,7 +23,9 @@ def _hf_home_path(hf_home_env_value=""):
 
 
 @lru_cache(maxsize=256)
-def _candidate_roots_cached(cache_dir=None, media_type="video", env_values=(), global_media_root="", hf_home_env_value=""):
+def _candidate_roots_cached(
+    cache_dir=None, media_type="video", env_values=(), global_media_root="", hf_home_env_value=""
+):
     roots = []
 
     for env_value in env_values:

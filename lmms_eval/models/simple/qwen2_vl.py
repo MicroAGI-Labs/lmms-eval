@@ -1,14 +1,9 @@
 import re
-from typing import List, Optional, Tuple, Union
 
 import decord
 import numpy as np
 import torch
 from accelerate import Accelerator, DistributedType
-from loguru import logger as eval_logger
-from PIL import Image
-from tqdm import tqdm
-from transformers import AutoProcessor, AutoTokenizer, Qwen2VLForConditionalGeneration
 
 # TODO: Consider moving flatten to lmms_eval.utils
 # from lmms_eval import utils
@@ -17,6 +12,10 @@ from lmms_eval.api.model import lmms
 from lmms_eval.api.registry import register_model
 from lmms_eval.imports import optional_import
 from lmms_eval.models.model_utils.media_encoder import encode_image_to_data_url
+from loguru import logger as eval_logger
+from PIL import Image
+from tqdm import tqdm
+from transformers import AutoProcessor, AutoTokenizer, Qwen2VLForConditionalGeneration
 
 process_vision_info, _has_qwen_vl = optional_import("qwen_vl_utils", "process_vision_info")
 if not _has_qwen_vl:
@@ -33,18 +32,18 @@ class Qwen2_VL(lmms):
     def __init__(
         self,
         pretrained: str = "Qwen/Qwen2-VL-7B-Instruct",
-        device: Optional[str] = "cuda",
-        device_map: Optional[str] = "cuda",
-        batch_size: Optional[Union[int, str]] = 1,
+        device: str | None = "cuda",
+        device_map: str | None = "cuda",
+        batch_size: int | str | None = 1,
         use_cache=True,
-        use_flash_attention_2: Optional[bool] = False,
-        max_length: Optional[int] = 2048,  # Added max_length parameter
+        use_flash_attention_2: bool | None = False,
+        max_length: int | None = 2048,  # Added max_length parameter
         max_pixels: int = 602112,
         min_pixels: int = 3136,
         max_num_frames: int = 32,
-        system_prompt: Optional[str] = "You are a helpful assistant.",
-        interleave_visuals: Optional[bool] = False,
-        reasoning_prompt: Optional[str] = None,
+        system_prompt: str | None = "You are a helpful assistant.",
+        interleave_visuals: bool | None = False,
+        reasoning_prompt: str | None = None,
         **kwargs,
     ) -> None:
         super().__init__()
@@ -69,7 +68,9 @@ class Qwen2_VL(lmms):
                 attn_implementation="flash_attention_2",
             ).eval()
         else:
-            self._model = Qwen2VLForConditionalGeneration.from_pretrained(pretrained, torch_dtype="auto", device_map=self.device_map).eval()
+            self._model = Qwen2VLForConditionalGeneration.from_pretrained(
+                pretrained, torch_dtype="auto", device_map=self.device_map
+            ).eval()
         self.processor = AutoProcessor.from_pretrained(pretrained, max_pixels=max_pixels, min_pixels=min_pixels)
         self.max_pixels = max_pixels
         self.min_pixels = min_pixels
@@ -159,7 +160,7 @@ class Qwen2_VL(lmms):
     def world_size(self):
         return self._world_size
 
-    def loglikelihood(self, requests: List[Instance]) -> List[Tuple[float, bool]]:
+    def loglikelihood(self, requests: list[Instance]) -> list[tuple[float, bool]]:
         raise NotImplementedError("Loglikelihood is not implemented for Qwen2_VL")
 
     # TODO: Consider moving flatten to lmms_eval.utils if it's general purpose
@@ -179,7 +180,7 @@ class Qwen2_VL(lmms):
             quality=85,
         )
 
-    def generate_until(self, requests: List[Instance]) -> List[str]:
+    def generate_until(self, requests: list[Instance]) -> list[str]:
         res = []
 
         def _collate(x):
@@ -237,7 +238,9 @@ class Qwen2_VL(lmms):
                 elif isinstance(until_from_kwargs, list):
                     until = until_from_kwargs
                 else:
-                    raise ValueError(f"Expected `gen_kwargs['until']` to be of type Union[str,list] but got {type(until_from_kwargs)}")
+                    raise ValueError(
+                        f"Expected `gen_kwargs['until']` to be of type Union[str,list] but got {type(until_from_kwargs)}"
+                    )
 
             if isinstance(contexts, tuple):
                 contexts = list(contexts)
@@ -324,7 +327,9 @@ class Qwen2_VL(lmms):
                                 if 0 <= img_idx < len(processed_visuals):
                                     content_parts.append(processed_visuals[img_idx])
                                 else:
-                                    eval_logger.warning(f"Image index {img_idx + 1} out of range for available visuals ({len(processed_visuals)}) in context.")
+                                    eval_logger.warning(
+                                        f"Image index {img_idx + 1} out of range for available visuals ({len(processed_visuals)}) in context."
+                                    )
                             else:
                                 eval_logger.warning(f"Could not parse index from placeholder: {placeholder}")
                         except Exception as e:
@@ -343,7 +348,10 @@ class Qwen2_VL(lmms):
 
                 batched_messages.append(message)
 
-            texts = [self.processor.apply_chat_template(msg, tokenize=False, add_generation_prompt=True) for msg in batched_messages]
+            texts = [
+                self.processor.apply_chat_template(msg, tokenize=False, add_generation_prompt=True)
+                for msg in batched_messages
+            ]
             # TODO: Consider moving video frame sampling logic into process_vision_info or a helper.
             image_inputs, video_inputs = process_vision_info(batched_messages)
             if video_inputs is not None and len(video_inputs) > 0 and video_inputs[0] is not None:
@@ -407,7 +415,9 @@ class Qwen2_VL(lmms):
                 **gen_kwargs,
             }  # Provided gen_kwargs override defaults
 
-            pad_token_id = self.tokenizer.pad_token_id if self.tokenizer.pad_token_id is not None else self.tokenizer.eos_token_id
+            pad_token_id = (
+                self.tokenizer.pad_token_id if self.tokenizer.pad_token_id is not None else self.tokenizer.eos_token_id
+            )
 
             cont = self.model.generate(
                 **inputs,
@@ -465,7 +475,7 @@ class Qwen2_VL(lmms):
         pbar.close()
         return res
 
-    def generate_until_multi_round(self, requests: List[Instance]) -> List[str]:
+    def generate_until_multi_round(self, requests: list[Instance]) -> list[str]:
         res = []
 
         def _collate(x):
@@ -477,7 +487,11 @@ class Qwen2_VL(lmms):
         metadata = requests[0].metadata
         re_ords = utils.Collator([reg.args for reg in requests], _collate, grouping=True)
         chunks = re_ords.get_batched(n=self.batch_size, batch_fn=None)
-        num_iters = len(requests) // self.batch_size if len(requests) % self.batch_size == 0 else len(requests) // self.batch_size + 1
+        num_iters = (
+            len(requests) // self.batch_size
+            if len(requests) % self.batch_size == 0
+            else len(requests) // self.batch_size + 1
+        )
         pbar = tqdm(total=num_iters, disable=(self.rank != 0), desc="Model Responding")
 
         for chunk in chunks:
@@ -497,7 +511,9 @@ class Qwen2_VL(lmms):
             if None in batched_visuals:
                 batched_visuals = [None] * len(batched_visuals)
             else:
-                batched_visuals = [self.flatten([visuals]) if visuals is not None else [] for visuals in batched_visuals]
+                batched_visuals = [
+                    self.flatten([visuals]) if visuals is not None else [] for visuals in batched_visuals
+                ]
 
             gen_kwargs = all_gen_kwargs[0]
             if "until" in gen_kwargs:
@@ -526,7 +542,9 @@ class Qwen2_VL(lmms):
                                     self.task_dict[task][split][ids],
                                     previous_output=[round_res[ids_idx] for round_res in batched_round_res],
                                     round_idx=round_idx,
-                                    previous_round_info=batched_previous_round_info[ids_idx] if batched_previous_round_info is not None else None,
+                                    previous_round_info=batched_previous_round_info[ids_idx]
+                                    if batched_previous_round_info is not None
+                                    else None,
                                 )
                                 for ids_idx, ids in enumerate(batched_doc_id)
                             ]
@@ -610,7 +628,9 @@ class Qwen2_VL(lmms):
                                     if 0 <= img_idx < len(processed_visuals):
                                         content_parts.append(processed_visuals[img_idx])
                                     else:
-                                        eval_logger.warning(f"Image index {img_idx + 1} out of range for available visuals ({len(processed_visuals)}) in context.")
+                                        eval_logger.warning(
+                                            f"Image index {img_idx + 1} out of range for available visuals ({len(processed_visuals)}) in context."
+                                        )
                                 else:
                                     eval_logger.warning(f"Could not parse index from placeholder: {placeholder}")
                             except Exception as e:
@@ -628,7 +648,10 @@ class Qwen2_VL(lmms):
 
                     batched_messages.append(message)
 
-                texts = [self.processor.apply_chat_template(msg, tokenize=False, add_generation_prompt=True) for msg in batched_messages]
+                texts = [
+                    self.processor.apply_chat_template(msg, tokenize=False, add_generation_prompt=True)
+                    for msg in batched_messages
+                ]
                 image_inputs, video_inputs = process_vision_info(batched_messages)
 
                 if video_inputs is not None and len(video_inputs) > 0 and video_inputs[0] is not None:
@@ -677,7 +700,11 @@ class Qwen2_VL(lmms):
                 }
                 current_gen_kwargs = {**default_gen_kwargs, **gen_kwargs}
 
-                pad_token_id = self.tokenizer.pad_token_id if self.tokenizer.pad_token_id is not None else self.tokenizer.eos_token_id
+                pad_token_id = (
+                    self.tokenizer.pad_token_id
+                    if self.tokenizer.pad_token_id is not None
+                    else self.tokenizer.eos_token_id
+                )
 
                 cont = self.model.generate(
                     **inputs,

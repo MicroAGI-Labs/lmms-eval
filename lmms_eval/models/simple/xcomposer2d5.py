@@ -1,15 +1,13 @@
 import logging
 import os
-from typing import List, Tuple
 
 import torch
 from accelerate import Accelerator, DistributedType
-from tqdm import tqdm
-from transformers import AutoModel, AutoTokenizer
-
 from lmms_eval.api.instance import Instance
 from lmms_eval.api.model import lmms
 from lmms_eval.api.registry import register_model
+from tqdm import tqdm
+from transformers import AutoModel, AutoTokenizer
 
 eval_logger = logging.getLogger("eval_logger")
 
@@ -56,12 +54,22 @@ class XComposer2D5(lmms):
             self.device_map = f"cuda:{accelerator.local_process_index}"
 
         self.path = pretrained
-        self._model = AutoModel.from_pretrained(self.path, torch_dtype=torch.bfloat16, trust_remote_code=True, device_map=self.device_map).half().eval()
+        self._model = (
+            AutoModel.from_pretrained(
+                self.path, torch_dtype=torch.bfloat16, trust_remote_code=True, device_map=self.device_map
+            )
+            .half()
+            .eval()
+        )
         self._tokenizer = AutoTokenizer.from_pretrained(self.path, trust_remote_code=True)
         self._model.tokenizer = self._tokenizer
 
         if accelerator.num_processes > 1:
-            assert accelerator.distributed_type in [DistributedType.FSDP, DistributedType.MULTI_GPU, DistributedType.DEEPSPEED], "Unsupported distributed type provided. Only DDP and FSDP are supported."
+            assert accelerator.distributed_type in [
+                DistributedType.FSDP,
+                DistributedType.MULTI_GPU,
+                DistributedType.DEEPSPEED,
+            ], "Unsupported distributed type provided. Only DDP and FSDP are supported."
             # If you want to use DistributedType.DEEPSPEED, you have to run accelerate config before using the model
             # Also, you have to select zero stage 0 (equivalent to DDP) in order to make the prepare model works
             # I tried to set different parameters in the kwargs to let default zero 2 stage works, but it didn't work.
@@ -71,9 +79,14 @@ class XComposer2D5(lmms):
                     "train_batch_size": self.batch_size_per_gpu * accelerator.num_processes,
                 }
                 AcceleratorState().deepspeed_plugin.deepspeed_config_process(must_match=True, **kwargs)
-                eval_logger.info("Detected that you are using DistributedType.DEEPSPEED. Make sure you run `accelerate config` and set zero stage to 0")
+                eval_logger.info(
+                    "Detected that you are using DistributedType.DEEPSPEED. Make sure you run `accelerate config` and set zero stage to 0"
+                )
 
-            if accelerator.distributed_type == DistributedType.FSDP or accelerator.distributed_type == DistributedType.DEEPSPEED:
+            if (
+                accelerator.distributed_type == DistributedType.FSDP
+                or accelerator.distributed_type == DistributedType.DEEPSPEED
+            ):
                 self._model = accelerator.prepare(self.model)
             else:
                 self._model = accelerator.prepare_model(self.model, evaluation_mode=True)
@@ -134,7 +147,7 @@ class XComposer2D5(lmms):
                 new_list.append(j)
         return new_list
 
-    def generate_until(self, requests) -> List[str]:
+    def generate_until(self, requests) -> list[str]:
         res = []
         pbar = tqdm(total=len(requests), disable=(self.rank != 0), desc="Model Responding")
 
@@ -165,7 +178,15 @@ class XComposer2D5(lmms):
 
             try:
                 with torch.autocast(device_type="cuda", dtype=torch.float16):
-                    response, his = self.model.chat(self.tokenizer, contexts, image, do_sample=False, num_beams=1, use_meta=True, max_new_tokens=gen_kwargs["max_new_tokens"])
+                    response, his = self.model.chat(
+                        self.tokenizer,
+                        contexts,
+                        image,
+                        do_sample=False,
+                        num_beams=1,
+                        use_meta=True,
+                        max_new_tokens=gen_kwargs["max_new_tokens"],
+                    )
             except Exception as e:
                 eval_logger.error(f"Error : {e}")
                 response = ""
@@ -175,8 +196,8 @@ class XComposer2D5(lmms):
         pbar.close()
         return res
 
-    def loglikelihood(self, requests: List[Instance]) -> List[Tuple[float, bool]]:
+    def loglikelihood(self, requests: list[Instance]) -> list[tuple[float, bool]]:
         assert False, "Not implemented yet."
 
-    def generate_until_multi_round(self, requests) -> List[str]:
+    def generate_until_multi_round(self, requests) -> list[str]:
         raise NotImplementedError("TODO: Implement multi-round generation")

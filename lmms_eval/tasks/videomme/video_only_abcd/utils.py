@@ -2,25 +2,37 @@
 # Only provide video, no question or options - model guesses A/B/C/D
 
 import re
-from typing import Any, Dict, Optional
+from typing import Any
 
 from lmms_eval.tasks.videomme.utils import videomme_doc_to_visual
 
-_DEFAULT_SYSTEM_PROMPT = "You will receive ONLY a video. There is no question. " "Guess which option letter (A, B, C, or D) is correct. " "Output exactly one capital letter: A, B, C, or D."
+_DEFAULT_SYSTEM_PROMPT = (
+    "You will receive ONLY a video. There is no question. "
+    "Guess which option letter (A, B, C, or D) is correct. "
+    "Output exactly one capital letter: A, B, C, or D."
+)
 
 
-def doc_to_text(doc: Dict[str, Any], lmms_eval_specific_kwargs: Optional[dict] = None) -> str:
+def doc_to_text(doc: dict[str, Any], lmms_eval_specific_kwargs: dict | None = None) -> str:
     """Return empty text (no question provided)."""
     return ""
 
 
-def doc_to_messages(doc: Dict[str, Any], lmms_eval_specific_kwargs: Optional[dict] = None):
+def doc_to_messages(doc: dict[str, Any], lmms_eval_specific_kwargs: dict | None = None):
     """System-only instruction + user contains video only."""
     lmms_eval_specific_kwargs = lmms_eval_specific_kwargs or {}
 
     # Get system prompt
-    system_prompt = lmms_eval_specific_kwargs.get("system_prompt") or (lmms_eval_specific_kwargs.get("default", {}) or {}).get("system_prompt") or _DEFAULT_SYSTEM_PROMPT
-    user_text = lmms_eval_specific_kwargs.get("user_text") or (lmms_eval_specific_kwargs.get("default", {}) or {}).get("user_text") or ""
+    system_prompt = (
+        lmms_eval_specific_kwargs.get("system_prompt")
+        or (lmms_eval_specific_kwargs.get("default", {}) or {}).get("system_prompt")
+        or _DEFAULT_SYSTEM_PROMPT
+    )
+    user_text = (
+        lmms_eval_specific_kwargs.get("user_text")
+        or (lmms_eval_specific_kwargs.get("default", {}) or {}).get("user_text")
+        or ""
+    )
 
     videos = videomme_doc_to_visual(doc)
 
@@ -52,7 +64,7 @@ def _extract_abcd(s: str) -> str:
     return m.group(0) if m else ""
 
 
-def process_results(doc: Dict[str, Any], results):
+def process_results(doc: dict[str, Any], results):
     """Process results for video-only format."""
     gt = doc.get("answer", "").upper()
 

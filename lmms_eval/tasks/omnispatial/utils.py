@@ -3,18 +3,17 @@ import os
 import re
 from collections import defaultdict
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 import numpy as np
 import yaml
 from huggingface_hub import snapshot_download
+from lmms_eval.llm_judge import get_server
+from lmms_eval.llm_judge.protocol import ServerConfig
 from loguru import logger as eval_logger
 from PIL import Image
 
-from lmms_eval.llm_judge import get_server
-from lmms_eval.llm_judge.protocol import ServerConfig
-
-with open(Path(__file__).parent / "_default_template_yaml", "r") as f:
+with open(Path(__file__).parent / "_default_template_yaml") as f:
     raw_data = f.readlines()
     safe_data = []
     for i, line in enumerate(raw_data):
@@ -53,14 +52,20 @@ def omnispatial_doc_to_visual(doc: dict) -> list:
 
 
 def omnispatial_doc_to_text(doc: dict[str, Any]) -> str:
-    prompt = SYS_PROMPTS[config["metadata"]["prompt_type"]] + "\n" + FORMAT_PROMPTS[config["metadata"]["eval_type"]] + "\n\n" + doc["question"]
+    prompt = (
+        SYS_PROMPTS[config["metadata"]["prompt_type"]]
+        + "\n"
+        + FORMAT_PROMPTS[config["metadata"]["eval_type"]]
+        + "\n\n"
+        + doc["question"]
+    )
     options = doc["options"]
     for i in range(len(options)):
         prompt += f"\n{chr(65 + i)}. {options[i]}"
     return prompt
 
 
-def omnispatial_process_results(doc: Dict, results: List[str]) -> Dict[str, Dict]:
+def omnispatial_process_results(doc: dict, results: list[str]) -> dict[str, dict]:
     # extract grounded answer
     grounded_output = doc["gt"]
     response = results[0]
@@ -90,7 +95,12 @@ def omnispatial_process_results(doc: Dict, results: List[str]) -> Dict[str, Dict
             custom_config = ServerConfig(model_name=JUDGE_MODEL_VERSION)
             msgs = [
                 {"role": "system", "content": LLM_JUDGE_SYSTEM_PROMPT},
-                {"role": "user", "content": [{"type": "text", "text": f"Question: {query}\nPred: {response}\nGT: {grounded_output}"}]},
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": f"Question: {query}\nPred: {response}\nGT: {grounded_output}"}
+                    ],
+                },
             ]
             request = Request(messages=msgs, config=custom_config)
 
@@ -110,15 +120,23 @@ def omnispatial_process_results(doc: Dict, results: List[str]) -> Dict[str, Dict
         assert False, f"Unknown eval_type: {eval_type}"
     category = "omnispatial_" + doc["sub_task_type"].lower()
     key_benchmark = "omnispatial"
-    omnispatial_submission = {"id": doc["id"], "query": query, "gt_content": grounded_output, "pred": response, "task": doc["task_type"], "sub_task": category, "is_correct": flag}
+    omnispatial_submission = {
+        "id": doc["id"],
+        "query": query,
+        "gt_content": grounded_output,
+        "pred": response,
+        "task": doc["task_type"],
+        "sub_task": category,
+        "is_correct": flag,
+    }
     return {category: omnispatial_submission, key_benchmark: omnispatial_submission}
 
 
-def omnispatial_group_aggregate_results(results: List[Dict]) -> float:
+def omnispatial_group_aggregate_results(results: list[dict]) -> float:
     return float(np.mean([sample["is_correct"] for sample in results]))
 
 
-def omnispatial_aggregate_results(results: List[Dict]) -> float:
+def omnispatial_aggregate_results(results: list[dict]) -> float:
     sub_task_to_eval_samples = defaultdict(list)
     task_to_eval_samples = defaultdict(list)
     total_samples = len(results)

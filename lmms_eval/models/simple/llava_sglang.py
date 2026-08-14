@@ -6,14 +6,12 @@ torch.backends.cuda.matmul.allow_tf32 = True
 
 
 import warnings
-from typing import List, Optional, Tuple, Union
-
-from tqdm import tqdm
 
 from lmms_eval import utils
 from lmms_eval.api.instance import Instance
 from lmms_eval.api.model import lmms
 from lmms_eval.api.registry import register_model
+from tqdm import tqdm
 
 warnings.filterwarnings("ignore")
 import tempfile
@@ -25,7 +23,9 @@ try:
     import sglang as sgl
     from sglang.lang.chat_template import get_chat_template
 except ImportError:
-    eval_logger.debug("SGLang is not installed. If you want to use llava_sglang, please install it using pip install 'sglang[all]' ")
+    eval_logger.debug(
+        "SGLang is not installed. If you want to use llava_sglang, please install it using pip install 'sglang[all]' "
+    )
 
 if torch.__version__ > "2.1.2":
     best_fit_attn_implementation = "sdpa"
@@ -44,7 +44,7 @@ class LlavaSglang(lmms):
         pretrained: str = "liuhaotian/llava-v1.5-7b",
         tokenizer: str = "llava-hf/llava-1.5-7b-hf",
         tp_size: int = 1,
-        parallel: Optional[Union[int, str]] = 64,
+        parallel: int | str | None = 64,
         conv_template="vicuna_v1.1",
         **kwargs,
     ) -> None:
@@ -62,12 +62,17 @@ class LlavaSglang(lmms):
         self._world_size = 1
         self.parallel = parallel
 
-    def loglikelihood(self, requests: List[Instance]) -> List[Tuple[float, bool]]:
+    def loglikelihood(self, requests: list[Instance]) -> list[tuple[float, bool]]:
         raise NotImplementedError("Llava-sglang does not support loglikelihood evaluation yet")
 
-    def generate_until(self, requests: List[Instance]) -> List[str]:
+    def generate_until(self, requests: list[Instance]) -> list[str]:
         torch.multiprocessing.set_start_method("spawn", force=True)
-        runtime = sgl.Runtime(model_path=self.pretrained, tokenizer_path=self.tokenizer, tp_size=self.tp_size, port=random.randint(10000, 50000))
+        runtime = sgl.Runtime(
+            model_path=self.pretrained,
+            tokenizer_path=self.tokenizer,
+            tp_size=self.tp_size,
+            port=random.randint(10000, 50000),
+        )
         runtime.endpoint.chat_template = get_chat_template(self.conv_template)
         sgl.set_default_backend(runtime)
 
@@ -93,11 +98,16 @@ class LlavaSglang(lmms):
         # in the same batch.
         re_ords = utils.Collator([reg.args for reg in requests], _collate, grouping=True)
         chunks = re_ords.get_batched(n=self.parallel, batch_fn=None)
-        num_iters = len(requests) // self.parallel if len(requests) % self.parallel == 0 else len(requests) // self.parallel + 1
+        num_iters = (
+            len(requests) // self.parallel if len(requests) % self.parallel == 0 else len(requests) // self.parallel + 1
+        )
         pbar = tqdm(total=num_iters, disable=(self.rank != 0), desc="Model Responding")
         for chunk in chunks:
             contexts, all_gen_kwargs, doc_to_visuals, doc_id, tasks, splits = zip(*chunk)
-            batched_visuals = [doc_to_visual(self.task_dict[task][split][ids]) for ids, task, split, doc_to_visual in zip(doc_id, tasks, splits, doc_to_visuals)]  # [B, N]
+            batched_visuals = [
+                doc_to_visual(self.task_dict[task][split][ids])
+                for ids, task, split, doc_to_visual in zip(doc_id, tasks, splits, doc_to_visuals)
+            ]  # [B, N]
             # we assume all gen kwargs in the batch are the same
             # this is safe to assume because the `grouper` object ensures it.
             gen_kwargs = all_gen_kwargs[0]
@@ -122,12 +132,17 @@ class LlavaSglang(lmms):
 
                 with ThreadPoolExecutor(max_workers=max_workers) as executor:
                     # Associate each future with its index and content
-                    future_to_info = {executor.submit(save_image_to_temp_file, pil_list[0]): (index, context, pil_list) for index, (context, pil_list) in enumerate(zip(contexts, batched_visuals))}
+                    future_to_info = {
+                        executor.submit(save_image_to_temp_file, pil_list[0]): (index, context, pil_list)
+                        for index, (context, pil_list) in enumerate(zip(contexts, batched_visuals))
+                    }
 
                     for future in as_completed(future_to_info):
                         index, context, pil_list = future_to_info[future]
                         if len(pil_list) > 1:
-                            eval_logger.warning("Llava-sglang only supports one visual input per question. Using the first visual input.")
+                            eval_logger.warning(
+                                "Llava-sglang only supports one visual input per question. Using the first visual input."
+                            )
                         try:
                             temp_file = future.result()
                             arguments[index] = {
@@ -145,7 +160,14 @@ class LlavaSglang(lmms):
                 return arguments, tmp_files
 
             arguments, tmp_files = prepare_arguments_parallel(contexts, batched_visuals, self.parallel)
-            states = image_qa.run_batch(arguments, temperature=gen_kwargs["temperature"], max_new_tokens=gen_kwargs["max_new_tokens"], top_p=gen_kwargs["top_p"], num_threads=self.parallel, progress_bar=False)
+            states = image_qa.run_batch(
+                arguments,
+                temperature=gen_kwargs["temperature"],
+                max_new_tokens=gen_kwargs["max_new_tokens"],
+                top_p=gen_kwargs["top_p"],
+                num_threads=self.parallel,
+                progress_bar=False,
+            )
 
             text_outputs = [state["answer"].strip() for state in states]
             # clean up the temporary files
@@ -160,5 +182,5 @@ class LlavaSglang(lmms):
         runtime.shutdown()
         return res
 
-    def generate_until_multi_round(self, requests) -> List[str]:
+    def generate_until_multi_round(self, requests) -> list[str]:
         raise NotImplementedError("TODO: Implement multi-round generation for LLaVA-SGLang")

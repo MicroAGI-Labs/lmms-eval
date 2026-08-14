@@ -12,7 +12,7 @@ import uuid
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 from loguru import logger
 
@@ -54,10 +54,10 @@ class JobScheduler:
         temp_dir_prefix: str = DEFAULT_TEMP_DIR_PREFIX,
     ):
         self._job_queue: asyncio.Queue = None
-        self._jobs: Dict[str, JobInfo] = {}
+        self._jobs: dict[str, JobInfo] = {}
         self._jobs_lock: asyncio.Lock = None
         self._worker_task: asyncio.Task = None
-        self._current_job_id: Optional[str] = None
+        self._current_job_id: str | None = None
         self._max_completed_jobs = max_completed_jobs
         self._temp_dir_prefix = temp_dir_prefix
 
@@ -90,7 +90,7 @@ class JobScheduler:
         return self._job_queue.qsize() if self._job_queue else 0
 
     @property
-    def current_job_id(self) -> Optional[str]:
+    def current_job_id(self) -> str | None:
         """Get the ID of the currently running job."""
         return self._current_job_id
 
@@ -98,12 +98,12 @@ class JobScheduler:
     # Job Operations (Thread-safe)
     # -------------------------------------------------------------------------
 
-    async def get_job(self, job_id: str) -> Optional[JobInfo]:
+    async def get_job(self, job_id: str) -> JobInfo | None:
         """Get a job by ID (thread-safe)."""
         async with self._jobs_lock:
             return self._jobs.get(job_id)
 
-    async def get_job_with_position(self, job_id: str) -> Optional[JobInfo]:
+    async def get_job_with_position(self, job_id: str) -> JobInfo | None:
         """Get a job by ID, updating queue position if queued (thread-safe)."""
         async with self._jobs_lock:
             job = self._jobs.get(job_id)
@@ -111,7 +111,9 @@ class JobScheduler:
                 return None
 
             if job.status == JobStatus.QUEUED:
-                position = sum(1 for j in self._jobs.values() if j.status == JobStatus.QUEUED and j.created_at < job.created_at)
+                position = sum(
+                    1 for j in self._jobs.values() if j.status == JobStatus.QUEUED and j.created_at < job.created_at
+                )
                 job.position_in_queue = position
 
             return job
@@ -222,7 +224,7 @@ class JobScheduler:
     # Internal Job State Transitions
     # -------------------------------------------------------------------------
 
-    async def _start_job(self, job_id: str) -> Optional[dict]:
+    async def _start_job(self, job_id: str) -> dict | None:
         """
         Mark a job as running and return its config.
 
@@ -238,7 +240,7 @@ class JobScheduler:
             job.started_at = datetime.now().isoformat()
             return job.request.model_dump()
 
-    async def _complete_job(self, job_id: str, result: Dict[str, Any]):
+    async def _complete_job(self, job_id: str, result: dict[str, Any]):
         """Mark a job as completed with results."""
         async with self._jobs_lock:
             job = self._jobs.get(job_id)
@@ -374,7 +376,7 @@ class JobScheduler:
         return self._parse_output_directory(output_path)
 
     @staticmethod
-    def _parse_output_directory(output_path: str) -> Dict[str, Dict[str, Any]]:
+    def _parse_output_directory(output_path: str) -> dict[str, dict[str, Any]]:
         """
         Parse output directory: output_path/model_name/YYYYMMDD_HHMMSS_results.json
 

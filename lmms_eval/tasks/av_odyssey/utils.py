@@ -20,7 +20,7 @@ eval_type_dict = {
     ],
 }
 
-with open(Path(__file__).parent / "av_odyssey.yaml", "r") as f:
+with open(Path(__file__).parent / "av_odyssey.yaml") as f:
     raw_data = f.readlines()
     safe_data = []
     for i, line in enumerate(raw_data):

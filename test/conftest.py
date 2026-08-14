@@ -11,7 +11,6 @@ import tempfile
 from unittest.mock import MagicMock
 
 import pytest
-
 from lmms_eval.api.instance import Instance
 
 # ---------------------------------------------------------------------------

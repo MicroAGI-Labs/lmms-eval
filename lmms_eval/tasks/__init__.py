@@ -3,8 +3,9 @@ import collections
 import inspect
 import logging
 import os
+from collections.abc import Mapping
 from functools import partial
-from typing import Dict, List, Literal, Mapping, Optional, Union
+from typing import Dict, List, Literal, Optional, Union
 
 from loguru import logger as eval_logger
 
@@ -25,9 +26,9 @@ class TaskManager:
     def __init__(
         self,
         verbosity="INFO",
-        include_path: Optional[Union[str, List]] = None,
+        include_path: str | list | None = None,
         include_defaults: bool = True,
-        model_name: Optional[str] = None,
+        model_name: str | None = None,
     ) -> None:
         self.verbosity = verbosity
         self.include_path = include_path
@@ -45,7 +46,7 @@ class TaskManager:
 
     def initialize_tasks(
         self,
-        include_path: Optional[Union[str, List]] = None,
+        include_path: str | list | None = None,
         include_defaults: bool = True,
     ):
         """Creates a dictionary of tasks index.
@@ -233,10 +234,10 @@ class TaskManager:
 
     def _load_individual_task_or_group(
         self,
-        name_or_config: Optional[Union[str, dict]] = None,
+        name_or_config: str | dict | None = None,
         task_type: Literal["simple", "chat"] = "simple",
-        parent_name: Optional[str] = None,
-        update_config: Optional[dict] = None,
+        parent_name: str | None = None,
+        update_config: dict | None = None,
     ) -> Mapping:
         if task_type == "simple":
             TaskObj = ConfigurableTask
@@ -359,10 +360,17 @@ class TaskManager:
                 group_config, update_config = _process_group_config(name_or_config)
                 group_name, subtask_list = _get_group_and_subtask_from_config(group_config)
 
-        fn = partial(self._load_individual_task_or_group, parent_name=group_name, update_config=update_config, task_type=task_type)
+        fn = partial(
+            self._load_individual_task_or_group,
+            parent_name=group_name,
+            update_config=update_config,
+            task_type=task_type,
+        )
         return {group_name: dict(collections.ChainMap(*map(fn, reversed(subtask_list))))}
 
-    def load_task_or_group(self, task_list: Optional[Union[str, list]] = None, task_type: Literal["simple", "chat"] = "simple") -> dict:
+    def load_task_or_group(
+        self, task_list: str | list | None = None, task_type: Literal["simple", "chat"] = "simple"
+    ) -> dict:
         """Loads a dictionary of task objects from a list
 
         :param task_list: Union[str, list] = None
@@ -378,7 +386,7 @@ class TaskManager:
         all_loaded_tasks = dict(collections.ChainMap(*map(load_fn, task_list)))
         return all_loaded_tasks
 
-    def load_config(self, config: Dict):
+    def load_config(self, config: dict):
         return self._load_individual_task_or_group(config)
 
     def _get_task_and_group(self, task_dir: str):
@@ -476,7 +484,10 @@ class TaskManager:
                                             "yaml_path": -1,
                                         }
                                     elif tasks_and_groups[tag]["type"] != "tag":
-                                        self.logger.warning(f"The tag {tag} is already registered as a group, this tag will not be registered. " "This may affect tasks you want to call.")
+                                        self.logger.warning(
+                                            f"The tag {tag} is already registered as a group, this tag will not be registered. "
+                                            "This may affect tasks you want to call."
+                                        )
                                         break
                                     else:
                                         tasks_and_groups[tag]["task"].append(task)
@@ -486,7 +497,7 @@ class TaskManager:
         return tasks_and_groups
 
 
-def get_task_name_from_config(task_config: Dict[str, str]) -> str:
+def get_task_name_from_config(task_config: dict[str, str]) -> str:
     if "task" in task_config:
         return task_config["task"]
     if "dataset_name" in task_config:
@@ -504,7 +515,7 @@ def get_task_name_from_object(task_object):
     return task_object.EVAL_HARNESS_NAME if hasattr(task_object, "EVAL_HARNESS_NAME") else type(task_object).__name__
 
 
-def _check_duplicates(task_dict: dict) -> List[str]:
+def _check_duplicates(task_dict: dict) -> list[str]:
     """helper function solely used in validating get_task_dict output.
     Takes the output of lmms_eval.evaluator_utils.get_subtask_list and
     returns a list of all leaf subtasks contained within, and errors if any such leaf subtasks are
@@ -517,7 +528,9 @@ def _check_duplicates(task_dict: dict) -> List[str]:
     duplicate_tasks = {task_name for task_name in subtask_names if subtask_names.count(task_name) > 1}
 
     # locate the potentially problematic groups that seem to 'compete' for constituent subtasks
-    competing_groups = [group for group in task_dict.keys() if len(set(task_dict[group]).intersection(duplicate_tasks)) > 0]
+    competing_groups = [
+        group for group in task_dict.keys() if len(set(task_dict[group]).intersection(duplicate_tasks)) > 0
+    ]
 
     if len(duplicate_tasks) > 0:
         raise ValueError(
@@ -526,8 +539,8 @@ def _check_duplicates(task_dict: dict) -> List[str]:
 
 
 def get_task_dict(
-    task_name_list: Union[str, List[Union[str, Dict, Task]]],
-    task_manager: Optional[TaskManager] = None,
+    task_name_list: str | list[str | dict | Task],
+    task_manager: TaskManager | None = None,
     task_type: Literal["simple", "chat"] = "simple",
 ):
     """Creates a dictionary of task objects from either a name of task, config, or prepared Task object.
@@ -552,7 +565,9 @@ def get_task_dict(
         task_name_list = [task_name_list]
     elif isinstance(task_name_list, list):
         if not all([isinstance(task, (str, dict, Task)) for task in task_name_list]):
-            raise TypeError("Expected all list items to be of types 'str', 'dict', or 'Task', but at least one entry did not match.")
+            raise TypeError(
+                "Expected all list items to be of types 'str', 'dict', or 'Task', but at least one entry did not match."
+            )
     else:
         raise TypeError(f"Expected a 'str' or 'list' but received {type(task_name_list)}.")
 

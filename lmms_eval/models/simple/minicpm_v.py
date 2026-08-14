@@ -1,16 +1,14 @@
 import warnings
-from typing import List, Optional, Tuple, Union
 
 import torch
 from accelerate import Accelerator, DistributedType
 from accelerate.state import AcceleratorState
-from tqdm import tqdm
-from transformers import AutoModel, AutoTokenizer
-
 from lmms_eval import utils
 from lmms_eval.api.instance import Instance
 from lmms_eval.api.model import lmms
 from lmms_eval.api.registry import register_model
+from tqdm import tqdm
+from transformers import AutoModel, AutoTokenizer
 
 warnings.filterwarnings("ignore")
 
@@ -26,10 +24,10 @@ class MiniCPM_V(lmms):
     def __init__(
         self,
         pretrained: str = "openbmb/MiniCPM-V",
-        device: Optional[str] = "cuda",
-        dtype: Optional[Union[str, torch.dtype]] = torch.bfloat16,
-        batch_size: Optional[Union[int, str]] = 1,
-        trust_remote_code: Optional[bool] = True,
+        device: str | None = "cuda",
+        dtype: str | torch.dtype | None = torch.bfloat16,
+        batch_size: int | str | None = 1,
+        trust_remote_code: bool | None = True,
         **kwargs,
     ) -> None:
         super().__init__()
@@ -41,14 +39,20 @@ class MiniCPM_V(lmms):
             self._device = torch.device(f"cuda:{accelerator.local_process_index}")
         else:
             self._device = device
-        self._model = AutoModel.from_pretrained(pretrained, trust_remote_code=trust_remote_code, torch_dtype=dtype, device_map=self._device).to(dtype)
+        self._model = AutoModel.from_pretrained(
+            pretrained, trust_remote_code=trust_remote_code, torch_dtype=dtype, device_map=self._device
+        ).to(dtype)
         self._tokenizer = AutoTokenizer.from_pretrained(pretrained, trust_remote_code=trust_remote_code)
         self._config = self._model.config
         self.model.eval()
         self.model.tie_weights()
         self.batch_size_per_gpu = int(batch_size)
         if accelerator.num_processes > 1:
-            assert accelerator.distributed_type in [DistributedType.FSDP, DistributedType.MULTI_GPU, DistributedType.DEEPSPEED], "Unsupported distributed type provided. Only DDP and FSDP are supported."
+            assert accelerator.distributed_type in [
+                DistributedType.FSDP,
+                DistributedType.MULTI_GPU,
+                DistributedType.DEEPSPEED,
+            ], "Unsupported distributed type provided. Only DDP and FSDP are supported."
             # If you want to use DistributedType.DEEPSPEED, you have to run accelerate config before using the model
             # Also, you have to select zero stage 0 (equivalent to DDP) in order to make the prepare model works
             # I tried to set different parameters in the kwargs to let default zero 2 stage works, but it didn't work.
@@ -58,8 +62,13 @@ class MiniCPM_V(lmms):
                     "train_batch_size": self.batch_size_per_gpu * accelerator.num_processes,
                 }
                 AcceleratorState().deepspeed_plugin.deepspeed_config_process(must_match=True, **kwargs)
-                eval_logger.info("Detected that you are using DistributedType.DEEPSPEED. Make sure you run `accelerate config` and set zero stage to 0")
-            if accelerator.distributed_type == DistributedType.FSDP or accelerator.distributed_type == DistributedType.DEEPSPEED:
+                eval_logger.info(
+                    "Detected that you are using DistributedType.DEEPSPEED. Make sure you run `accelerate config` and set zero stage to 0"
+                )
+            if (
+                accelerator.distributed_type == DistributedType.FSDP
+                or accelerator.distributed_type == DistributedType.DEEPSPEED
+            ):
                 self._model = accelerator.prepare(self.model)
             else:
                 self._model = accelerator.prepare_model(self.model, evaluation_mode=True)
@@ -115,7 +124,7 @@ class MiniCPM_V(lmms):
     def world_size(self):
         return self._world_size
 
-    def tok_encode(self, string: str, left_truncate_len=None, add_special_tokens=None) -> List[int]:
+    def tok_encode(self, string: str, left_truncate_len=None, add_special_tokens=None) -> list[int]:
         """ """
         add_special_tokens = False if add_special_tokens is None else add_special_tokens
         encoding = self.tokenizer.encode(string, add_special_tokens=add_special_tokens)
@@ -127,7 +136,7 @@ class MiniCPM_V(lmms):
     def tok_decode(self, tokens):
         return self.tokenizer.decode(tokens)
 
-    def loglikelihood(self, requests: List[Instance]) -> List[Tuple[float, bool]]:
+    def loglikelihood(self, requests: list[Instance]) -> list[tuple[float, bool]]:
         # TODO
         assert False, "We have not implemented this function for MiniCPM_V yet"
 
@@ -138,7 +147,7 @@ class MiniCPM_V(lmms):
                 new_list.append(j)
         return new_list
 
-    def generate_until(self, requests: List[Instance]) -> List[str]:
+    def generate_until(self, requests: list[Instance]) -> list[str]:
         res = []
 
         def _collate(x):
@@ -156,7 +165,11 @@ class MiniCPM_V(lmms):
         # in the same batch.
         re_ords = utils.Collator([reg.args for reg in requests], _collate, grouping=True)
         chunks = re_ords.get_batched(n=self.batch_size, batch_fn=None)
-        num_iters = len(requests) // self.batch_size if len(requests) % self.batch_size == 0 else len(requests) // self.batch_size + 1
+        num_iters = (
+            len(requests) // self.batch_size
+            if len(requests) % self.batch_size == 0
+            else len(requests) // self.batch_size + 1
+        )
         pbar = tqdm(total=num_iters, disable=(self.rank != 0), desc="Model Responding")
         for chunk in chunks:
             contexts, all_gen_kwargs, doc_to_visual, doc_id, task, split = zip(*chunk)
@@ -177,7 +190,9 @@ class MiniCPM_V(lmms):
                 if isinstance(until, str):
                     until = [until]
                 elif not isinstance(until, list):
-                    raise ValueError(f"Expected `gen_kwargs['until']` to be of type Union[str,list] but got {type(until)}")
+                    raise ValueError(
+                        f"Expected `gen_kwargs['until']` to be of type Union[str,list] but got {type(until)}"
+                    )
             assert self.batch_size_per_gpu == 1, "Do not support batch_size_per_gpu > 1 for now"
             assert len(visuals) == 1, "MiniCPM_V interface does not support bn_image > 1 for now"
             context = contexts[0]
@@ -220,5 +235,5 @@ class MiniCPM_V(lmms):
         pbar.close()
         return res
 
-    def generate_until_multi_round(self, requests) -> List[str]:
+    def generate_until_multi_round(self, requests) -> list[str]:
         raise NotImplementedError("TODO: Implement multi-round generation")

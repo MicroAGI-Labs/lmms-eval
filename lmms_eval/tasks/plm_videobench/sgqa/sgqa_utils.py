@@ -1,17 +1,18 @@
 import os
 
 import pandas as pd
+from lmms_eval.tasks.plm_videobench.eval_utils import *
 from openai import OpenAI
 from PIL import Image
-
-from lmms_eval.tasks.plm_videobench.eval_utils import *
 
 # Load default config parameters
 config = load_defualt_config()
 
 # Load video paths
 video_base_dir = config["plm_sgqa"]["video_base_dir"]
-assert video_base_dir is not None, "video_base_dir is not set. Please double check if you have downloaded the videos and set the correct path in _default_template_yaml."
+assert video_base_dir is not None, (
+    "video_base_dir is not set. Please double check if you have downloaded the videos and set the correct path in _default_template_yaml."
+)
 
 # Load the number of video frames
 num_video_frames = config["plm_sgqa"]["num_video_frames"]
@@ -34,7 +35,9 @@ def plm_sgqa_doc_to_visual(doc):
 
 
 def plm_sgqa_doc_to_text(doc, lmms_eval_specific_kwargs=None):
-    assert lmms_eval_specific_kwargs and "prompt" in lmms_eval_specific_kwargs, "'prompt' must be specified in lmms_eval_specific_kwargs for the 'plm_sgqa' task."
+    assert lmms_eval_specific_kwargs and "prompt" in lmms_eval_specific_kwargs, (
+        "'prompt' must be specified in lmms_eval_specific_kwargs for the 'plm_sgqa' task."
+    )
 
     prompt = lmms_eval_specific_kwargs["prompt"].format(question=doc["question"], answer="{answer}")
     return prompt

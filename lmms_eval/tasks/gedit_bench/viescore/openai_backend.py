@@ -15,7 +15,6 @@ import base64
 import os
 import random
 from io import BytesIO
-from typing import List, Optional, Union
 
 import numpy as np
 
@@ -62,9 +61,9 @@ class OpenAIBackend:
 
     def __init__(
         self,
-        api_base: Optional[str] = None,
-        api_key: Optional[str] = None,
-        model_name: Optional[str] = None,
+        api_base: str | None = None,
+        api_key: str | None = None,
+        model_name: str | None = None,
         timeout: int = 120,
         max_tokens: int = 512,
         temperature: float = 0.1,
@@ -94,9 +93,9 @@ class OpenAIBackend:
 
     def prepare_prompt(
         self,
-        image_links: Union[List, object] = [],
+        image_links: list | object = [],
         text_prompt: str = "",
-    ) -> List[dict]:
+    ) -> list[dict]:
         """
         Prepare prompt in OpenAI chat format.
 
@@ -120,7 +119,7 @@ class OpenAIBackend:
 
         return [{"role": "user", "content": content}]
 
-    def get_parsed_output(self, messages: List[dict]) -> str:
+    def get_parsed_output(self, messages: list[dict]) -> str:
         """
         Get model output for the given messages.
 

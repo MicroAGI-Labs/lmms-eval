@@ -5,13 +5,12 @@ import re
 import sys
 import time
 
-import requests
-from loguru import logger as eval_logger
-
 import lmms_eval.tasks._task_utils.file_utils as file_utils
+import requests
 from lmms_eval.filters.extraction import ExtendedRegexFilter
 from lmms_eval.tasks._task_utils.default_template_yaml import load_default_template_yaml
 from lmms_eval.tasks.worldqa.worldqa_mc_evaluator import WorldQA_MC_Evaluator
+from loguru import logger as eval_logger
 
 NUM_SECONDS_TO_SLEEP = 5
 
@@ -160,17 +159,40 @@ def worldqa_doc_to_answer_mc_ppl(doc):
 def worldqa_process_results(doc, result):
     pred = result[0]
     content = eval_prompt.format(question=doc["question"], answer=doc["answer"], candidate=pred)
-    eval_answer, model_name = get_eval(question=doc["question"], ground_truth=doc["answer"], candidate=pred, max_tokens=1024)
+    eval_answer, model_name = get_eval(
+        question=doc["question"], ground_truth=doc["answer"], candidate=pred, max_tokens=1024
+    )
     return {
-        "submission": {"pred": pred, "question_idx": doc["question_idx"], "object_description": doc["object_description"], "answer": doc["answer"], "eval_answer": eval_answer, "gpt_prompt": content},
-        "gpt_eval": {"pred": pred, "question_idx": doc["question_idx"], "object_description": doc["object_description"], "answer": doc["answer"], "eval_answer": eval_answer, "gpt_prompt": content},
+        "submission": {
+            "pred": pred,
+            "question_idx": doc["question_idx"],
+            "object_description": doc["object_description"],
+            "answer": doc["answer"],
+            "eval_answer": eval_answer,
+            "gpt_prompt": content,
+        },
+        "gpt_eval": {
+            "pred": pred,
+            "question_idx": doc["question_idx"],
+            "object_description": doc["object_description"],
+            "answer": doc["answer"],
+            "eval_answer": eval_answer,
+            "gpt_prompt": content,
+        },
     }
 
 
 def worldqa_process_results_mc(doc, result):
     pred = result[0]
     data = {
-        "gpt_eval": {"pred": pred, "question_idx": doc["question_idx"], "object_description": doc["object_description"], "answer": doc["answer"], "option": doc["option"], "question": doc["question"]},
+        "gpt_eval": {
+            "pred": pred,
+            "question_idx": doc["question_idx"],
+            "object_description": doc["object_description"],
+            "answer": doc["answer"],
+            "option": doc["option"],
+            "question": doc["question"],
+        },
     }
     return data
 

@@ -2,22 +2,21 @@
 import json
 import os
 import time
-from typing import List
 
 import numpy as np
 
 # Related third-party imports
 from accelerate import Accelerator
-from loguru import logger as eval_logger
-from openai import OpenAI
-from PIL import Image
-from tqdm import tqdm
 
 # Local application/library specific imports
 from lmms_eval.api.model import lmms
 from lmms_eval.api.registry import register_model
 from lmms_eval.imports import optional_import
 from lmms_eval.models.model_utils.media_encoder import encode_image_to_base64
+from loguru import logger as eval_logger
+from openai import OpenAI
+from PIL import Image
+from tqdm import tqdm
 
 # Conditional imports
 VideoReader, _has_decord = optional_import("decord", "VideoReader")
@@ -232,5 +231,5 @@ class BatchGPT4(lmms):
     def list_batches(self, limit=10):
         return self.client.batches.list(limit=limit)
 
-    def generate_until_multi_round(self, requests) -> List[str]:
+    def generate_until_multi_round(self, requests) -> list[str]:
         raise NotImplementedError("TODO: Implement multi-round generation for BatchGPT4")

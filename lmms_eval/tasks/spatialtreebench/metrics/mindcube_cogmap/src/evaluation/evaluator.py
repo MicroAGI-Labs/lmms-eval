@@ -4,7 +4,7 @@ This module provides a unified interface that automatically selects the appropri
 evaluation mode (basic or cognitive map) based on the task type.
 """
 
-from typing import Dict, Literal, Optional
+from typing import Literal
 
 from .cogmap import CogMapEvaluator
 from .core.base_metrics import (
@@ -24,7 +24,7 @@ class BasicEvaluator:
     without any cognitive map processing.
     """
 
-    def evaluate(self, jsonl_path: str, output_path: Optional[str] = None) -> Dict:
+    def evaluate(self, jsonl_path: str, output_path: str | None = None) -> dict:
         """Run basic evaluation with answer accuracy only.
 
         Args:
@@ -113,9 +113,9 @@ class BasicEvaluator:
 def evaluate(
     jsonl_path: str,
     task_type: TaskType = "basic",
-    output_path: Optional[str] = None,
+    output_path: str | None = None,
     **kwargs,
-) -> Dict:
+) -> dict:
     """Unified evaluation interface with automatic mode selection.
 
     Args:
@@ -154,7 +154,7 @@ def evaluate(
         raise ValueError(f"Unknown task type: {task_type}. Use 'basic', 'cogmap', or 'cognitive_map'")
 
 
-def auto_evaluate(jsonl_path: str, output_path: Optional[str] = None) -> Dict:
+def auto_evaluate(jsonl_path: str, output_path: str | None = None) -> dict:
     """Automatically determine evaluation mode based on data content.
 
     This function examines the data to determine if it contains cognitive maps

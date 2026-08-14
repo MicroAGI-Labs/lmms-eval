@@ -6,9 +6,8 @@ import json
 import mimetypes
 import os
 import random
-import re
+from collections.abc import Callable
 from datetime import timedelta
-from typing import Callable, List, Optional, Union
 
 import numpy as np
 import torch
@@ -27,11 +26,9 @@ import lmms_eval.api.metrics
 import lmms_eval.api.registry
 from lmms_eval import models
 from lmms_eval.api.instance import Instance, unwrap_generation_output
-from lmms_eval.api.model import lmms
 from lmms_eval.api.reasoning import parse_reasoning_tags_config, strip_reasoning_tags
 from lmms_eval.api.task import Task
 from lmms_eval.baselines import (
-    BASELINE_REGISTRY,
     get_baseline_display_name,
     load_baseline,
 )
@@ -140,7 +137,7 @@ def _looks_like_image_ref(value: str) -> bool:
     return lowered.endswith(IMAGE_EXTENSIONS)
 
 
-def _guess_image_mime(path_hint: Optional[str]) -> str:
+def _guess_image_mime(path_hint: str | None) -> str:
     if path_hint:
         guessed, _ = mimetypes.guess_type(path_hint)
         if guessed and guessed.startswith("image/"):
@@ -155,7 +152,9 @@ def _append_image_source(target: list[str], source: str, seen: set[str], max_ite
     target.append(source)
 
 
-def _extract_image_sources(value, out: list[str], seen: set[str], max_items: int = 4, max_inline_bytes: int = 300_000) -> None:
+def _extract_image_sources(
+    value, out: list[str], seen: set[str], max_items: int = 4, max_inline_bytes: int = 300_000
+) -> None:
     if len(out) >= max_items:
         return
 
@@ -165,7 +164,7 @@ def _extract_image_sources(value, out: list[str], seen: set[str], max_items: int
         return
 
     if isinstance(value, dict):
-        path_hint: Optional[str] = None
+        path_hint: str | None = None
         for key in ("url", "uri", "path", "image", "image_url", "image_path"):
             candidate = value.get(key)
             if isinstance(candidate, str):
@@ -175,7 +174,11 @@ def _extract_image_sources(value, out: list[str], seen: set[str], max_items: int
                     _append_image_source(out, candidate, seen, max_items)
 
         raw_bytes = value.get("bytes")
-        if isinstance(raw_bytes, (bytes, bytearray)) and 0 < len(raw_bytes) <= max_inline_bytes and len(out) < max_items:
+        if (
+            isinstance(raw_bytes, (bytes, bytearray))
+            and 0 < len(raw_bytes) <= max_inline_bytes
+            and len(out) < max_items
+        ):
             mime = _guess_image_mime(path_hint)
             encoded = base64.b64encode(raw_bytes).decode("ascii")
             _append_image_source(out, f"data:{mime};base64,{encoded}", seen, max_items)
@@ -205,29 +208,29 @@ def _collect_input_media(doc: dict, request_args: list) -> list[str]:
 @positional_deprecated
 def simple_evaluate(
     model,
-    model_args: Optional[Union[str, dict]] = None,
-    launcher_args: Optional[Union[str, dict]] = None,
-    tasks: Optional[List[Union[str, dict, object]]] = None,
-    num_fewshot: Optional[int] = None,
-    batch_size: Optional[Union[int, str]] = None,
-    max_batch_size: Optional[int] = None,
-    device: Optional[str] = None,
-    use_cache: Optional[str] = None,
+    model_args: str | dict | None = None,
+    launcher_args: str | dict | None = None,
+    tasks: list[str | dict | object] | None = None,
+    num_fewshot: int | None = None,
+    batch_size: int | str | None = None,
+    max_batch_size: int | None = None,
+    device: str | None = None,
+    use_cache: str | None = None,
     cache_requests: bool = False,
     rewrite_requests_cache: bool = False,
     delete_requests_cache: bool = False,
-    limit: Optional[Union[int, float]] = None,
+    limit: int | float | None = None,
     offset: int = 0,
     bootstrap_iters: int = 100000,
     check_integrity: bool = False,
     write_out: bool = False,
     log_samples: bool = True,
-    evaluation_tracker: Optional[EvaluationTracker] = None,
-    system_instruction: Optional[str] = None,
+    evaluation_tracker: EvaluationTracker | None = None,
+    system_instruction: str | None = None,
     apply_chat_template: bool = False,
     fewshot_as_multiturn: bool = False,
-    gen_kwargs: Optional[str] = None,
-    task_manager: Optional[TaskManager] = None,
+    gen_kwargs: str | None = None,
+    task_manager: TaskManager | None = None,
     verbosity: str = "INFO",
     predict_only: bool = False,
     random_seed: int = 0,
@@ -239,8 +242,8 @@ def simple_evaluate(
     cli_args=None,
     force_simple: bool = False,
     repeats: int = 1,
-    baseline: Optional[str] = None,
-    max_tokens: Optional[int] = None,
+    baseline: str | None = None,
+    max_tokens: int | None = None,
 ):
     """Instantiate and evaluate a model on a list of tasks.
 
@@ -324,11 +327,15 @@ def simple_evaluate(
 
     assert tasks != [], "No tasks specified, or no tasks found. Please verify the task names."
 
-    assert distributed_executor_backend in {"accelerate", "torchrun"}, f"Invalid distributed executor backend: {distributed_executor_backend}. Choose either 'accelerate' or 'torchrun'."
+    assert distributed_executor_backend in {"accelerate", "torchrun"}, (
+        f"Invalid distributed executor backend: {distributed_executor_backend}. Choose either 'accelerate' or 'torchrun'."
+    )
 
     if gen_kwargs:
         gen_kwargs = simple_parse_args_string(gen_kwargs)
-        eval_logger.warning("generation_kwargs specified through cli, these settings will be used over set parameters in yaml tasks.")
+        eval_logger.warning(
+            "generation_kwargs specified through cli, these settings will be used over set parameters in yaml tasks."
+        )
         if gen_kwargs == "":
             gen_kwargs = None
 
@@ -422,9 +429,13 @@ def simple_evaluate(
                 # except if tasks have it set to 0 manually in their configs--then we should never overwrite that
                 if num_fewshot is not None:
                     if (default_num_fewshot := task_obj.get_config("num_fewshot")) == 0:
-                        eval_logger.info(f"num_fewshot has been set to 0 for {task_name} in its config. Manual configuration will be ignored.")
+                        eval_logger.info(
+                            f"num_fewshot has been set to 0 for {task_name} in its config. Manual configuration will be ignored."
+                        )
                     else:
-                        eval_logger.warning(f"Overwriting default num_fewshot of {task_name} from {default_num_fewshot} to {num_fewshot}")
+                        eval_logger.warning(
+                            f"Overwriting default num_fewshot of {task_name} from {default_num_fewshot} to {num_fewshot}"
+                        )
                         task_obj.set_config(key="num_fewshot", value=num_fewshot)
                 else:
                     # if num_fewshot not provided, and the task does not define a default one, default to 0
@@ -437,7 +448,9 @@ def simple_evaluate(
                 # Handle repeated generations for model stability measurement (k-samples mode)
                 if repeats > 1:
                     default_repeats = task_obj.get_config("repeats") or 1
-                    eval_logger.info(f"[Model Stability] Setting repeats={repeats} for {task_name} (was: {default_repeats})")
+                    eval_logger.info(
+                        f"[Model Stability] Setting repeats={repeats} for {task_name} (was: {default_repeats})"
+                    )
                     task_obj.set_config(key="repeats", value=repeats)
 
                 adjusted_task_dict[task_name] = task_obj
@@ -614,16 +627,22 @@ def simple_evaluate(
                                     baseline_scores.append(baseline_scores_dict[doc_id])
 
                         if current_scores and baseline_scores:
-                            comparison = compute_baseline_comparison(current_scores, baseline_scores, baseline_display_name)
+                            comparison = compute_baseline_comparison(
+                                current_scores, baseline_scores, baseline_display_name
+                            )
                             task_results = results["results"][task_name]
                             task_results["paired_baseline"] = comparison["baseline_name"]
                             task_results["paired_baseline_score"] = comparison["baseline_mean"] * 100
                             task_results["paired_ci_lower"] = comparison["ci_lower"] * 100
                             task_results["paired_ci_upper"] = comparison["ci_upper"] * 100
                             task_results["paired_pvalue"] = comparison["p_value"]
-                            eval_logger.info(f"[Baseline] {task_name}: diff={comparison['mean_diff']*100:.2f}%, p={comparison['p_value']:.4f}")
+                            eval_logger.info(
+                                f"[Baseline] {task_name}: diff={comparison['mean_diff'] * 100:.2f}%, p={comparison['p_value']:.4f}"
+                            )
                         else:
-                            eval_logger.debug(f"[Baseline] Skipping {task_name}: no valid scores found with score_key='{score_key}'")
+                            eval_logger.debug(
+                                f"[Baseline] Skipping {task_name}: no valid scores found with score_key='{score_key}'"
+                            )
                 except Exception as e:
                     eval_logger.warning(f"[Baseline] Failed for {task_name}: {e}")
 
@@ -639,7 +658,7 @@ def _run_generate_until_agentic(
     lm,
     requests: list[Instance],
     agentic_trace_mode: str = "basic",
-    response_cache: Optional[ResponseCache] = None,
+    response_cache: ResponseCache | None = None,
 ) -> list[str]:
     responses: list[str] = []
 
@@ -671,7 +690,14 @@ def _run_generate_until_agentic(
             if getattr(lm, "is_simple", False):
                 single_req = Instance(
                     request_type="generate_until",
-                    arguments=(current_context, copy.deepcopy(base_generation_kwargs), current_doc_to_visual, doc_id, task_name, split),
+                    arguments=(
+                        current_context,
+                        copy.deepcopy(base_generation_kwargs),
+                        current_doc_to_visual,
+                        doc_id,
+                        task_name,
+                        split,
+                    ),
                     idx=0,
                     metadata=req.metadata,
                 )
@@ -695,7 +721,14 @@ def _run_generate_until_agentic(
 
                 single_req = Instance(
                     request_type="generate_until",
-                    arguments=(current_context, _agentic_doc_to_messages, copy.deepcopy(base_generation_kwargs), doc_id, task_name, split),
+                    arguments=(
+                        current_context,
+                        _agentic_doc_to_messages,
+                        copy.deepcopy(base_generation_kwargs),
+                        doc_id,
+                        task_name,
+                        split,
+                    ),
                     idx=0,
                     metadata=req.metadata,
                 )
@@ -751,14 +784,24 @@ def _run_generate_until_agentic(
             else:
                 break
 
-        if previous_round_info is not None and not (isinstance(final_response, str) and final_response.strip().startswith("{")):
+        if previous_round_info is not None and not (
+            isinstance(final_response, str) and final_response.strip().startswith("{")
+        ):
             state = previous_round_info.get("state", {}) if isinstance(previous_round_info, dict) else {}
-            valid_tool_calls = float(previous_round_info.get("valid_tool_calls", previous_round_info.get("tool_calls", 0))) if isinstance(previous_round_info, dict) else 0.0
-            invalid_steps = float(previous_round_info.get("invalid_steps", 0.0)) if isinstance(previous_round_info, dict) else 0.0
+            valid_tool_calls = (
+                float(previous_round_info.get("valid_tool_calls", previous_round_info.get("tool_calls", 0)))
+                if isinstance(previous_round_info, dict)
+                else 0.0
+            )
+            invalid_steps = (
+                float(previous_round_info.get("invalid_steps", 0.0)) if isinstance(previous_round_info, dict) else 0.0
+            )
             fallback_payload = {
                 "success": False,
                 "error": "max_agentic_steps_reached",
-                "tool_calls": float(previous_round_info.get("tool_calls", 0)) if isinstance(previous_round_info, dict) else 0.0,
+                "tool_calls": float(previous_round_info.get("tool_calls", 0))
+                if isinstance(previous_round_info, dict)
+                else 0.0,
                 "valid_tool_calls": valid_tool_calls,
                 "invalid_steps": invalid_steps,
                 "state": state,
@@ -790,21 +833,21 @@ def _run_generate_until_agentic(
 def evaluate(
     lm,
     task_dict,
-    limit: Optional[int] = None,
+    limit: int | None = None,
     offset: int = 0,
     cache_requests: bool = False,
     rewrite_requests_cache: bool = False,
-    bootstrap_iters: Optional[int] = 100000,
+    bootstrap_iters: int | None = 100000,
     write_out: bool = False,
     log_samples: bool = True,
-    system_instruction: Optional[str] = None,
+    system_instruction: str | None = None,
     apply_chat_template: bool = False,
     fewshot_as_multiturn: bool = False,
     verbosity: str = "INFO",
     distributed_executor_backend: str = "accelerate",
-    eval_server_launcher: Optional[Union[str, Callable]] = None,
+    eval_server_launcher: str | Callable | None = None,
     cli_args=None,
-    response_cache: Optional[ResponseCache] = None,
+    response_cache: ResponseCache | None = None,
 ):
     """Instantiate and evaluate a model on a list of tasks.
 
@@ -864,7 +907,7 @@ def evaluate(
     world_size = int(os.environ.get("WORLD_SIZE", 1))
     eval_logger.info(f"Running on rank {global_rank} (local rank {local_rank})")
 
-    def _infer_task_request_type(task_obj: Task) -> Optional[str]:
+    def _infer_task_request_type(task_obj: Task) -> str | None:
         if task_obj.instances:
             return task_obj.instances[0].request_type
 
@@ -879,7 +922,9 @@ def evaluate(
     eval_tasks = get_task_list(task_dict)
     name_to_task = {}
     if not log_samples:
-        if not all("bypass" not in getattr(task_output.task, "_metric_fn_list", {}).keys() for task_output in eval_tasks):
+        if not all(
+            "bypass" not in getattr(task_output.task, "_metric_fn_list", {}).keys() for task_output in eval_tasks
+        ):
             raise ValueError("log_samples must be True for 'bypass' metric-only tasks")
 
     if distributed_executor_backend == "accelerate" and not hasattr(lm, "accelerator"):
@@ -955,7 +1000,9 @@ def evaluate(
                 dist.all_gather_into_tensor(gathered_item, instances_rnk)
                 gathered_item = gathered_item.cpu().detach().numpy().tolist()
             else:
-                raise ValueError(f"Invalid distributed_executor_backend: {distributed_executor_backend}. Choose either 'accelerate' or 'torchrun'.")
+                raise ValueError(
+                    f"Invalid distributed_executor_backend: {distributed_executor_backend}. Choose either 'accelerate' or 'torchrun'."
+                )
 
             # "multiple_choice" task types dispatch "loglikelihood" requests.
             local_reqtype = _infer_task_request_type(task)
@@ -968,7 +1015,9 @@ def evaluate(
             # compute number of pseudo-batches to pad with (FSDP/DDP require even batches among ranks)
             numpad = max(gathered_item) - gathered_item[lm.rank]
             if reqtype is None:
-                eval_logger.warning(f"Task: {task_output.task_name}; unable to infer request type on rank {global_rank}, skipping padding computation.")
+                eval_logger.warning(
+                    f"Task: {task_output.task_name}; unable to infer request type on rank {global_rank}, skipping padding computation."
+                )
             else:
                 # todo: may not account for padding in cases like SquadV2 which has multiple req types
                 padding_requests[reqtype] += numpad
@@ -991,7 +1040,7 @@ def evaluate(
     # execute each type of request
     for reqtype in canonical_reqtypes:
         reqs = requests.get(reqtype, [])
-        eval_logger.info("Running {} requests".format(reqtype))
+        eval_logger.info(f"Running {reqtype} requests")
         # create `K` copies of each request `req` based off `K = req.repeats`
         cloned_reqs = []
         pad_source = reqs[-1] if reqs else None
@@ -1000,7 +1049,9 @@ def evaluate(
 
         if (world_size > 1) and (padding_requests[reqtype] > 0):
             if pad_source is None:
-                eval_logger.warning(f"Running {reqtype} requests but could not find a pad source request on rank {global_rank}; skipping rank padding.")
+                eval_logger.warning(
+                    f"Running {reqtype} requests but could not find a pad source request on rank {global_rank}; skipping rank padding."
+                )
             else:
                 for _ in range(padding_requests[reqtype]):
                     cloned_reqs.extend([pad_source] * pad_source.repeats)
@@ -1036,7 +1087,9 @@ def evaluate(
             elif distributed_executor_backend == "torchrun":
                 dist.barrier()
             else:
-                raise ValueError(f"Invalid distributed_executor_backend: {distributed_executor_backend}. Choose either 'accelerate' or 'torchrun'.")
+                raise ValueError(
+                    f"Invalid distributed_executor_backend: {distributed_executor_backend}. Choose either 'accelerate' or 'torchrun'."
+                )
 
     # Cleaning lm's cuda memory if you are launching llm as judge in local
     lm.clean()
@@ -1133,7 +1186,9 @@ def evaluate(
                         if isinstance(raw_resp, str):
                             req.filtered_resps[filter_key] = strip_reasoning_tags(raw_resp, reasoning_tags)
                         elif isinstance(raw_resp, list):
-                            req.filtered_resps[filter_key] = [strip_reasoning_tags(r, reasoning_tags) if isinstance(r, str) else r for r in raw_resp]
+                            req.filtered_resps[filter_key] = [
+                                strip_reasoning_tags(r, reasoning_tags) if isinstance(r, str) else r for r in raw_resp
+                            ]
 
                 metrics = task.process_results(doc, [req.filtered_resps[filter_key] for req in requests])
 
@@ -1342,7 +1397,9 @@ def evaluate(
                             _higher_is_better[m] = h
 
                         if m in _higher_is_better and _higher_is_better[m] is not None and _higher_is_better[m] != h:
-                            eval_logger.warning(f"Higher_is_better values for metric {m} in group {group} are not consistent. Defaulting to None.")
+                            eval_logger.warning(
+                                f"Higher_is_better values for metric {m} in group {group} are not consistent. Defaulting to None."
+                            )
                             _higher_is_better[m] = None
                 higher_is_better[group] = _higher_is_better
 
@@ -1378,7 +1435,9 @@ def evaluate(
         elif distributed_executor_backend == "torchrun":
             dist.barrier()
         else:
-            raise ValueError(f"Invalid distributed_executor_backend: {distributed_executor_backend}. Choose either 'accelerate' or 'torchrun'.")
+            raise ValueError(
+                f"Invalid distributed_executor_backend: {distributed_executor_backend}. Choose either 'accelerate' or 'torchrun'."
+            )
 
     return results_dict
 

@@ -5,10 +5,10 @@ Handles text cleaning, JSON extraction, and format normalization.
 
 import json
 import re
-from typing import Any, Dict, Optional
+from typing import Any
 
 
-def extract_json_from_text(text: str) -> Optional[Dict[str, Any]]:
+def extract_json_from_text(text: str) -> dict[str, Any] | None:
     """Extract JSON from text using multiple strategies.
 
     Args:

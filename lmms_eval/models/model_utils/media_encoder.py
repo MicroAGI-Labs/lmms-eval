@@ -1,14 +1,15 @@
 import base64
 import os
 from collections import OrderedDict
+from collections.abc import MutableMapping
 from io import BytesIO
 from threading import Lock
-from typing import MutableMapping, Optional, Tuple, Union
+from typing import Union
 
 from PIL import Image
 
 ImageInput = Union[Image.Image, str]
-EncodeCache = MutableMapping[Tuple[object, ...], str]
+EncodeCache = MutableMapping[tuple[object, ...], str]
 
 
 def _cache_max_items() -> int:
@@ -20,7 +21,7 @@ def _cache_max_items() -> int:
 
 
 _PATH_CACHE_MAX_ITEMS = _cache_max_items()
-_PATH_BASE64_CACHE: "OrderedDict[Tuple[object, ...], str]" = OrderedDict()
+_PATH_BASE64_CACHE: "OrderedDict[tuple[object, ...], str]" = OrderedDict()
 _PATH_CACHE_LOCK = Lock()
 
 
@@ -33,8 +34,8 @@ def _build_cache_key(
     *,
     image_format: str,
     convert_rgb: bool,
-    quality: Optional[int],
-) -> Tuple[object, ...]:
+    quality: int | None,
+) -> tuple[object, ...]:
     if isinstance(image, str):
         abs_path = os.path.abspath(image)
         try:
@@ -48,7 +49,7 @@ def _build_cache_key(
     return ("obj", id(image), image_format, convert_rgb, quality)
 
 
-def _lookup_path_cache(key: Tuple[object, ...]) -> Optional[str]:
+def _lookup_path_cache(key: tuple[object, ...]) -> str | None:
     with _PATH_CACHE_LOCK:
         cached = _PATH_BASE64_CACHE.get(key)
         if cached is not None:
@@ -56,7 +57,7 @@ def _lookup_path_cache(key: Tuple[object, ...]) -> Optional[str]:
         return cached
 
 
-def _store_path_cache(key: Tuple[object, ...], value: str) -> None:
+def _store_path_cache(key: tuple[object, ...], value: str) -> None:
     if _PATH_CACHE_MAX_ITEMS <= 0:
         return
     with _PATH_CACHE_LOCK:
@@ -66,7 +67,7 @@ def _store_path_cache(key: Tuple[object, ...], value: str) -> None:
             _PATH_BASE64_CACHE.popitem(last=False)
 
 
-def _encode_pil_image_to_bytes(image: Image.Image, *, image_format: str, quality: Optional[int]) -> bytes:
+def _encode_pil_image_to_bytes(image: Image.Image, *, image_format: str, quality: int | None) -> bytes:
     output_buffer = BytesIO()
     save_kwargs = {}
     if quality is not None and image_format in {"JPEG", "WEBP"}:
@@ -80,7 +81,7 @@ def encode_image_to_bytes(
     *,
     image_format: str = "PNG",
     convert_rgb: bool = False,
-    quality: Optional[int] = None,
+    quality: int | None = None,
     copy_if_pil: bool = False,
 ) -> bytes:
     normalized_format = _normalize_format(image_format)
@@ -101,9 +102,9 @@ def encode_image_to_base64(
     *,
     image_format: str = "PNG",
     convert_rgb: bool = False,
-    quality: Optional[int] = None,
+    quality: int | None = None,
     copy_if_pil: bool = False,
-    cache: Optional[EncodeCache] = None,
+    cache: EncodeCache | None = None,
     use_path_cache: bool = True,
 ) -> str:
     normalized_format = _normalize_format(image_format)
@@ -143,11 +144,11 @@ def encode_image_to_data_url(
     image: ImageInput,
     *,
     image_format: str = "PNG",
-    mime_type: Optional[str] = None,
+    mime_type: str | None = None,
     convert_rgb: bool = False,
-    quality: Optional[int] = None,
+    quality: int | None = None,
     copy_if_pil: bool = False,
-    cache: Optional[EncodeCache] = None,
+    cache: EncodeCache | None = None,
     use_path_cache: bool = True,
 ) -> str:
     base64_str = encode_image_to_base64(
@@ -173,7 +174,7 @@ def encode_image_to_base64_with_size_limit(
     max_size_bytes: int,
     image_format: str = "PNG",
     convert_rgb: bool = True,
-    quality: Optional[int] = None,
+    quality: int | None = None,
     copy_if_pil: bool = True,
     resize_factor: float = 0.75,
     min_side: int = 100,

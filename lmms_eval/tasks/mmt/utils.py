@@ -3,9 +3,8 @@ import random
 from collections import defaultdict
 
 import numpy as np
-from loguru import logger as eval_logger
-
 from lmms_eval.tasks._task_utils.file_utils import generate_submission_file
+from loguru import logger as eval_logger
 
 # All abbreviations for the categories
 """
@@ -133,7 +132,10 @@ def mmt_aggregate_results(results):
                 category_total[category] += 1
 
     overall_accuracy = (total_correct / total_examples) * 100 if total_examples > 0 else 0.0
-    category_accuracy = {category: (category_correct[category] / category_total[category]) * 100 if category_total[category] > 0 else 0.0 for category in category_correct}
+    category_accuracy = {
+        category: (category_correct[category] / category_total[category]) * 100 if category_total[category] > 0 else 0.0
+        for category in category_correct
+    }
 
     eval_logger.info("=" * 50)
     eval_logger.info(f"Overall Accuracy: {overall_accuracy:.2f}%")

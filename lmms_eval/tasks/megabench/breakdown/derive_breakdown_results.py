@@ -52,7 +52,10 @@ def calculate_model_summary(task_results_with_meta):
         total_tasks = core_stats["num_eval_tasks"] if core_stats else 0
     else:
         total_tasks = core_stats["num_eval_tasks"] + open_stats["num_eval_tasks"]
-        overall_score = (core_stats["macro_mean_score"] * core_stats["num_eval_tasks"] + open_stats["macro_mean_score"] * open_stats["num_eval_tasks"]) / total_tasks
+        overall_score = (
+            core_stats["macro_mean_score"] * core_stats["num_eval_tasks"]
+            + open_stats["macro_mean_score"] * open_stats["num_eval_tasks"]
+        ) / total_tasks
 
     return {"core": core_stats, "open": open_stats, "overall_score": overall_score}
 
@@ -72,7 +75,7 @@ def merge_json_files(input_dir, output_path, key="name"):
     # Load and merge all JSON files
     for path in json_paths:
         print(f"Processing {path}")
-        with open(path, "r") as f:
+        with open(path) as f:
             data = json.load(f)
             if isinstance(data, dict) and "data" in data:
                 data = task_list_refine(data["data"])
@@ -81,7 +84,9 @@ def merge_json_files(input_dir, output_path, key="name"):
             for item in data:
                 item_key = item[key]
                 # If new item or if new item is LLM-evaluated (prioritize LLM eval)
-                if item_key not in data_dict or (item.get("eval_type") == "llm" and data_dict[item_key].get("eval_type") != "llm"):
+                if item_key not in data_dict or (
+                    item.get("eval_type") == "llm" and data_dict[item_key].get("eval_type") != "llm"
+                ):
                     data_dict[item_key] = item
 
     # Convert back to list

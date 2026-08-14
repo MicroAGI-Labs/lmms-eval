@@ -2,7 +2,6 @@
 Specific evaluators for In-Domain_50 tasks (Part 4).
 """
 
-from typing import Any, Dict, List, Optional, Tuple
 
 import cv2
 import numpy as np
@@ -27,7 +26,7 @@ class ConstructionBlueprintEvaluator(BaseEvaluator):
 
     TASK_WEIGHTS = {"piece_selection": 0.40, "shape_matching": 0.30, "placement": 0.20, "integrity": 0.10}
 
-    def _detect_gap_region(self, frame: np.ndarray) -> Optional[Tuple[int, int, int, int]]:
+    def _detect_gap_region(self, frame: np.ndarray) -> tuple[int, int, int, int] | None:
         """Detect red-outlined gap region."""
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV) if len(frame.shape) == 3 else None
         if hsv is None:
@@ -70,7 +69,14 @@ class ConstructionBlueprintEvaluator(BaseEvaluator):
         else:
             return 0.3
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         """Evaluate blueprint piece selection and placement."""
 
         if not video_frames or gt_final_frame is None:
@@ -126,7 +132,7 @@ class ConstructionBlueprintEvaluator(BaseEvaluator):
         self._last_task_details = scores
         return sum(scores[k] * self.TASK_WEIGHTS[k] for k in self.TASK_WEIGHTS)
 
-    def _detect_green_filled_region(self, frame: np.ndarray) -> Optional[Tuple[int, int, int, int]]:
+    def _detect_green_filled_region(self, frame: np.ndarray) -> tuple[int, int, int, int] | None:
         """Detect green filled region."""
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV) if len(frame.shape) == 3 else None
         if hsv is None:
@@ -202,7 +208,7 @@ class DominoChainBranchEvaluator(BaseEvaluator):
 
         return fallen_count
 
-    def _detect_dominoes_by_color(self, frame: np.ndarray) -> Dict[str, int]:
+    def _detect_dominoes_by_color(self, frame: np.ndarray) -> dict[str, int]:
         """Detect dominoes by their colors (red=fallen, blue=standing typically)."""
         if len(frame.shape) != 3:
             return {"red": 0, "blue": 0}
@@ -224,9 +230,19 @@ class DominoChainBranchEvaluator(BaseEvaluator):
         red_contours, _ = cv2.findContours(red_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         blue_contours, _ = cv2.findContours(blue_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-        return {"red": len([c for c in red_contours if cv2.contourArea(c) > 100]), "blue": len([c for c in blue_contours if cv2.contourArea(c) > 100])}
+        return {
+            "red": len([c for c in red_contours if cv2.contourArea(c) > 100]),
+            "blue": len([c for c in blue_contours if cv2.contourArea(c) > 100]),
+        }
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         """Evaluate domino chain branch prediction."""
 
         if not video_frames or gt_final_frame is None:
@@ -302,7 +318,7 @@ class DominoChainGapEvaluator(BaseEvaluator):
 
     TASK_WEIGHTS = {"gap_identification": 0.40, "last_fallen": 0.35, "domino_state": 0.15, "animation_quality": 0.10}
 
-    def _analyze_domino_colors(self, frame: np.ndarray) -> Dict[str, int]:
+    def _analyze_domino_colors(self, frame: np.ndarray) -> dict[str, int]:
         """Analyze domino color states."""
         if len(frame.shape) != 3:
             return {"red": 0, "blue": 0}
@@ -323,7 +339,7 @@ class DominoChainGapEvaluator(BaseEvaluator):
 
         return {"red": int(np.sum(red_mask > 0)), "blue": int(np.sum(blue_mask > 0))}
 
-    def _find_gap_position(self, frame: np.ndarray) -> Optional[int]:
+    def _find_gap_position(self, frame: np.ndarray) -> int | None:
         """Find x-position of gap in domino chain."""
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY) if len(frame.shape) == 3 else frame
 
@@ -353,7 +369,14 @@ class DominoChainGapEvaluator(BaseEvaluator):
 
         return None
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         """Evaluate domino chain gap analysis."""
 
         if not video_frames or gt_final_frame is None:
@@ -427,7 +450,7 @@ class LEGOConstructionEvaluator(BaseEvaluator):
 
     TASK_WEIGHTS = {"position": 0.35, "stud_alignment": 0.30, "rotation": 0.20, "connection": 0.15}
 
-    def _detect_highlighted_brick(self, frame: np.ndarray) -> Optional[Tuple[int, int]]:
+    def _detect_highlighted_brick(self, frame: np.ndarray) -> tuple[int, int] | None:
         """Detect highlighted (usually yellow/bright) brick position."""
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV) if len(frame.shape) == 3 else None
         if hsv is None:
@@ -450,7 +473,7 @@ class LEGOConstructionEvaluator(BaseEvaluator):
 
         return None
 
-    def _analyze_structure(self, frame: np.ndarray) -> Dict:
+    def _analyze_structure(self, frame: np.ndarray) -> dict:
         """Analyze LEGO structure properties."""
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY) if len(frame.shape) == 3 else frame
 
@@ -459,9 +482,20 @@ class LEGOConstructionEvaluator(BaseEvaluator):
         # Find contours
         contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-        return {"edge_count": np.sum(edges > 0), "contour_count": len(contours), "total_area": sum(cv2.contourArea(c) for c in contours)}
+        return {
+            "edge_count": np.sum(edges > 0),
+            "contour_count": len(contours),
+            "total_area": sum(cv2.contourArea(c) for c in contours),
+        }
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         """Evaluate LEGO brick placement accuracy."""
 
         if not video_frames or gt_final_frame is None:
@@ -487,7 +521,9 @@ class LEGOConstructionEvaluator(BaseEvaluator):
         gt_struct = self._analyze_structure(gt_final)
 
         if gt_struct["edge_count"] > 0:
-            edge_ratio = min(gen_struct["edge_count"], gt_struct["edge_count"]) / max(gen_struct["edge_count"], gt_struct["edge_count"])
+            edge_ratio = min(gen_struct["edge_count"], gt_struct["edge_count"]) / max(
+                gen_struct["edge_count"], gt_struct["edge_count"]
+            )
             scores["stud_alignment"] = edge_ratio
         else:
             scores["stud_alignment"] = 0.2  # Detection failed
@@ -501,7 +537,9 @@ class LEGOConstructionEvaluator(BaseEvaluator):
 
         # 4. Connection: Check structure completeness
         if gt_struct["contour_count"] > 0:
-            contour_ratio = min(gen_struct["contour_count"], gt_struct["contour_count"]) / max(gen_struct["contour_count"], gt_struct["contour_count"])
+            contour_ratio = min(gen_struct["contour_count"], gt_struct["contour_count"]) / max(
+                gen_struct["contour_count"], gt_struct["contour_count"]
+            )
             scores["connection"] = contour_ratio
         else:
             scores["connection"] = 0.2  # Detection failed
@@ -525,7 +563,7 @@ class BallColorEvaluator(BaseEvaluator):
 
     TASK_WEIGHTS = {"red_dominance": 0.30, "merge_rule": 0.35, "conservation": 0.25, "completeness": 0.10}
 
-    def _count_color_clusters(self, frame: np.ndarray) -> Dict[str, int]:
+    def _count_color_clusters(self, frame: np.ndarray) -> dict[str, int]:
         """Count clusters by color."""
         if len(frame.shape) != 3:
             return {"red": 0, "blue": 0, "green": 0}
@@ -566,7 +604,14 @@ class BallColorEvaluator(BaseEvaluator):
             return len(circles[0])
         return 0
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         """Evaluate ball cluster merging behavior."""
 
         if not video_frames or gt_final_frame is None:
@@ -633,9 +678,14 @@ class BookshelfEvaluator(BaseEvaluator):
     4. Sorting constraint (15%) - Multiple books sorted by height
     """
 
-    TASK_WEIGHTS = {"cluster_identification": 0.30, "height_calculation": 0.25, "matching_insertion": 0.30, "sorting": 0.15}
+    TASK_WEIGHTS = {
+        "cluster_identification": 0.30,
+        "height_calculation": 0.25,
+        "matching_insertion": 0.30,
+        "sorting": 0.15,
+    }
 
-    def _detect_book_heights(self, frame: np.ndarray) -> List[int]:
+    def _detect_book_heights(self, frame: np.ndarray) -> list[int]:
         """Detect vertical book heights using color-based detection."""
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV) if len(frame.shape) == 3 else None
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY) if len(frame.shape) == 3 else frame
@@ -681,7 +731,7 @@ class BookshelfEvaluator(BaseEvaluator):
 
         return sorted(heights)
 
-    def _analyze_book_arrangement(self, frame: np.ndarray) -> Dict:
+    def _analyze_book_arrangement(self, frame: np.ndarray) -> dict:
         """Analyze book arrangement using color-based detection."""
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV) if len(frame.shape) == 3 else None
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY) if len(frame.shape) == 3 else frame
@@ -733,7 +783,14 @@ class BookshelfEvaluator(BaseEvaluator):
 
         return {"book_count": len(books), "heights": [b["height"] for b in books], "positions": [b["x"] for b in books]}
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         """Evaluate bookshelf insertion accuracy - STRICT GT comparison."""
 
         if not video_frames or gt_final_frame is None:
@@ -787,7 +844,14 @@ class BookshelfEvaluator(BaseEvaluator):
         self._last_task_details = scores
         return sum(scores[k] * self.TASK_WEIGHTS[k] for k in self.TASK_WEIGHTS)
 
-    def _evaluate_task_specific_old(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific_old(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         """OLD: Evaluate bookshelf insertion accuracy using detection."""
 
         if not video_frames or gt_final_frame is None:
@@ -809,7 +873,9 @@ class BookshelfEvaluator(BaseEvaluator):
         # 1. Cluster identification (30%): Compare book counts
         # Rule: Correctly identify height-based clusters using eps threshold
         if gt_arr["book_count"] > 0:
-            count_ratio = min(gen_arr["book_count"], gt_arr["book_count"]) / max(gen_arr["book_count"], gt_arr["book_count"])
+            count_ratio = min(gen_arr["book_count"], gt_arr["book_count"]) / max(
+                gen_arr["book_count"], gt_arr["book_count"]
+            )
             # Perfect match gets full score
             if count_ratio == 1.0:
                 scores["cluster_identification"] = 1.0
@@ -882,7 +948,11 @@ class BallEatingEvaluator(BaseEvaluator):
     3. All red balls should be eaten (final count = 0)
     """
 
-    TASK_WEIGHTS = {"all_eaten": 0.50, "growth": 0.30, "animation": 0.20}  # All red balls eaten  # Black ball grows significantly  # Smooth movement
+    TASK_WEIGHTS = {
+        "all_eaten": 0.50,
+        "growth": 0.30,
+        "animation": 0.20,
+    }  # All red balls eaten  # Black ball grows significantly  # Smooth movement
 
     def _count_red_balls(self, frame: np.ndarray) -> int:
         """Count red balls in frame."""
@@ -932,7 +1002,14 @@ class BallEatingEvaluator(BaseEvaluator):
         contours, _ = cv2.findContours(red_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         return len([c for c in contours if cv2.contourArea(c) > 100])
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         """Evaluate ball eating behavior.
 
         CRITICAL RULES:
@@ -1021,7 +1098,7 @@ class RollingBallEvaluator(BaseEvaluator):
 
     TASK_WEIGHTS = {"trajectory": 0.50, "smoothness": 0.15, "physics": 0.20, "final_state": 0.15}
 
-    def _find_ball_center(self, frame: np.ndarray) -> Optional[Tuple[float, float]]:
+    def _find_ball_center(self, frame: np.ndarray) -> tuple[float, float] | None:
         """Find center of ball."""
         if len(frame.shape) == 3:
             hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
@@ -1043,7 +1120,9 @@ class RollingBallEvaluator(BaseEvaluator):
             gray = frame
 
         gray = cv2.medianBlur(gray, 5)
-        circles = cv2.HoughCircles(gray, cv2.HOUGH_GRADIENT, dp=1.2, minDist=20, param1=100, param2=20, minRadius=5, maxRadius=80)
+        circles = cv2.HoughCircles(
+            gray, cv2.HOUGH_GRADIENT, dp=1.2, minDist=20, param1=100, param2=20, minRadius=5, maxRadius=80
+        )
 
         if circles is not None and len(circles[0]) > 0:
             x, y, _ = circles[0][0]
@@ -1051,7 +1130,7 @@ class RollingBallEvaluator(BaseEvaluator):
 
         return None
 
-    def _analyze_trajectory_smoothness(self, frames: List[np.ndarray]) -> float:
+    def _analyze_trajectory_smoothness(self, frames: list[np.ndarray]) -> float:
         """Analyze if ball motion is smooth."""
         positions = []
 
@@ -1085,7 +1164,14 @@ class RollingBallEvaluator(BaseEvaluator):
         cv = std_v / mean_v
         return max(0.5, 1 - cv)
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         """Evaluate rolling ball trajectory animation."""
 
         if not video_frames or gt_final_frame is None:
@@ -1139,8 +1225,14 @@ class RollingBallEvaluator(BaseEvaluator):
                     late_positions.append(pos)
 
             if len(early_positions) >= 2 and len(late_positions) >= 2:
-                early_speed = np.sqrt((early_positions[-1][0] - early_positions[0][0]) ** 2 + (early_positions[-1][1] - early_positions[0][1]) ** 2)
-                late_speed = np.sqrt((late_positions[-1][0] - late_positions[0][0]) ** 2 + (late_positions[-1][1] - late_positions[0][1]) ** 2)
+                early_speed = np.sqrt(
+                    (early_positions[-1][0] - early_positions[0][0]) ** 2
+                    + (early_positions[-1][1] - early_positions[0][1]) ** 2
+                )
+                late_speed = np.sqrt(
+                    (late_positions[-1][0] - late_positions[0][0]) ** 2
+                    + (late_positions[-1][1] - late_positions[0][1]) ** 2
+                )
 
                 # If ball is nearly stationary at end, that's good physics
                 if early_speed < 5 and late_speed < 5:
@@ -1204,7 +1296,7 @@ class CountingObjectEvaluator(BaseEvaluator):
 
         return len(valid_contours)
 
-    def _detect_number_annotation(self, frame: np.ndarray) -> Optional[int]:
+    def _detect_number_annotation(self, frame: np.ndarray) -> int | None:
         """Try to detect if there's a number annotation showing the count."""
         # This is a simplified version - in practice would use OCR
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY) if len(frame.shape) == 3 else frame
@@ -1218,7 +1310,14 @@ class CountingObjectEvaluator(BaseEvaluator):
 
         return len(text_contours) if text_contours else None
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         """Evaluate object counting accuracy."""
 
         if not video_frames or gt_final_frame is None or gt_first_frame is None:
@@ -1318,7 +1417,7 @@ class DotToDotEvaluator(BaseEvaluator):
 
         return int(np.sum(red_mask > 0))
 
-    def _detect_blue_dots(self, frame: np.ndarray) -> List[Tuple[int, int]]:
+    def _detect_blue_dots(self, frame: np.ndarray) -> list[tuple[int, int]]:
         """Detect blue dot positions."""
         if len(frame.shape) != 3:
             return []
@@ -1346,7 +1445,7 @@ class DotToDotEvaluator(BaseEvaluator):
 
         return dots
 
-    def _detect_red_lines(self, frame: np.ndarray) -> List[Tuple[int, int, int, int]]:
+    def _detect_red_lines(self, frame: np.ndarray) -> list[tuple[int, int, int, int]]:
         """Detect red line segments."""
         if len(frame.shape) != 3:
             return []
@@ -1367,7 +1466,14 @@ class DotToDotEvaluator(BaseEvaluator):
 
         return [(l[0][0], l[0][1], l[0][2], l[0][3]) for l in lines]
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         """Evaluate dot-to-dot connection accuracy."""
 
         if not video_frames or gt_final_frame is None:

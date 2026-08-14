@@ -1,8 +1,7 @@
 import os
 
-from loguru import logger as eval_logger
-
 from lmms_eval.llm_judge import ServerConfig, get_server
+from loguru import logger as eval_logger
 
 try:
     from lmms_eval.tasks.mathvision.eval_utils import (
@@ -57,7 +56,9 @@ def mathvision_gpt_eval_process_results(doc, results):
 
         try:
             # Use the llm_judge API for binary evaluation
-            result = server.evaluate_binary(question=question, answer=gt_answer, prediction=model_answer, output_format="0/1")
+            result = server.evaluate_binary(
+                question=question, answer=gt_answer, prediction=model_answer, output_format="0/1"
+            )
 
             # Parse the result
             if result["success"]:
@@ -88,7 +89,13 @@ def mathvision_process_results(doc, results):
             gt_answer_value = ""
 
         for c in "ABCDE":
-            if model_answer.endswith(f" {c}.") or model_answer.endswith(f" ({c}).") or model_answer.startswith(f"{c}\n") or model_answer.startswith(f"({c})\n") or model_answer.startswith(f"({c}) {c}\n"):
+            if (
+                model_answer.endswith(f" {c}.")
+                or model_answer.endswith(f" ({c}).")
+                or model_answer.startswith(f"{c}\n")
+                or model_answer.startswith(f"({c})\n")
+                or model_answer.startswith(f"({c}) {c}\n")
+            ):
                 model_answer = c
         if is_number(model_answer.split("is ")[-1].rstrip(".")):
             model_answer = model_answer.split("is ")[-1].rstrip(".")

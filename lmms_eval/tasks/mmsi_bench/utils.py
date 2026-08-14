@@ -103,8 +103,14 @@ def msr_process_results(doc, results):
     category = CATEGORY_ALIASES.get(doc["question_type"], doc["question_type"])
     l2_category = category
     if score is None:
-        return {category: {"question_id": doc["id"], "l2_category": l2_category, "score": 0, "note": "cannot find answer"}, "average": {"question_id": doc["id"], "l2_category": l2_category, "score": 0, "note": "cannot find answer"}}
-    return {category: {"question_id": doc["id"], "l2_category": l2_category, "score": score}, "average": {"question_id": doc["id"], "l2_category": l2_category, "score": score}}
+        return {
+            category: {"question_id": doc["id"], "l2_category": l2_category, "score": 0, "note": "cannot find answer"},
+            "average": {"question_id": doc["id"], "l2_category": l2_category, "score": 0, "note": "cannot find answer"},
+        }
+    return {
+        category: {"question_id": doc["id"], "l2_category": l2_category, "score": score},
+        "average": {"question_id": doc["id"], "l2_category": l2_category, "score": score},
+    }
 
 
 def msr_aggregate_results(results):

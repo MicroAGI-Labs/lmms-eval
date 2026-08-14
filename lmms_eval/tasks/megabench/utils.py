@@ -6,19 +6,18 @@ from itertools import chain
 from pathlib import Path
 
 import yaml
-from loguru import logger as eval_logger
-
 from lmms_eval.tasks._task_utils.file_utils import generate_submission_file
 from lmms_eval.tasks.megabench.image_video_utils import (
     is_video_file,
     process_text_and_mixed_media,
     read_image,
 )
+from loguru import logger as eval_logger
 
 hf_home = os.getenv("HF_HOME", "~/.cache/huggingface")
 base_cache_dir = os.path.expanduser(hf_home)
 
-with open(Path(__file__).parent / "_default_template_yaml", "r", encoding="utf-8") as f:
+with open(Path(__file__).parent / "_default_template_yaml", encoding="utf-8") as f:
     raw_data = f.readlines()
     safe_data = []
     for i, line in enumerate(raw_data):
@@ -53,7 +52,9 @@ def megabench_doc_to_text(doc, lmms_eval_specific_kwargs=None):
         # mixed video and image input, convert video to image frames,
         # and adjust the image placeholders accordingly.
         cache_dir = os.path.join(base_cache_dir, cache_name)
-        prompt, images = process_text_and_mixed_media(doc, lmms_eval_specific_kwargs["max_video_subsample_frame"], cache_dir)
+        prompt, images = process_text_and_mixed_media(
+            doc, lmms_eval_specific_kwargs["max_video_subsample_frame"], cache_dir
+        )
     return prompt
 
 

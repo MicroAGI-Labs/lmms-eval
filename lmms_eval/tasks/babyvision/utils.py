@@ -31,7 +31,7 @@ def _get_openai_client() -> Optional["OpenAI"]:
     return OpenAI(**client_kwargs)
 
 
-def parse_bool_response(response_text: str) -> Optional[bool]:
+def parse_bool_response(response_text: str) -> bool | None:
     """Parse boolean response from LLM."""
     text = response_text.strip().lower()
     if "true" in text:
@@ -43,7 +43,7 @@ def parse_bool_response(response_text: str) -> Optional[bool]:
         return None
 
 
-def extract_boxed_answer(text: str) -> Optional[str]:
+def extract_boxed_answer(text: str) -> str | None:
     """
     Extract the content from \\boxed{} pattern.
     Handles MiMo-VL's <think>...</think> reasoning format.

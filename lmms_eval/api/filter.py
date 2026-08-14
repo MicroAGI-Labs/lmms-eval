@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from typing import List
 
 from datasets import Dataset
 
@@ -40,9 +39,9 @@ class FilterEnsemble:
     """
 
     name: str
-    filters: List[Filter]
+    filters: list[Filter]
 
-    def apply(self, instances: List[Instance], docs: List[Dataset]) -> None:
+    def apply(self, instances: list[Instance], docs: list[Dataset]) -> None:
         resps = [inst.resps for inst in instances]  # operate just on the model responses
         for f in self.filters:
             # apply filters in sequence

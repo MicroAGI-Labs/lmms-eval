@@ -45,7 +45,9 @@ def vstar_reasoning_process_results(doc, results):
     acc_score = 0
     format_score = 0
     for pred in results:
-        score_dict = compute_score(data_source="vstar_bench", solution_str=pred.strip(), ground_truth=ground_truth, extra_info=extra_info)
+        score_dict = compute_score(
+            data_source="vstar_bench", solution_str=pred.strip(), ground_truth=ground_truth, extra_info=extra_info
+        )
         acc_score += score_dict["acc_score"]
         format_score += score_dict.get("format_reward_score", 0.0)
 

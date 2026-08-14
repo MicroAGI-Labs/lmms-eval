@@ -1,11 +1,16 @@
 import base64
 import json
 from io import BytesIO
-from typing import List, Optional, Tuple, Union
 
 import decord
 import torch
 from accelerate import Accelerator, DistributedType
+from lmms_eval import utils
+from lmms_eval.api.instance import Instance
+from lmms_eval.api.model import lmms
+from lmms_eval.api.registry import register_model
+from lmms_eval.imports import optional_import
+from lmms_eval.models.model_utils.load_video import read_video_pyav_base64
 from loguru import logger as eval_logger
 from PIL import Image
 from tqdm import tqdm
@@ -14,13 +19,6 @@ from transformers import (
     AutoTokenizer,
     Qwen2_5_VLForConditionalGeneration,
 )
-
-from lmms_eval import utils
-from lmms_eval.api.instance import Instance
-from lmms_eval.api.model import lmms
-from lmms_eval.api.registry import register_model
-from lmms_eval.imports import optional_import
-from lmms_eval.models.model_utils.load_video import read_video_pyav_base64
 
 process_vision_info, _has_qwen_vl = optional_import("qwen_vl_utils", "process_vision_info")
 if not _has_qwen_vl:
@@ -37,17 +35,17 @@ class Qwen2_5_VL_Interleave(lmms):
     def __init__(
         self,
         pretrained: str = "Qwen/Qwen2.5-VL-3B-Instruct",
-        device: Optional[str] = "cuda",
-        device_map: Optional[str] = "auto",
-        batch_size: Optional[Union[int, str]] = 1,
+        device: str | None = "cuda",
+        device_map: str | None = "auto",
+        batch_size: int | str | None = 1,
         use_cache=True,
-        use_flash_attention_2: Optional[bool] = False,
+        use_flash_attention_2: bool | None = False,
         min_pixels: int = 256 * 28 * 28,
         max_pixels: int = 256 * 28 * 28,
         max_num_frames: int = 32,
-        use_custom_video_loader: Optional[bool] = False,
-        fps: Optional[float] = None,  # Only applicable if use_custom_video_loader is True
-        max_image_size: Optional[int] = None,  # Only applicable if use_custom_video_loader is True
+        use_custom_video_loader: bool | None = False,
+        fps: float | None = None,  # Only applicable if use_custom_video_loader is True
+        max_image_size: int | None = None,  # Only applicable if use_custom_video_loader is True
         **kwargs,
     ) -> None:
         super().__init__()
@@ -81,7 +79,9 @@ class Qwen2_5_VL_Interleave(lmms):
                 attn_implementation="flash_attention_2",
             ).eval()
         else:
-            self._model = Qwen2_5_VLForConditionalGeneration.from_pretrained(pretrained, torch_dtype="auto", device_map=self.device_map).eval()
+            self._model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
+                pretrained, torch_dtype="auto", device_map=self.device_map
+            ).eval()
         self.max_pixels = max_pixels
         self.min_pixels = min_pixels
         self.max_num_frames = max_num_frames
@@ -169,7 +169,7 @@ class Qwen2_5_VL_Interleave(lmms):
     def world_size(self):
         return self._world_size
 
-    def loglikelihood(self, requests: List[Instance]) -> List[Tuple[float, bool]]:
+    def loglikelihood(self, requests: list[Instance]) -> list[tuple[float, bool]]:
         raise NotImplementedError("Loglikelihood is not implemented for Qwen2.5_VL")
 
     def flatten(self, input):
@@ -179,7 +179,7 @@ class Qwen2_5_VL_Interleave(lmms):
                 new_list.append(j)
         return new_list
 
-    def generate_until(self, requests: List[Instance]) -> List[str]:
+    def generate_until(self, requests: list[Instance]) -> list[str]:
         res = []
 
         def get_uuid(task, split, doc_id):
@@ -228,7 +228,9 @@ class Qwen2_5_VL_Interleave(lmms):
                 if isinstance(until, str):
                     until = [until]
                 elif not isinstance(until, list):
-                    raise ValueError(f"Expected `gen_kwargs['until']` to be of type Union[str,list] but got {type(until)}")
+                    raise ValueError(
+                        f"Expected `gen_kwargs['until']` to be of type Union[str,list] but got {type(until)}"
+                    )
 
             if isinstance(contexts, tuple):
                 contexts = list(contexts)
@@ -362,7 +364,9 @@ class Qwen2_5_VL_Interleave(lmms):
                                 ],
                             }
                         )
-                    elif isinstance(visual, (list, tuple)) and all(isinstance(v, Image.Image) for v in visual):  # Multiple images
+                    elif isinstance(visual, (list, tuple)) and all(
+                        isinstance(v, Image.Image) for v in visual
+                    ):  # Multiple images
                         image_content = []
                         i = 0
                         for v in visual:
@@ -380,7 +384,9 @@ class Qwen2_5_VL_Interleave(lmms):
                             v.save(f"test_{i}.jpg")
                             i += 1
                         # message.append({"role": "user", "content": image_content + [{"type": "text", "text": context}]})
-                        assert len(image_content) + 1 == len(context), f"Number of images and context do not match, {len(image_content)} images and {len(context)} context\n{json.dumps(context)}"
+                        assert len(image_content) + 1 == len(context), (
+                            f"Number of images and context do not match, {len(image_content)} images and {len(context)} context\n{json.dumps(context)}"
+                        )
                         content = []
                         for i in range(len(image_content)):
                             content.append({"type": "text", "text": context[i]})
@@ -400,7 +406,9 @@ class Qwen2_5_VL_Interleave(lmms):
                 messages.append(message)
             # print(messages)
 
-            texts = [self.processor.apply_chat_template(msg, tokenize=False, add_generation_prompt=True) for msg in messages]
+            texts = [
+                self.processor.apply_chat_template(msg, tokenize=False, add_generation_prompt=True) for msg in messages
+            ]
             image_inputs, video_inputs = process_vision_info(messages)
 
             inputs = self.processor(
@@ -469,5 +477,5 @@ class Qwen2_5_VL_Interleave(lmms):
         pbar.close()
         return res
 
-    def generate_until_multi_round(self, requests) -> List[str]:
+    def generate_until_multi_round(self, requests) -> list[str]:
         raise NotImplementedError("TODO: Implement multi-round generation")

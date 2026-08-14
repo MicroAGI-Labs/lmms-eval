@@ -2,7 +2,6 @@
 Specific evaluators for Out-of-Domain_50 tasks (Part 4).
 """
 
-from typing import Dict, List, Optional, Tuple
 
 import cv2
 import numpy as np
@@ -21,9 +20,21 @@ class SymbolDeletionEvaluator(BaseEvaluator):
     - Layout & alignment (10%): Centered, evenly spaced
     """
 
-    TASK_WEIGHTS = {"deletion_accuracy": 0.40, "symbol_preservation": 0.35, "order_preservation": 0.15, "layout_alignment": 0.10}
+    TASK_WEIGHTS = {
+        "deletion_accuracy": 0.40,
+        "symbol_preservation": 0.35,
+        "order_preservation": 0.15,
+        "layout_alignment": 0.10,
+    }
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         if len(video_frames) < 2:
             return 0.0
 
@@ -43,11 +54,23 @@ class SymbolDeletionEvaluator(BaseEvaluator):
             # Task failed - wrong number of symbols deleted
             if final_count >= first_count:
                 # No deletion or symbols added
-                self._last_task_details = {"deletion_accuracy": 0.0, "symbol_preservation": 0.0, "order_preservation": 0.0, "layout_alignment": 0.0, "no_deletion": True}
+                self._last_task_details = {
+                    "deletion_accuracy": 0.0,
+                    "symbol_preservation": 0.0,
+                    "order_preservation": 0.0,
+                    "layout_alignment": 0.0,
+                    "no_deletion": True,
+                }
                 return 0.0
             elif final_count < first_count - 1:
                 # Too many deleted
-                self._last_task_details = {"deletion_accuracy": 0.1, "symbol_preservation": 0.0, "order_preservation": 0.0, "layout_alignment": 0.0, "too_many_deleted": True}
+                self._last_task_details = {
+                    "deletion_accuracy": 0.1,
+                    "symbol_preservation": 0.0,
+                    "order_preservation": 0.0,
+                    "layout_alignment": 0.0,
+                    "too_many_deleted": True,
+                }
                 return 0.04  # 0.1 * 0.4
 
         # Check deletion accuracy (was the correct symbol deleted?)
@@ -70,7 +93,7 @@ class SymbolDeletionEvaluator(BaseEvaluator):
         self._last_task_details = scores
         return sum(scores[k] * self.TASK_WEIGHTS[k] for k in self.TASK_WEIGHTS)
 
-    def _detect_symbols_with_color(self, frame: np.ndarray) -> List[Dict]:
+    def _detect_symbols_with_color(self, frame: np.ndarray) -> list[dict]:
         """Detect symbols with their centers and average colors."""
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         _, binary = cv2.threshold(gray, 200, 255, cv2.THRESH_BINARY_INV)
@@ -96,7 +119,7 @@ class SymbolDeletionEvaluator(BaseEvaluator):
 
         return sorted(symbols, key=lambda s: s["center"][0])  # Sort by x
 
-    def _detect_red_border(self, frame: np.ndarray) -> Optional[Tuple[int, int]]:
+    def _detect_red_border(self, frame: np.ndarray) -> tuple[int, int] | None:
         """Detect the red border marking the target symbol."""
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
         lower_red1 = np.array([0, 100, 100])
@@ -115,7 +138,9 @@ class SymbolDeletionEvaluator(BaseEvaluator):
                     return (cx, cy)
         return None
 
-    def _evaluate_deletion(self, first_symbols: List[Dict], final_symbols: List[Dict], first_frame: np.ndarray) -> float:
+    def _evaluate_deletion(
+        self, first_symbols: list[dict], final_symbols: list[dict], first_frame: np.ndarray
+    ) -> float:
         """Check if exactly one symbol is deleted (the one with red border)."""
         first_count = len(first_symbols)
         final_count = len(final_symbols)
@@ -156,7 +181,9 @@ class SymbolDeletionEvaluator(BaseEvaluator):
 
         # Check if deleted symbol was near the red border
         deleted_center = first_centers[deleted_idx]
-        dist_to_red = np.sqrt((deleted_center[0] - red_border_pos[0]) ** 2 + (deleted_center[1] - red_border_pos[1]) ** 2)
+        dist_to_red = np.sqrt(
+            (deleted_center[0] - red_border_pos[0]) ** 2 + (deleted_center[1] - red_border_pos[1]) ** 2
+        )
 
         if dist_to_red < 50:
             return 1.0  # Correct symbol deleted
@@ -165,7 +192,9 @@ class SymbolDeletionEvaluator(BaseEvaluator):
         else:
             return 0.3  # Wrong symbol deleted
 
-    def _evaluate_symbol_preservation(self, first_symbols: List[Dict], final_symbols: List[Dict], first_frame: np.ndarray) -> float:
+    def _evaluate_symbol_preservation(
+        self, first_symbols: list[dict], final_symbols: list[dict], first_frame: np.ndarray
+    ) -> float:
         """CRITICAL: Check if all OTHER symbols' colors remain unchanged."""
         if len(final_symbols) == 0:
             return 0.0
@@ -178,7 +207,9 @@ class SymbolDeletionEvaluator(BaseEvaluator):
         for sym in first_symbols:
             # Skip the marked symbol
             if red_border_pos:
-                dist = np.sqrt((sym["center"][0] - red_border_pos[0]) ** 2 + (sym["center"][1] - red_border_pos[1]) ** 2)
+                dist = np.sqrt(
+                    (sym["center"][0] - red_border_pos[0]) ** 2 + (sym["center"][1] - red_border_pos[1]) ** 2
+                )
                 if dist < 50:
                     continue
             expected_symbols.append(sym)
@@ -221,7 +252,7 @@ class SymbolDeletionEvaluator(BaseEvaluator):
 
         return 1.0
 
-    def _evaluate_order(self, first_symbols: List[Dict], final_symbols: List[Dict]) -> float:
+    def _evaluate_order(self, first_symbols: list[dict], final_symbols: list[dict]) -> float:
         """Check if remaining symbols maintain order."""
         if len(final_symbols) < 2:
             return 0.5
@@ -232,7 +263,7 @@ class SymbolDeletionEvaluator(BaseEvaluator):
 
         return 1.0 if is_ordered else 0.5
 
-    def _evaluate_layout(self, final_symbols: List[Dict]) -> float:
+    def _evaluate_layout(self, final_symbols: list[dict]) -> float:
         """Check horizontal alignment."""
         if len(final_symbols) < 2:
             return 0.5
@@ -261,7 +292,14 @@ class GeometricTransformationEvaluator(BaseEvaluator):
 
     TASK_WEIGHTS = {"rotation_center": 0.30, "rotation_angle": 0.35, "position_alignment": 0.25, "shape_fidelity": 0.10}
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         if len(video_frames) < 2:
             return 0.0
 
@@ -277,7 +315,7 @@ class GeometricTransformationEvaluator(BaseEvaluator):
         self._last_task_details = scores
         return sum(scores[k] * self.TASK_WEIGHTS[k] for k in self.TASK_WEIGHTS)
 
-    def _evaluate_rotation_center(self, video_frames: List[np.ndarray]) -> float:
+    def _evaluate_rotation_center(self, video_frames: list[np.ndarray]) -> float:
         """Rule-based: Check if rotation is around the correct center point."""
         # Track shape center across frames
         centers = []
@@ -379,7 +417,7 @@ class GeometricTransformationEvaluator(BaseEvaluator):
         else:
             return 0.4
 
-    def _find_shape_center(self, frame: np.ndarray) -> Optional[Tuple[int, int]]:
+    def _find_shape_center(self, frame: np.ndarray) -> tuple[int, int] | None:
         """Find center of main shape."""
         shape = self._detect_main_shape(frame)
         if shape is None:
@@ -390,7 +428,7 @@ class GeometricTransformationEvaluator(BaseEvaluator):
             return (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
         return None
 
-    def _detect_main_shape(self, frame: np.ndarray) -> Optional[np.ndarray]:
+    def _detect_main_shape(self, frame: np.ndarray) -> np.ndarray | None:
         """Detect the main (colored) shape."""
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
@@ -404,7 +442,7 @@ class GeometricTransformationEvaluator(BaseEvaluator):
             return max(contours, key=cv2.contourArea)
         return None
 
-    def _detect_target_outline(self, frame: np.ndarray) -> Optional[np.ndarray]:
+    def _detect_target_outline(self, frame: np.ndarray) -> np.ndarray | None:
         """Detect target outline (dashed or dotted)."""
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         edges = cv2.Canny(gray, 50, 150)
@@ -415,7 +453,7 @@ class GeometricTransformationEvaluator(BaseEvaluator):
             return max(contours, key=cv2.contourArea)
         return None
 
-    def _find_target_center(self, frame: np.ndarray) -> Optional[Tuple[int, int]]:
+    def _find_target_center(self, frame: np.ndarray) -> tuple[int, int] | None:
         """Find center of target outline."""
         target = self._detect_target_outline(frame)
         if target is None:
@@ -449,9 +487,21 @@ class ShapeScalingAnalogyEvaluator(BaseEvaluator):
     - Position correctness (5%): D is in bottom-right quadrant
     """
 
-    TASK_WEIGHTS = {"element_preservation": 0.40, "scaling_ratio": 0.35, "shape_type_matching": 0.20, "position_correctness": 0.05}
+    TASK_WEIGHTS = {
+        "element_preservation": 0.40,
+        "scaling_ratio": 0.35,
+        "shape_type_matching": 0.20,
+        "position_correctness": 0.05,
+    }
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         if len(video_frames) < 2:
             return 0.0
 
@@ -468,7 +518,13 @@ class ShapeScalingAnalogyEvaluator(BaseEvaluator):
 
         # If elements are not preserved, heavily penalize
         if scores["element_preservation"] < 0.5:
-            self._last_task_details = {"element_preservation": scores["element_preservation"], "scaling_ratio": 0.0, "shape_type_matching": 0.0, "position_correctness": 0.0, "elements_changed": True}
+            self._last_task_details = {
+                "element_preservation": scores["element_preservation"],
+                "scaling_ratio": 0.0,
+                "shape_type_matching": 0.0,
+                "position_correctness": 0.0,
+                "elements_changed": True,
+            }
             return scores["element_preservation"] * self.TASK_WEIGHTS["element_preservation"]
 
         # 2. Check scaling ratio
@@ -483,11 +539,16 @@ class ShapeScalingAnalogyEvaluator(BaseEvaluator):
         self._last_task_details = scores
         return sum(scores[k] * self.TASK_WEIGHTS[k] for k in self.TASK_WEIGHTS)
 
-    def _get_quadrant_shapes_detailed(self, frame: np.ndarray) -> Dict:
+    def _get_quadrant_shapes_detailed(self, frame: np.ndarray) -> dict:
         """Get shapes in each quadrant with detailed info."""
         h, w = frame.shape[:2]
 
-        quadrants = {"A": frame[: h // 2, : w // 2], "B": frame[: h // 2, w // 2 :], "C": frame[h // 2 :, : w // 2], "D": frame[h // 2 :, w // 2 :]}  # Top-left  # Top-right  # Bottom-left  # Bottom-right
+        quadrants = {
+            "A": frame[: h // 2, : w // 2],
+            "B": frame[: h // 2, w // 2 :],
+            "C": frame[h // 2 :, : w // 2],
+            "D": frame[h // 2 :, w // 2 :],
+        }  # Top-left  # Top-right  # Bottom-left  # Bottom-right
 
         result = {}
         for name, region in quadrants.items():
@@ -499,7 +560,7 @@ class ShapeScalingAnalogyEvaluator(BaseEvaluator):
 
         return result
 
-    def _detect_shapes_detailed(self, region: np.ndarray) -> List[Dict]:
+    def _detect_shapes_detailed(self, region: np.ndarray) -> list[dict]:
         """Detect shapes with detailed info (area, vertices, color)."""
         if region.size == 0:
             return []
@@ -530,11 +591,19 @@ class ShapeScalingAnalogyEvaluator(BaseEvaluator):
                     color_arr = np.array(mean_color, dtype=np.uint8).reshape(1, 1, 3)
                     hsv_c = cv2.cvtColor(color_arr, cv2.COLOR_BGR2HSV)[0, 0]
 
-                    shapes.append({"center": (cx, cy), "area": area, "vertices": vertices, "hue": int(hsv_c[0]), "color": mean_color})
+                    shapes.append(
+                        {
+                            "center": (cx, cy),
+                            "area": area,
+                            "vertices": vertices,
+                            "hue": int(hsv_c[0]),
+                            "color": mean_color,
+                        }
+                    )
 
         return shapes
 
-    def _evaluate_element_preservation(self, first_shapes: Dict, final_shapes: Dict) -> float:
+    def _evaluate_element_preservation(self, first_shapes: dict, final_shapes: dict) -> float:
         """Check if A, B, C remain unchanged."""
         preserved = 0
         total = 0
@@ -561,7 +630,7 @@ class ShapeScalingAnalogyEvaluator(BaseEvaluator):
 
         return preserved / total if total > 0 else 0.0
 
-    def _evaluate_scaling_ratio(self, first_shapes: Dict, final_shapes: Dict) -> float:
+    def _evaluate_scaling_ratio(self, first_shapes: dict, final_shapes: dict) -> float:
         """Check if D follows the A→B scaling trend."""
         # Get A, B sizes from first frame (or final for A, B since they should be unchanged)
         a_size = first_shapes.get("A", {}).get("area", 0)
@@ -600,7 +669,7 @@ class ShapeScalingAnalogyEvaluator(BaseEvaluator):
         else:
             return 0.3
 
-    def _evaluate_shape_type(self, first_shapes: Dict, final_shapes: Dict) -> float:
+    def _evaluate_shape_type(self, first_shapes: dict, final_shapes: dict) -> float:
         """Check if D has the same shape type as C."""
         c_shape = first_shapes.get("C", {})
         d_shape = final_shapes.get("D", {})
@@ -619,7 +688,7 @@ class ShapeScalingAnalogyEvaluator(BaseEvaluator):
         else:
             return 0.3
 
-    def _evaluate_position(self, final_shapes: Dict) -> float:
+    def _evaluate_position(self, final_shapes: dict) -> float:
         """Check if D exists in bottom-right quadrant."""
         if "D" in final_shapes and final_shapes["D"].get("area", 0) > 0:
             return 1.0
@@ -637,9 +706,21 @@ class ShapeColorThenMoveEvaluator(BaseEvaluator):
     - Shape count (5%): Final should have 6 shapes (3 top + 3 bottom)
     """
 
-    TASK_WEIGHTS = {"first_row_preservation": 0.40, "second_row_completion": 0.35, "color_accuracy": 0.20, "shape_count": 0.05}
+    TASK_WEIGHTS = {
+        "first_row_preservation": 0.40,
+        "second_row_completion": 0.35,
+        "color_accuracy": 0.20,
+        "shape_count": 0.05,
+    }
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         if len(video_frames) < 2:
             return 0.0
 
@@ -658,7 +739,13 @@ class ShapeColorThenMoveEvaluator(BaseEvaluator):
 
         # If first row is not preserved, heavily penalize
         if scores["first_row_preservation"] < 0.5:
-            self._last_task_details = {"first_row_preservation": scores["first_row_preservation"], "second_row_completion": 0.0, "color_accuracy": 0.0, "shape_count": 0.0, "first_row_destroyed": True}
+            self._last_task_details = {
+                "first_row_preservation": scores["first_row_preservation"],
+                "second_row_completion": 0.0,
+                "color_accuracy": 0.0,
+                "shape_count": 0.0,
+                "first_row_destroyed": True,
+            }
             return scores["first_row_preservation"] * self.TASK_WEIGHTS["first_row_preservation"]
 
         # 2. Second row should have 3 shapes (D, E, F)
@@ -673,7 +760,7 @@ class ShapeColorThenMoveEvaluator(BaseEvaluator):
         self._last_task_details = scores
         return sum(scores[k] * self.TASK_WEIGHTS[k] for k in self.TASK_WEIGHTS)
 
-    def _detect_shapes_with_info(self, frame: np.ndarray) -> List[Dict]:
+    def _detect_shapes_with_info(self, frame: np.ndarray) -> list[dict]:
         """Detect shapes with position and color info."""
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
         mask = hsv[:, :, 1] > 30
@@ -697,7 +784,7 @@ class ShapeColorThenMoveEvaluator(BaseEvaluator):
                     shapes.append({"center": (cx, cy), "hue": int(hsv_c[0]), "area": area})
         return shapes
 
-    def _evaluate_first_row_preservation(self, first_shapes: List[Dict], final_shapes: List[Dict], h: int) -> float:
+    def _evaluate_first_row_preservation(self, first_shapes: list[dict], final_shapes: list[dict], h: int) -> float:
         """Check if first row (A, B, C) is preserved."""
         # Get shapes in top half
         first_top = [s for s in first_shapes if s["center"][1] < h // 2]
@@ -725,7 +812,7 @@ class ShapeColorThenMoveEvaluator(BaseEvaluator):
 
         return matched / len(first_hues) if first_hues else 0.0
 
-    def _evaluate_second_row(self, first_shapes: List[Dict], final_shapes: List[Dict], h: int) -> float:
+    def _evaluate_second_row(self, first_shapes: list[dict], final_shapes: list[dict], h: int) -> float:
         """Check if second row has D, E, F."""
         # Get shapes in bottom half
         first_bottom = [s for s in first_shapes if s["center"][1] >= h // 2]
@@ -744,7 +831,7 @@ class ShapeColorThenMoveEvaluator(BaseEvaluator):
         else:
             return 0.0
 
-    def _evaluate_color_accuracy(self, first_shapes: List[Dict], final_shapes: List[Dict], h: int, w: int) -> float:
+    def _evaluate_color_accuracy(self, first_shapes: list[dict], final_shapes: list[dict], h: int, w: int) -> float:
         """Check if E and F have B's color."""
         # Find B's color (top-middle shape in first frame)
         first_top = [s for s in first_shapes if s["center"][1] < h // 2]
@@ -772,7 +859,7 @@ class ShapeColorThenMoveEvaluator(BaseEvaluator):
 
         return correct / len(ef_shapes) if ef_shapes else 0.0
 
-    def _evaluate_shape_count(self, final_shapes: List[Dict]) -> float:
+    def _evaluate_shape_count(self, final_shapes: list[dict]) -> float:
         """Check if final frame has correct number of shapes (6)."""
         if len(final_shapes) == 6:
             return 1.0
@@ -801,9 +888,21 @@ class ConstructionStackEvaluator(BaseEvaluator):
     - Movement detection (15%): Visible block movement animation
     """
 
-    TASK_WEIGHTS = {"target_preservation": 0.25, "final_state": 0.40, "source_changed": 0.20, "movement_detection": 0.15}
+    TASK_WEIGHTS = {
+        "target_preservation": 0.25,
+        "final_state": 0.40,
+        "source_changed": 0.20,
+        "movement_detection": 0.15,
+    }
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         if len(video_frames) < 2:
             return 0.0
 
@@ -852,7 +951,9 @@ class ConstructionStackEvaluator(BaseEvaluator):
         scores["final_state"] = final_state_score
 
         # 3. Source changed (20%): Left side should have changed
-        source_changed_score = self._evaluate_source_changed(first_source_blocks, final_result_blocks, first_target_blocks)
+        source_changed_score = self._evaluate_source_changed(
+            first_source_blocks, final_result_blocks, first_target_blocks
+        )
         scores["source_changed"] = source_changed_score
 
         # 4. Movement detection (15%): Visible movement in video
@@ -868,7 +969,7 @@ class ConstructionStackEvaluator(BaseEvaluator):
         self._last_task_details = scores
         return sum(scores.get(k, 0) * self.TASK_WEIGHTS[k] for k in self.TASK_WEIGHTS if k in scores)
 
-    def _evaluate_target_preservation_v2(self, first_target: List[Dict], final_target: List[Dict]) -> float:
+    def _evaluate_target_preservation_v2(self, first_target: list[dict], final_target: list[dict]) -> float:
         """Check if target stack (right side) remained unchanged."""
         if len(first_target) == 0:
             return 0.0  # No target blocks = can't evaluate
@@ -890,7 +991,7 @@ class ConstructionStackEvaluator(BaseEvaluator):
 
         return matched / len(first_target)
 
-    def _evaluate_final_state_v2(self, target_blocks: List[Dict], result_blocks: List[Dict]) -> float:
+    def _evaluate_final_state_v2(self, target_blocks: list[dict], result_blocks: list[dict]) -> float:
         """Check if result stack matches target pattern (colors in correct order)."""
         if len(target_blocks) == 0:
             return 0.0
@@ -924,7 +1025,9 @@ class ConstructionStackEvaluator(BaseEvaluator):
         else:
             return 0.0
 
-    def _evaluate_source_changed(self, first_source: List[Dict], final_result: List[Dict], target_blocks: List[Dict]) -> float:
+    def _evaluate_source_changed(
+        self, first_source: list[dict], final_result: list[dict], target_blocks: list[dict]
+    ) -> float:
         """Check if the source (left side) changed to create the result."""
         if len(first_source) == 0 and len(final_result) == 0:
             return 0.0  # Nothing changed
@@ -946,7 +1049,7 @@ class ConstructionStackEvaluator(BaseEvaluator):
         else:
             return 0.2
 
-    def _compare_hue_lists(self, hues1: List[int], hues2: List[int]) -> float:
+    def _compare_hue_lists(self, hues1: list[int], hues2: list[int]) -> float:
         """Compare two sorted lists of hues."""
         if not hues1 or not hues2:
             return 0.0
@@ -962,7 +1065,7 @@ class ConstructionStackEvaluator(BaseEvaluator):
 
         return matched / len(hues1)
 
-    def _detect_block_movement(self, frames: List[np.ndarray], left_boundary: int, right_boundary: int) -> float:
+    def _detect_block_movement(self, frames: list[np.ndarray], left_boundary: int, right_boundary: int) -> float:
         """
         Detect if there's visible block movement in the video.
 
@@ -1007,7 +1110,7 @@ class ConstructionStackEvaluator(BaseEvaluator):
         else:
             return 0.0
 
-    def _detect_all_blocks_fine_region(self, region: np.ndarray) -> List[Dict]:
+    def _detect_all_blocks_fine_region(self, region: np.ndarray) -> list[dict]:
         """
         Detect colored blocks in a specific region.
 
@@ -1068,7 +1171,7 @@ class ConstructionStackEvaluator(BaseEvaluator):
 
         return blocks
 
-    def _detect_all_blocks_fine(self, frame: np.ndarray) -> List[Dict]:
+    def _detect_all_blocks_fine(self, frame: np.ndarray) -> list[dict]:
         """Detect all colored blocks with finer granularity (lower area threshold)."""
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
@@ -1098,7 +1201,7 @@ class ConstructionStackEvaluator(BaseEvaluator):
 
         return blocks
 
-    def _detect_blocks_with_color(self, region: np.ndarray) -> List[Dict]:
+    def _detect_blocks_with_color(self, region: np.ndarray) -> list[dict]:
         """Detect colored blocks with center and average color."""
         if region.size == 0:
             return []
@@ -1127,7 +1230,7 @@ class ConstructionStackEvaluator(BaseEvaluator):
 
         return blocks
 
-    def _evaluate_steps(self, video_frames: List[np.ndarray]) -> float:
+    def _evaluate_steps(self, video_frames: list[np.ndarray]) -> float:
         """Rule-based: Evaluate if step count is reasonable."""
         # Count significant frame changes
         changes = 0
@@ -1144,7 +1247,7 @@ class ConstructionStackEvaluator(BaseEvaluator):
         else:
             return 0.4
 
-    def _evaluate_movement(self, video_frames: List[np.ndarray]) -> float:
+    def _evaluate_movement(self, video_frames: list[np.ndarray]) -> float:
         """Rule-based: Evaluate movement smoothness."""
         if len(video_frames) < 3:
             return 0.5
@@ -1160,7 +1263,7 @@ class ConstructionStackEvaluator(BaseEvaluator):
         variance = np.var(diffs)
         return 1.0 / (1.0 + variance / 100)
 
-    def _detect_blocks(self, region: np.ndarray) -> List[Tuple[int, int, Tuple[int, int, int]]]:
+    def _detect_blocks(self, region: np.ndarray) -> list[tuple[int, int, tuple[int, int, int]]]:
         """Detect colored blocks with (x, y, color)."""
         if region.size == 0:
             return []
@@ -1203,7 +1306,7 @@ class MoveObjectsToTargetEvaluator(BaseEvaluator):
 
     TASK_WEIGHTS = {"color_matching": 0.50, "path_motion": 0.15, "synchronization": 0.20, "completeness": 0.15}
 
-    def _find_color_centers(self, frame: np.ndarray) -> Dict[str, Optional[Tuple[float, float]]]:
+    def _find_color_centers(self, frame: np.ndarray) -> dict[str, tuple[float, float] | None]:
         """Find centers of pink and blue objects."""
         if len(frame.shape) != 3:
             return {"pink": None, "blue": None}
@@ -1236,7 +1339,7 @@ class MoveObjectsToTargetEvaluator(BaseEvaluator):
 
         return centers
 
-    def _analyze_motion_smoothness(self, frames: List[np.ndarray]) -> float:
+    def _analyze_motion_smoothness(self, frames: list[np.ndarray]) -> float:
         """Analyze if motion is smooth and continuous."""
         if len(frames) < 3:
             return 0.5
@@ -1274,7 +1377,14 @@ class MoveObjectsToTargetEvaluator(BaseEvaluator):
 
         return float(np.mean(smoothness_scores)) if smoothness_scores else 0.5
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         """Evaluate dual object movement to targets."""
 
         if not video_frames or gt_final_frame is None:
@@ -1317,11 +1427,17 @@ class MoveObjectsToTargetEvaluator(BaseEvaluator):
             blue_moved = False
 
             if first_centers["pink"] is not None and mid_centers["pink"] is not None:
-                pink_dist = np.sqrt((mid_centers["pink"][0] - first_centers["pink"][0]) ** 2 + (mid_centers["pink"][1] - first_centers["pink"][1]) ** 2)
+                pink_dist = np.sqrt(
+                    (mid_centers["pink"][0] - first_centers["pink"][0]) ** 2
+                    + (mid_centers["pink"][1] - first_centers["pink"][1]) ** 2
+                )
                 pink_moved = pink_dist > 10
 
             if first_centers["blue"] is not None and mid_centers["blue"] is not None:
-                blue_dist = np.sqrt((mid_centers["blue"][0] - first_centers["blue"][0]) ** 2 + (mid_centers["blue"][1] - first_centers["blue"][1]) ** 2)
+                blue_dist = np.sqrt(
+                    (mid_centers["blue"][0] - first_centers["blue"][0]) ** 2
+                    + (mid_centers["blue"][1] - first_centers["blue"][1]) ** 2
+                )
                 blue_moved = blue_dist > 10
 
             # Both should move together
@@ -1355,9 +1471,21 @@ class MazePathfindingEvaluator(BaseEvaluator):
     - Element preservation (5%): Maze structure unchanged
     """
 
-    TASK_WEIGHTS = {"path_validity": 0.45, "path_completeness": 0.30, "navigation_accuracy": 0.20, "element_preservation": 0.05}
+    TASK_WEIGHTS = {
+        "path_validity": 0.45,
+        "path_completeness": 0.30,
+        "navigation_accuracy": 0.20,
+        "element_preservation": 0.05,
+    }
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         if len(video_frames) < 2:
             return 0.0
 
@@ -1467,7 +1595,7 @@ class MazePathfindingEvaluator(BaseEvaluator):
         else:
             return 0.4
 
-    def _detect_path_markers(self, frame: np.ndarray) -> Optional[np.ndarray]:
+    def _detect_path_markers(self, frame: np.ndarray) -> np.ndarray | None:
         """Detect orange/yellow path markers."""
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
@@ -1477,13 +1605,13 @@ class MazePathfindingEvaluator(BaseEvaluator):
         mask = cv2.inRange(hsv, lower_orange, upper_orange)
         return mask
 
-    def _detect_walls(self, frame: np.ndarray) -> Optional[np.ndarray]:
+    def _detect_walls(self, frame: np.ndarray) -> np.ndarray | None:
         """Detect maze walls (black/dark)."""
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         _, walls = cv2.threshold(gray, 50, 255, cv2.THRESH_BINARY_INV)
         return walls
 
-    def _find_start_position(self, frame: np.ndarray) -> Optional[Tuple[int, int]]:
+    def _find_start_position(self, frame: np.ndarray) -> tuple[int, int] | None:
         """Find green start marker."""
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
@@ -1501,7 +1629,7 @@ class MazePathfindingEvaluator(BaseEvaluator):
                 return (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
         return None
 
-    def _find_end_position(self, frame: np.ndarray) -> Optional[Tuple[int, int]]:
+    def _find_end_position(self, frame: np.ndarray) -> tuple[int, int] | None:
         """Find red end marker (flag)."""
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
@@ -1521,7 +1649,7 @@ class MazePathfindingEvaluator(BaseEvaluator):
                 return (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
         return None
 
-    def _check_path_near_position(self, path_mask: np.ndarray, pos: Tuple[int, int]) -> bool:
+    def _check_path_near_position(self, path_mask: np.ndarray, pos: tuple[int, int]) -> bool:
         """Check if path reaches near a position."""
         x, y = pos
         h, w = path_mask.shape
@@ -1548,9 +1676,21 @@ class ObjectSubtractionEvaluator(BaseEvaluator):
     - Selective deletion accuracy (10%): No extra deletions
     """
 
-    TASK_WEIGHTS = {"identification": 0.40, "deletion_completeness": 0.30, "preservation": 0.20, "selective_accuracy": 0.10}
+    TASK_WEIGHTS = {
+        "identification": 0.40,
+        "deletion_completeness": 0.30,
+        "preservation": 0.20,
+        "selective_accuracy": 0.10,
+    }
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         if len(video_frames) < 2:
             return 0.0
 
@@ -1571,12 +1711,28 @@ class ObjectSubtractionEvaluator(BaseEvaluator):
         # Should remove exactly the right number, not all objects
         if final_count == 0 and first_count > 1:
             # All objects removed - WRONG
-            self._last_task_details = {"identification": 0.0, "deletion_completeness": 0.0, "preservation": 0.0, "selective_accuracy": 0.0, "all_objects_removed": True, "first_count": first_count, "final_count": final_count}
+            self._last_task_details = {
+                "identification": 0.0,
+                "deletion_completeness": 0.0,
+                "preservation": 0.0,
+                "selective_accuracy": 0.0,
+                "all_objects_removed": True,
+                "first_count": first_count,
+                "final_count": final_count,
+            }
             return 0.0
 
         if final_count > first_count:
             # Objects added - WRONG
-            self._last_task_details = {"identification": 0.0, "deletion_completeness": 0.0, "preservation": 0.0, "selective_accuracy": 0.0, "objects_added": True, "first_count": first_count, "final_count": final_count}
+            self._last_task_details = {
+                "identification": 0.0,
+                "deletion_completeness": 0.0,
+                "preservation": 0.0,
+                "selective_accuracy": 0.0,
+                "objects_added": True,
+                "first_count": first_count,
+                "final_count": final_count,
+            }
             return 0.0
 
         # Check if final count matches expected
@@ -1675,7 +1831,7 @@ class ObjectSubtractionEvaluator(BaseEvaluator):
 
         return sum(1 for cnt in contours if cv2.contourArea(cnt) > 500)
 
-    def _get_object_colors(self, frame: np.ndarray) -> List[Tuple[int, int, int]]:
+    def _get_object_colors(self, frame: np.ndarray) -> list[tuple[int, int, int]]:
         """Get colors of objects."""
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
@@ -1696,7 +1852,7 @@ class ObjectSubtractionEvaluator(BaseEvaluator):
 
         return colors
 
-    def _colors_similar(self, c1: Tuple[int, int, int], c2: Tuple[int, int, int]) -> bool:
+    def _colors_similar(self, c1: tuple[int, int, int], c2: tuple[int, int, int]) -> bool:
         """Check if two colors are similar."""
         diff = np.sqrt(sum((a - b) ** 2 for a, b in zip(c1, c2)))
         return diff < 60
@@ -1713,9 +1869,20 @@ class ShapeSorterEvaluator(BaseEvaluator):
     - No new objects should appear
     """
 
-    TASK_WEIGHTS = {"shapes_moved_to_right": 0.50, "left_side_cleared": 0.30, "no_new_shapes": 0.20}  # Colored shapes should be on right  # Left side should have no colored shapes  # No new shapes created
+    TASK_WEIGHTS = {
+        "shapes_moved_to_right": 0.50,
+        "left_side_cleared": 0.30,
+        "no_new_shapes": 0.20,
+    }  # Colored shapes should be on right  # Left side should have no colored shapes  # No new shapes created
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         if len(video_frames) < 2:
             return 0.0
 
@@ -1770,7 +1937,7 @@ class ShapeSorterEvaluator(BaseEvaluator):
         self._last_task_details = scores
         return sum(scores[k] * self.TASK_WEIGHTS[k] for k in self.TASK_WEIGHTS)
 
-    def _detect_colored_shapes(self, region: np.ndarray) -> List[Dict]:
+    def _detect_colored_shapes(self, region: np.ndarray) -> list[dict]:
         """Detect colored (high saturation) shapes in region."""
         if region.size == 0:
             return []
@@ -1794,7 +1961,7 @@ class ShapeSorterEvaluator(BaseEvaluator):
 
         return shapes
 
-    def _detect_shapes_old(self, region: np.ndarray) -> List[Tuple[int, int]]:
+    def _detect_shapes_old(self, region: np.ndarray) -> list[tuple[int, int]]:
         """Detect shapes with their centers."""
         if region.size == 0:
             return []
@@ -1828,9 +1995,21 @@ class SymmetryCompletionEvaluator(BaseEvaluator):
     - Color consistency (5%): New blocks match original block colors
     """
 
-    TASK_WEIGHTS = {"block_preservation": 0.40, "symmetry_accuracy": 0.35, "fill_correctness": 0.20, "color_consistency": 0.05}
+    TASK_WEIGHTS = {
+        "block_preservation": 0.40,
+        "symmetry_accuracy": 0.35,
+        "fill_correctness": 0.20,
+        "color_consistency": 0.05,
+    }
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         if len(video_frames) < 2:
             return 0.0
 
@@ -1843,11 +2022,19 @@ class SymmetryCompletionEvaluator(BaseEvaluator):
         final_blocks = self._detect_filled_blocks(final_frame)
 
         # 1. Block preservation - original blocks should remain, correct total count
-        scores["block_preservation"] = self._evaluate_block_preservation(first_blocks, final_blocks, gt_first_frame, gt_final_frame)
+        scores["block_preservation"] = self._evaluate_block_preservation(
+            first_blocks, final_blocks, gt_first_frame, gt_final_frame
+        )
 
         # If blocks are completely changed, penalize heavily
         if scores["block_preservation"] < 0.3:
-            self._last_task_details = {"block_preservation": scores["block_preservation"], "symmetry_accuracy": 0.0, "fill_correctness": 0.0, "color_consistency": 0.0, "blocks_changed": True}
+            self._last_task_details = {
+                "block_preservation": scores["block_preservation"],
+                "symmetry_accuracy": 0.0,
+                "fill_correctness": 0.0,
+                "color_consistency": 0.0,
+                "blocks_changed": True,
+            }
             return scores["block_preservation"] * self.TASK_WEIGHTS["block_preservation"]
 
         # 2. Symmetry accuracy
@@ -1862,7 +2049,7 @@ class SymmetryCompletionEvaluator(BaseEvaluator):
         self._last_task_details = scores
         return sum(scores[k] * self.TASK_WEIGHTS[k] for k in self.TASK_WEIGHTS)
 
-    def _detect_filled_blocks(self, frame: np.ndarray) -> List[Dict]:
+    def _detect_filled_blocks(self, frame: np.ndarray) -> list[dict]:
         """Detect filled (colored) blocks."""
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
         mask = hsv[:, :, 1] > 50
@@ -1886,7 +2073,13 @@ class SymmetryCompletionEvaluator(BaseEvaluator):
                     blocks.append({"center": (cx, cy), "color": mean_color, "hue": int(hsv_c[0]), "area": area})
         return blocks
 
-    def _evaluate_block_preservation(self, first_blocks: List[Dict], final_blocks: List[Dict], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray]) -> float:
+    def _evaluate_block_preservation(
+        self,
+        first_blocks: list[dict],
+        final_blocks: list[dict],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+    ) -> float:
         """Check if original blocks are preserved and total count is correct."""
         first_count = len(first_blocks)
         final_count = len(final_blocks)
@@ -1933,7 +2126,7 @@ class SymmetryCompletionEvaluator(BaseEvaluator):
 
         return (count_score + color_preservation) / 2
 
-    def _evaluate_symmetry(self, final_blocks: List[Dict], final_frame: np.ndarray) -> float:
+    def _evaluate_symmetry(self, final_blocks: list[dict], final_frame: np.ndarray) -> float:
         """Check if blocks form left-right symmetry."""
         if len(final_blocks) == 0:
             return 0.0
@@ -1974,7 +2167,9 @@ class SymmetryCompletionEvaluator(BaseEvaluator):
 
         return symmetric_rows / total_rows if total_rows > 0 else 0.0
 
-    def _evaluate_fill_correctness(self, first_blocks: List[Dict], final_blocks: List[Dict], final_frame: np.ndarray) -> float:
+    def _evaluate_fill_correctness(
+        self, first_blocks: list[dict], final_blocks: list[dict], final_frame: np.ndarray
+    ) -> float:
         """Check if new blocks are filled at correct symmetric positions."""
         h, w = final_frame.shape[:2]
         center_x = w // 2
@@ -2018,7 +2213,7 @@ class SymmetryCompletionEvaluator(BaseEvaluator):
 
         return correct_fills / len(new_blocks) if new_blocks else 0.5
 
-    def _evaluate_color_consistency(self, first_blocks: List[Dict], final_blocks: List[Dict]) -> float:
+    def _evaluate_color_consistency(self, first_blocks: list[dict], final_blocks: list[dict]) -> float:
         """Check if new blocks use consistent colors."""
         first_hues = set(b["hue"] for b in first_blocks)
         final_hues = [b["hue"] for b in final_blocks]

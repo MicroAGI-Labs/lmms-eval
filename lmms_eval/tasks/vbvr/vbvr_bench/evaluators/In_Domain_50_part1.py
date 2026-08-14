@@ -2,12 +2,11 @@
 Specific evaluators for In-Domain_50 tasks (Part 1).
 """
 
-from typing import Any, Dict, List, Optional, Tuple
 
 import cv2
 import numpy as np
 
-from ..utils import compute_optical_flow, normalize_frame_size, safe_distance
+from ..utils import normalize_frame_size, safe_distance
 from .base_evaluator import BaseEvaluator
 
 
@@ -24,7 +23,7 @@ class StableSortEvaluator(BaseEvaluator):
 
     TASK_WEIGHTS = {"classification": 0.30, "order": 0.30, "fidelity": 0.30, "layout": 0.10}
 
-    def _detect_shapes(self, frame: np.ndarray) -> List[Dict]:
+    def _detect_shapes(self, frame: np.ndarray) -> list[dict]:
         """Detect colored shapes and return their properties."""
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
@@ -70,11 +69,11 @@ class StableSortEvaluator(BaseEvaluator):
 
         return shapes
 
-    def _color_distance(self, c1: Tuple, c2: Tuple) -> float:
+    def _color_distance(self, c1: tuple, c2: tuple) -> float:
         """Calculate color distance."""
         return np.sqrt(sum((a - b) ** 2 for a, b in zip(c1, c2)))
 
-    def _group_by_color(self, shapes: List[Dict], threshold: float = 50) -> Dict[str, List[Dict]]:
+    def _group_by_color(self, shapes: list[dict], threshold: float = 50) -> dict[str, list[dict]]:
         """Group shapes by similar color."""
         if not shapes:
             return {}
@@ -93,7 +92,14 @@ class StableSortEvaluator(BaseEvaluator):
 
         return groups
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         """Evaluate stable sort task with rule-based logic."""
         if len(video_frames) < 2:
             return 0.0
@@ -160,12 +166,18 @@ class StableSortEvaluator(BaseEvaluator):
             # Check size preservation (total area should be similar)
             initial_total_area = sum(s["area"] for s in initial_shapes)
             final_total_area = sum(s["area"] for s in final_shapes)
-            area_ratio = min(initial_total_area, final_total_area) / max(initial_total_area, final_total_area) if max(initial_total_area, final_total_area) > 0 else 0
+            area_ratio = (
+                min(initial_total_area, final_total_area) / max(initial_total_area, final_total_area)
+                if max(initial_total_area, final_total_area) > 0
+                else 0
+            )
 
             # Check shape type preservation
             initial_types = sorted([s["type"] for s in initial_shapes])
             final_types = sorted([s["type"] for s in final_shapes])
-            type_match = sum(1 for a, b in zip(initial_types, final_types) if a == b) / max(len(initial_types), len(final_types), 1)
+            type_match = sum(1 for a, b in zip(initial_types, final_types) if a == b) / max(
+                len(initial_types), len(final_types), 1
+            )
 
             fidelity_score = 0.4 * count_match + 0.3 * area_ratio + 0.3 * type_match
         scores["fidelity"] = fidelity_score
@@ -196,7 +208,7 @@ class MultiObjectPlacementEvaluator(BaseEvaluator):
 
     TASK_WEIGHTS = {"color_matching": 0.30, "alignment": 0.25, "path": 0.20, "fidelity": 0.15, "star_invariance": 0.10}
 
-    def _detect_colored_objects(self, frame: np.ndarray) -> List[Dict]:
+    def _detect_colored_objects(self, frame: np.ndarray) -> list[dict]:
         """Detect colored objects (shapes) in the frame."""
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
         objects = []
@@ -228,7 +240,7 @@ class MultiObjectPlacementEvaluator(BaseEvaluator):
 
         return objects
 
-    def _detect_star_markers(self, frame: np.ndarray) -> List[Dict]:
+    def _detect_star_markers(self, frame: np.ndarray) -> list[dict]:
         """Detect star markers by looking for small star-shaped objects."""
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
@@ -265,7 +277,14 @@ class MultiObjectPlacementEvaluator(BaseEvaluator):
 
         return stars
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         """Evaluate multi-object placement task."""
         if len(video_frames) < 2 or gt_final_frame is None:
             return 0.0
@@ -369,9 +388,15 @@ class TrackObjectMovementEvaluator(BaseEvaluator):
     """
 
     # CRITICAL: Alignment is the main success criterion - object must reach red star
-    TASK_WEIGHTS = {"tracking": 0.10, "horizontal": 0.10, "alignment": 0.60, "identification": 0.10, "fidelity": 0.10}  # Main criterion - must align with red star
+    TASK_WEIGHTS = {
+        "tracking": 0.10,
+        "horizontal": 0.10,
+        "alignment": 0.60,
+        "identification": 0.10,
+        "fidelity": 0.10,
+    }  # Main criterion - must align with red star
 
-    def _detect_green_border(self, frame: np.ndarray) -> Optional[Tuple[int, int]]:
+    def _detect_green_border(self, frame: np.ndarray) -> tuple[int, int] | None:
         """Detect green border marker and return its center."""
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
         lower_green = np.array([35, 50, 50])
@@ -391,7 +416,7 @@ class TrackObjectMovementEvaluator(BaseEvaluator):
         cy = int(M["m01"] / M["m00"])
         return (cx, cy)
 
-    def _detect_red_star(self, frame: np.ndarray) -> Optional[Tuple[int, int]]:
+    def _detect_red_star(self, frame: np.ndarray) -> tuple[int, int] | None:
         """Detect red star marker and return its center."""
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
         lower_red1 = np.array([0, 100, 100])
@@ -419,7 +444,14 @@ class TrackObjectMovementEvaluator(BaseEvaluator):
                 return (cx, cy)
         return None
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         """Evaluate object tracking task."""
         if len(video_frames) < 2 or gt_final_frame is None:
             return 0.0
@@ -512,7 +544,7 @@ class IdentifyObjectsInRegionEvaluator(BaseEvaluator):
 
     TASK_WEIGHTS = {"region": 0.30, "shape": 0.30, "completeness": 0.25, "border_quality": 0.15}
 
-    def _detect_green_borders(self, frame: np.ndarray) -> List[Tuple[int, int]]:
+    def _detect_green_borders(self, frame: np.ndarray) -> list[tuple[int, int]]:
         """Detect green border markings and return their centers."""
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
         lower_green = np.array([35, 50, 50])
@@ -535,7 +567,14 @@ class IdentifyObjectsInRegionEvaluator(BaseEvaluator):
 
         return centers
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         """Evaluate identify objects in region task."""
         if len(video_frames) < 1 or gt_final_frame is None:
             return 0.0
@@ -626,7 +665,7 @@ class GridNumberSequenceEvaluator(BaseEvaluator):
 
     TASK_WEIGHTS = {"sequence": 0.35, "path_optimal": 0.35, "movement": 0.20, "completeness": 0.10}
 
-    def _detect_agent(self, frame: np.ndarray) -> Optional[Tuple[int, int]]:
+    def _detect_agent(self, frame: np.ndarray) -> tuple[int, int] | None:
         """Detect orange circular agent."""
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
         lower_orange = np.array([10, 100, 100])
@@ -645,7 +684,7 @@ class GridNumberSequenceEvaluator(BaseEvaluator):
         cy = int(M["m01"] / M["m00"])
         return (cx, cy)
 
-    def _detect_endpoint(self, frame: np.ndarray) -> Optional[Tuple[int, int]]:
+    def _detect_endpoint(self, frame: np.ndarray) -> tuple[int, int] | None:
         """Detect red endpoint."""
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
         lower_red1 = np.array([0, 100, 100])
@@ -666,7 +705,14 @@ class GridNumberSequenceEvaluator(BaseEvaluator):
         cy = int(M["m01"] / M["m00"])
         return (cx, cy)
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         """Evaluate grid number sequence task."""
         if len(video_frames) < 1 or gt_final_frame is None:
             return 0.0
@@ -699,8 +745,20 @@ class GridNumberSequenceEvaluator(BaseEvaluator):
 
         # 2. Path optimality: Compare path length
         if len(agent_positions) >= 2 and len(gt_agent_positions) >= 2:
-            gen_path_len = sum(np.sqrt((agent_positions[i][0] - agent_positions[i - 1][0]) ** 2 + (agent_positions[i][1] - agent_positions[i - 1][1]) ** 2) for i in range(1, len(agent_positions)))
-            gt_path_len = sum(np.sqrt((gt_agent_positions[i][0] - gt_agent_positions[i - 1][0]) ** 2 + (gt_agent_positions[i][1] - gt_agent_positions[i - 1][1]) ** 2) for i in range(1, len(gt_agent_positions)))
+            gen_path_len = sum(
+                np.sqrt(
+                    (agent_positions[i][0] - agent_positions[i - 1][0]) ** 2
+                    + (agent_positions[i][1] - agent_positions[i - 1][1]) ** 2
+                )
+                for i in range(1, len(agent_positions))
+            )
+            gt_path_len = sum(
+                np.sqrt(
+                    (gt_agent_positions[i][0] - gt_agent_positions[i - 1][0]) ** 2
+                    + (gt_agent_positions[i][1] - gt_agent_positions[i - 1][1]) ** 2
+                )
+                for i in range(1, len(gt_agent_positions))
+            )
 
             if gt_path_len > 0:
                 ratio = min(gen_path_len, gt_path_len) / max(gen_path_len, gt_path_len)
@@ -747,9 +805,14 @@ class GridAvoidObstaclesEvaluator(BaseEvaluator):
     4. Avoid black X obstacles
     """
 
-    TASK_WEIGHTS = {"completion": 0.45, "grid_preserved": 0.30, "avoidance": 0.15, "movement": 0.10}  # Agent reaches red endpoint  # Grid colors unchanged  # No collision with obstacles  # Step by step movement
+    TASK_WEIGHTS = {
+        "completion": 0.45,
+        "grid_preserved": 0.30,
+        "avoidance": 0.15,
+        "movement": 0.10,
+    }  # Agent reaches red endpoint  # Grid colors unchanged  # No collision with obstacles  # Step by step movement
 
-    def _detect_agent(self, frame: np.ndarray) -> Optional[Tuple[int, int]]:
+    def _detect_agent(self, frame: np.ndarray) -> tuple[int, int] | None:
         """Detect yellow circular agent."""
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
         lower_yellow = np.array([20, 100, 100])
@@ -768,7 +831,7 @@ class GridAvoidObstaclesEvaluator(BaseEvaluator):
         cy = int(M["m01"] / M["m00"])
         return (cx, cy)
 
-    def _detect_obstacles(self, frame: np.ndarray) -> List[Tuple[int, int]]:
+    def _detect_obstacles(self, frame: np.ndarray) -> list[tuple[int, int]]:
         """Detect black X obstacles."""
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         # Black obstacles
@@ -790,7 +853,7 @@ class GridAvoidObstaclesEvaluator(BaseEvaluator):
 
         return obstacles
 
-    def _detect_endpoint(self, frame: np.ndarray) -> Optional[Tuple[int, int]]:
+    def _detect_endpoint(self, frame: np.ndarray) -> tuple[int, int] | None:
         """Detect red endpoint."""
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
         lower_red1 = np.array([0, 100, 100])
@@ -811,7 +874,7 @@ class GridAvoidObstaclesEvaluator(BaseEvaluator):
         cy = int(M["m01"] / M["m00"])
         return (cx, cy)
 
-    def _get_grid_cell_colors(self, frame: np.ndarray, grid_size: int = 10) -> Dict[Tuple[int, int], str]:
+    def _get_grid_cell_colors(self, frame: np.ndarray, grid_size: int = 10) -> dict[tuple[int, int], str]:
         """Get the dominant color for each grid cell."""
         h, w = frame.shape[:2]
         cell_h = h // grid_size
@@ -856,7 +919,14 @@ class GridAvoidObstaclesEvaluator(BaseEvaluator):
 
         return cell_colors
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         """Evaluate grid obstacle avoidance task.
 
         CRITICAL RULES:
@@ -990,7 +1060,7 @@ class GridGoThroughBlockEvaluator(BaseEvaluator):
 
     TASK_WEIGHTS = {"block_visit": 0.40, "path_optimal": 0.30, "completion": 0.20, "movement": 0.10}
 
-    def _detect_agent(self, frame: np.ndarray) -> Optional[Tuple[int, int]]:
+    def _detect_agent(self, frame: np.ndarray) -> tuple[int, int] | None:
         """Detect orange circular agent."""
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
         lower_orange = np.array([10, 100, 100])
@@ -1009,7 +1079,7 @@ class GridGoThroughBlockEvaluator(BaseEvaluator):
         cy = int(M["m01"] / M["m00"])
         return (cx, cy)
 
-    def _detect_blue_blocks(self, frame: np.ndarray) -> List[Tuple[int, int]]:
+    def _detect_blue_blocks(self, frame: np.ndarray) -> list[tuple[int, int]]:
         """Detect blue blocks to visit."""
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
         lower_blue = np.array([100, 100, 100])
@@ -1032,7 +1102,7 @@ class GridGoThroughBlockEvaluator(BaseEvaluator):
 
         return blocks
 
-    def _detect_endpoint(self, frame: np.ndarray) -> Optional[Tuple[int, int]]:
+    def _detect_endpoint(self, frame: np.ndarray) -> tuple[int, int] | None:
         """Detect red endpoint."""
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
         lower_red1 = np.array([0, 100, 100])
@@ -1053,7 +1123,14 @@ class GridGoThroughBlockEvaluator(BaseEvaluator):
         cy = int(M["m01"] / M["m00"])
         return (cx, cy)
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         """Evaluate grid go through block task."""
         if len(video_frames) < 1 or gt_final_frame is None:
             return 0.0
@@ -1092,8 +1169,20 @@ class GridGoThroughBlockEvaluator(BaseEvaluator):
                 gt_agent_positions.append(pos)
 
         if len(agent_positions) >= 2 and len(gt_agent_positions) >= 2:
-            gen_path_len = sum(np.sqrt((agent_positions[i][0] - agent_positions[i - 1][0]) ** 2 + (agent_positions[i][1] - agent_positions[i - 1][1]) ** 2) for i in range(1, len(agent_positions)))
-            gt_path_len = sum(np.sqrt((gt_agent_positions[i][0] - gt_agent_positions[i - 1][0]) ** 2 + (gt_agent_positions[i][1] - gt_agent_positions[i - 1][1]) ** 2) for i in range(1, len(gt_agent_positions)))
+            gen_path_len = sum(
+                np.sqrt(
+                    (agent_positions[i][0] - agent_positions[i - 1][0]) ** 2
+                    + (agent_positions[i][1] - agent_positions[i - 1][1]) ** 2
+                )
+                for i in range(1, len(agent_positions))
+            )
+            gt_path_len = sum(
+                np.sqrt(
+                    (gt_agent_positions[i][0] - gt_agent_positions[i - 1][0]) ** 2
+                    + (gt_agent_positions[i][1] - gt_agent_positions[i - 1][1]) ** 2
+                )
+                for i in range(1, len(gt_agent_positions))
+            )
 
             if gt_path_len > 0:
                 ratio = min(gen_path_len, gt_path_len) / max(gen_path_len, gt_path_len)
@@ -1141,7 +1230,7 @@ class GridShortestPathEvaluator(BaseEvaluator):
 
     TASK_WEIGHTS = {"path_optimal": 0.50, "completion": 0.25, "movement": 0.15, "fidelity": 0.10}
 
-    def _detect_agent(self, frame: np.ndarray) -> Optional[Tuple[int, int]]:
+    def _detect_agent(self, frame: np.ndarray) -> tuple[int, int] | None:
         """Detect colored circular agent."""
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
@@ -1174,7 +1263,7 @@ class GridShortestPathEvaluator(BaseEvaluator):
 
         return None
 
-    def _detect_endpoint(self, frame: np.ndarray) -> Optional[Tuple[int, int]]:
+    def _detect_endpoint(self, frame: np.ndarray) -> tuple[int, int] | None:
         """Detect colored endpoint square."""
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
@@ -1199,7 +1288,14 @@ class GridShortestPathEvaluator(BaseEvaluator):
 
         return None
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         """Evaluate grid shortest path task."""
         if len(video_frames) < 1 or gt_final_frame is None:
             return 0.0
@@ -1223,8 +1319,20 @@ class GridShortestPathEvaluator(BaseEvaluator):
 
         # 1. Path optimality: Compare path length with GT
         if len(agent_positions) >= 2 and len(gt_agent_positions) >= 2:
-            gen_path_len = sum(np.sqrt((agent_positions[i][0] - agent_positions[i - 1][0]) ** 2 + (agent_positions[i][1] - agent_positions[i - 1][1]) ** 2) for i in range(1, len(agent_positions)))
-            gt_path_len = sum(np.sqrt((gt_agent_positions[i][0] - gt_agent_positions[i - 1][0]) ** 2 + (gt_agent_positions[i][1] - gt_agent_positions[i - 1][1]) ** 2) for i in range(1, len(gt_agent_positions)))
+            gen_path_len = sum(
+                np.sqrt(
+                    (agent_positions[i][0] - agent_positions[i - 1][0]) ** 2
+                    + (agent_positions[i][1] - agent_positions[i - 1][1]) ** 2
+                )
+                for i in range(1, len(agent_positions))
+            )
+            gt_path_len = sum(
+                np.sqrt(
+                    (gt_agent_positions[i][0] - gt_agent_positions[i - 1][0]) ** 2
+                    + (gt_agent_positions[i][1] - gt_agent_positions[i - 1][1]) ** 2
+                )
+                for i in range(1, len(gt_agent_positions))
+            )
 
             if gt_path_len > 0:
                 # Allow some tolerance for path length
@@ -1292,7 +1400,7 @@ class MultipleOcclusionsVerticalEvaluator(BaseEvaluator):
 
     TASK_WEIGHTS = {"occlusion": 0.35, "permanence": 0.30, "motion": 0.20, "consistency": 0.15}
 
-    def _detect_mask(self, frame: np.ndarray) -> Optional[Tuple[int, int, int, int]]:
+    def _detect_mask(self, frame: np.ndarray) -> tuple[int, int, int, int] | None:
         """Detect dark rectangular mask."""
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         # Dark mask
@@ -1311,7 +1419,7 @@ class MultipleOcclusionsVerticalEvaluator(BaseEvaluator):
 
         return None
 
-    def _detect_colored_objects(self, frame: np.ndarray) -> List[Tuple[int, int]]:
+    def _detect_colored_objects(self, frame: np.ndarray) -> list[tuple[int, int]]:
         """Detect colored objects."""
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
@@ -1338,7 +1446,14 @@ class MultipleOcclusionsVerticalEvaluator(BaseEvaluator):
 
         return objects
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         """Evaluate multiple occlusions task."""
         if len(video_frames) < 2 or gt_final_frame is None:
             return 0.0
@@ -1428,7 +1543,14 @@ class SeparateObjectsSpinningEvaluator(BaseEvaluator):
 
     TASK_WEIGHTS = {"rotation": 0.40, "alignment": 0.30, "order": 0.20, "fidelity": 0.10}
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         """Evaluate separate objects spinning task."""
         scores = {}
 
@@ -1463,7 +1585,7 @@ class SeparateObjectsSpinningEvaluator(BaseEvaluator):
         self._last_task_details = scores
         return sum(scores[k] * self.TASK_WEIGHTS[k] for k in self.TASK_WEIGHTS)
 
-    def _detect_colored_objects(self, frame: np.ndarray) -> List[Dict]:
+    def _detect_colored_objects(self, frame: np.ndarray) -> list[dict]:
         """Detect solid colored objects (not dashed outlines)."""
         objects = []
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
@@ -1509,11 +1631,20 @@ class SeparateObjectsSpinningEvaluator(BaseEvaluator):
                 # Get bounding box
                 rect = cv2.minAreaRect(contour)
 
-                objects.append({"color": color_name, "center": (cx, cy), "area": area, "angle": np.degrees(angle), "contour": contour, "rect": rect})
+                objects.append(
+                    {
+                        "color": color_name,
+                        "center": (cx, cy),
+                        "area": area,
+                        "angle": np.degrees(angle),
+                        "contour": contour,
+                        "rect": rect,
+                    }
+                )
 
         return objects
 
-    def _evaluate_rotation(self, last_objects: List[Dict], gt_objects: List[Dict]) -> float:
+    def _evaluate_rotation(self, last_objects: list[dict], gt_objects: list[dict]) -> float:
         """Evaluate if objects are rotated to correct orientation."""
         if not last_objects or not gt_objects:
             return 0.0
@@ -1591,7 +1722,7 @@ class SeparateObjectsSpinningEvaluator(BaseEvaluator):
 
         return np.mean(alignment_scores) if alignment_scores else 0.0
 
-    def _evaluate_operation_order(self, frames: List[np.ndarray], first_objects: List[Dict]) -> float:
+    def _evaluate_operation_order(self, frames: list[np.ndarray], first_objects: list[dict]) -> float:
         """Evaluate if rotation happens before translation."""
         if len(frames) < 5 or not first_objects:
             return 0.0  # STRICT: Not enough data
@@ -1653,7 +1784,7 @@ class SeparateObjectsSpinningEvaluator(BaseEvaluator):
         else:
             return 0.4
 
-    def _evaluate_fidelity(self, first_objects: List[Dict], last_objects: List[Dict]) -> float:
+    def _evaluate_fidelity(self, first_objects: list[dict], last_objects: list[dict]) -> float:
         """Evaluate if shape, color, size are preserved."""
         if not first_objects or not last_objects:
             return 0.5

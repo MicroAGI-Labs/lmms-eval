@@ -2,13 +2,12 @@ import os
 
 import numpy as np
 from decord import VideoReader, cpu
-from loguru import logger as eval_logger
-from PIL import Image
-
 from lmms_eval.tasks.vsibench.utils import (
     base_cache_dir,
     cache_name,
 )
+from loguru import logger as eval_logger
+from PIL import Image
 
 
 def vsibench_doc_to_visual_as_images(doc, lmms_eval_specific_kwargs=None):

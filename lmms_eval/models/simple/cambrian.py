@@ -2,18 +2,16 @@
 import os
 import uuid
 import warnings
-from typing import List, Optional, Tuple, Union
 
 import torch
 from accelerate import Accelerator, DistributedType
-from PIL import Image
-from tqdm import tqdm
-from transformers import PreTrainedTokenizer
-
 from lmms_eval import utils
 from lmms_eval.api.instance import Instance
 from lmms_eval.api.model import lmms
 from lmms_eval.api.registry import register_model
+from PIL import Image
+from tqdm import tqdm
+from transformers import PreTrainedTokenizer
 
 warnings.simplefilter("ignore", category=DeprecationWarning)
 warnings.filterwarnings("ignore")
@@ -62,7 +60,7 @@ def process(image, question, tokenizer, image_processor, model_config, conv_mode
 def make_context(
     tokenizer: PreTrainedTokenizer,
     query: str,
-    history: List[Tuple[str, str]] = None,
+    history: list[tuple[str, str]] = None,
     system: str = "",
     max_window_size: int = 6144,
     chat_format: str = "chatml",
@@ -77,7 +75,9 @@ def make_context(
         nl_tokens = tokenizer.encode("\n")
 
         def _tokenize_str(role, content):
-            return f"{role}\n{content}", tokenizer.encode(role, allowed_special=set(tokenizer.IMAGE_ST)) + nl_tokens + tokenizer.encode(content, allowed_special=set(tokenizer.IMAGE_ST))
+            return f"{role}\n{content}", tokenizer.encode(
+                role, allowed_special=set(tokenizer.IMAGE_ST)
+            ) + nl_tokens + tokenizer.encode(content, allowed_special=set(tokenizer.IMAGE_ST))
 
         system_text, system_tokens_part = _tokenize_str("system", system)
         system_tokens = im_start_tokens + system_tokens_part + im_end_tokens
@@ -107,7 +107,16 @@ def make_context(
 
         context_tokens = system_tokens + context_tokens
         raw_text = f"{im_start}{system_text}{im_end}" + raw_text
-        context_tokens += nl_tokens + im_start_tokens + _tokenize_str("user", query)[1] + im_end_tokens + nl_tokens + im_start_tokens + tokenizer.encode("assistant") + nl_tokens
+        context_tokens += (
+            nl_tokens
+            + im_start_tokens
+            + _tokenize_str("user", query)[1]
+            + im_end_tokens
+            + nl_tokens
+            + im_start_tokens
+            + tokenizer.encode("assistant")
+            + nl_tokens
+        )
         raw_text += f"\n{im_start}user\n{query}{im_end}\n{im_start}assistant\n"
 
     elif chat_format == "raw":
@@ -124,10 +133,10 @@ class Cambrian(lmms):
     def __init__(
         self,
         pretrained: str = "nyu-visionx/cambrian-8b",
-        device: Optional[str] = "cuda",
+        device: str | None = "cuda",
         device_map="auto",
-        batch_size: Optional[Union[int, str]] = 1,
-        trust_remote_code: Optional[bool] = True,
+        batch_size: int | str | None = 1,
+        trust_remote_code: bool | None = True,
         use_cache=True,
         **kwargs,
     ) -> None:
@@ -135,12 +144,18 @@ class Cambrian(lmms):
         assert not kwargs, f"Unexpected kwargs: {kwargs}"
 
         accelerator = Accelerator()
-        self._device = torch.device(f"cuda:{accelerator.local_process_index}") if accelerator.num_processes > 1 else device
+        self._device = (
+            torch.device(f"cuda:{accelerator.local_process_index}") if accelerator.num_processes > 1 else device
+        )
 
         self.model_name = get_model_name_from_path(pretrained)
-        tokenizer, model, self.image_processor, context_len = load_pretrained_model(pretrained, None, self.model_name, device_map=self._device)
+        tokenizer, model, self.image_processor, context_len = load_pretrained_model(
+            pretrained, None, self.model_name, device_map=self._device
+        )
 
-        self.conv_mode = {"cambrian-8b": "llama_3", "cambrian-13b": "vicuna_v1", "cambrian-34b": "chatml_direct"}.get(self.model_name)
+        self.conv_mode = {"cambrian-8b": "llama_3", "cambrian-13b": "vicuna_v1", "cambrian-34b": "chatml_direct"}.get(
+            self.model_name
+        )
 
         if not self.conv_mode:
             raise ValueError(f"Unsupported model: {self.model_name}")
@@ -154,8 +169,14 @@ class Cambrian(lmms):
         self._world_size = 1
 
         if accelerator.num_processes > 1:
-            assert accelerator.distributed_type in [DistributedType.FSDP, DistributedType.MULTI_GPU], "Unsupported distributed type. Only DDP and FSDP are supported."
-            self._model = accelerator.prepare(self.model) if accelerator.distributed_type == DistributedType.FSDP else accelerator.prepare_model(self.model, evaluation_mode=True)
+            assert accelerator.distributed_type in [DistributedType.FSDP, DistributedType.MULTI_GPU], (
+                "Unsupported distributed type. Only DDP and FSDP are supported."
+            )
+            self._model = (
+                accelerator.prepare(self.model)
+                if accelerator.distributed_type == DistributedType.FSDP
+                else accelerator.prepare_model(self.model, evaluation_mode=True)
+            )
             self.accelerator = accelerator
             if self.accelerator.is_local_main_process:
                 eval_logger.info(f"Using {accelerator.num_processes} devices with data parallelism")
@@ -174,12 +195,14 @@ class Cambrian(lmms):
     def eot_token_id(self):
         return self.tokenizer.eos_token_id
 
-    def loglikelihood(self, requests: List[Instance]) -> List[Tuple[float, bool]]:
+    def loglikelihood(self, requests: list[Instance]) -> list[tuple[float, bool]]:
         res = []
         pbar = tqdm(total=len(requests), disable=(self.rank != 0), desc="Model Responding")
 
         for contexts, doc_to_target, doc_to_visual, doc_id, task, split in [reg.args for reg in requests]:
-            continuation = doc_to_target if isinstance(doc_to_target, str) else doc_to_target(self.task_dict[task][split][doc_id])
+            continuation = (
+                doc_to_target if isinstance(doc_to_target, str) else doc_to_target(self.task_dict[task][split][doc_id])
+            )
             visuals = self.flatten([doc_to_visual(self.task_dict[task][split][doc_id])])
 
             query = []
@@ -199,11 +222,23 @@ class Cambrian(lmms):
             query = self.tokenizer.from_list_format(query)
 
             _, context_tokens = make_context(
-                self.tokenizer, context_query, history=None, system="You are a helpful assistant", max_window_size=self.model.generation_config.max_window_size, chat_format=self.model.generation_config.chat_format
+                self.tokenizer,
+                context_query,
+                history=None,
+                system="You are a helpful assistant",
+                max_window_size=self.model.generation_config.max_window_size,
+                chat_format=self.model.generation_config.chat_format,
             )
             context_tokens = torch.tensor([context_tokens])
 
-            _, continuation_tokens = make_context(self.tokenizer, query, history=None, system="You are a helpful assistant", max_window_size=self.model.generation_config.max_window_size, chat_format=self.model.generation_config.chat_format)
+            _, continuation_tokens = make_context(
+                self.tokenizer,
+                query,
+                history=None,
+                system="You are a helpful assistant",
+                max_window_size=self.model.generation_config.max_window_size,
+                chat_format=self.model.generation_config.chat_format,
+            )
             continuation_tokens = torch.tensor([continuation_tokens]).to(self.model.device)
             attn_mask = torch.ones_like(continuation_tokens).to(self.model.device)
             labels = continuation_tokens.clone().to(self.model.device)
@@ -228,7 +263,7 @@ class Cambrian(lmms):
     def flatten(input_list):
         return [item for sublist in input_list for item in sublist]
 
-    def generate_until(self, requests: List[Instance]) -> List[str]:
+    def generate_until(self, requests: list[Instance]) -> list[str]:
         res = []
 
         def _collate(x):
@@ -260,7 +295,9 @@ class Cambrian(lmms):
                 if isinstance(until, str):
                     until = [until]
                 elif not isinstance(until, list):
-                    raise ValueError(f"Expected `gen_kwargs['until']` to be of type Union[str,list] but got {type(until)}")
+                    raise ValueError(
+                        f"Expected `gen_kwargs['until']` to be of type Union[str,list] but got {type(until)}"
+                    )
 
             gen_kwargs.setdefault("image_sizes", [visuals[0].size] if visuals else None)
             gen_kwargs.setdefault("max_new_tokens", 1024)
@@ -273,7 +310,9 @@ class Cambrian(lmms):
             image = Image.open(visual_paths[0]).convert("RGB")
             question = contexts[0]
 
-            input_ids, image_tensor, image_sizes, prompt = process(image, question, self.tokenizer, self.image_processor, self.model.config, self.conv_mode)
+            input_ids, image_tensor, image_sizes, prompt = process(
+                image, question, self.tokenizer, self.image_processor, self.model.config, self.conv_mode
+            )
             input_ids = input_ids.to(device=self.model.device, non_blocking=True)
 
             with torch.inference_mode():
@@ -309,5 +348,5 @@ class Cambrian(lmms):
         pbar.close()
         return res
 
-    def generate_until_multi_round(self, requests) -> List[str]:
+    def generate_until_multi_round(self, requests) -> list[str]:
         raise NotImplementedError("TODO: Implement multi-round generation for Cambrian")

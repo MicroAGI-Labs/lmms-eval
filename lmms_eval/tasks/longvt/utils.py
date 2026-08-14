@@ -3,12 +3,11 @@ import re
 from pathlib import Path
 
 import yaml
-
 from lmms_eval.tasks._task_utils.reasoning_utils import compute_score
 
 hf_home = os.getenv("HF_HOME", "~/.cache/huggingface/")
 base_cache_dir = os.path.expanduser(hf_home)
-with open(Path(__file__).parent / "longvt_reasoning.yaml", "r") as f:
+with open(Path(__file__).parent / "longvt_reasoning.yaml") as f:
     raw_data = f.readlines()
     safe_data = []
     for i, line in enumerate(raw_data):
@@ -23,7 +22,10 @@ SYSTEM_PROMPT = (
     "Please provide a clear, concise response within <answer> </answer> tags that directly addresses the question."
 )
 
-TOOL_PROMPT = "Think first, call **crop_video** if needed, then answer. Format strictly as:  <think>...</think>  " "<tool_call>...</tool_call> (if tools needed)  <answer>...</answer>."
+TOOL_PROMPT = (
+    "Think first, call **crop_video** if needed, then answer. Format strictly as:  <think>...</think>  "
+    "<tool_call>...</tool_call> (if tools needed)  <answer>...</answer>."
+)
 
 
 def longvt_doc_to_visual(doc):
@@ -71,8 +73,8 @@ def extract_characters_regex(s):
         "The correct answer is",
         "The answer is",
         "The answer",
-        "The best option is" "The correct option is",
-        "Best answer:" "Best option:",
+        "The best option isThe correct option is",
+        "Best answer:Best option:",
     ]
     for answer_prefix in answer_prefixes:
         s = s.replace(answer_prefix, "")
@@ -93,8 +95,13 @@ def longvt_process_results(doc, results):
     extra_info = {"question": question}
     answer = doc["answer"]
     for pred in results:
-        score_dict = compute_score(data_source="longvt", solution_str=pred.strip(), ground_truth=answer, extra_info=extra_info)
+        score_dict = compute_score(
+            data_source="longvt", solution_str=pred.strip(), ground_truth=answer, extra_info=extra_info
+        )
         acc_score += score_dict["acc_score"]
         format_score += score_dict.get("format_reward_score", 0.0)
 
-    return {"acc_score": acc_score / len(results) if results else 0.0, "format_score": format_score / len(results) if results else 0.0}
+    return {
+        "acc_score": acc_score / len(results) if results else 0.0,
+        "format_score": format_score / len(results) if results else 0.0,
+    }

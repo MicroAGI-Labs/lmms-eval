@@ -2,7 +2,7 @@ import argparse
 import ast
 import json
 import os
-from typing import Any, Dict, List
+from typing import Any
 
 from datasets import load_dataset
 from metrics import AggregationType, MetricType, ResponseParseType
@@ -32,7 +32,7 @@ class MEGABenchEvaluator:
         for task_name, task_samples in self.hf_data.items():
             self.scoring_functions[task_name] = ast.literal_eval(task_samples[0]["metric_info"])
 
-    def _load_hf(self, subset_name: str) -> List[Dict[str, Any]]:
+    def _load_hf(self, subset_name: str) -> list[dict[str, Any]]:
         """
         Load the HF dataset for the given subset name.
         """
@@ -58,7 +58,7 @@ class MEGABenchEvaluator:
         eval_context = ast.literal_eval(eval_context)
         return eval_context
 
-    def _task_needs_eval(self, task: Dict) -> bool:
+    def _task_needs_eval(self, task: dict) -> bool:
         task_in_results = False
         for existing_task in self.eval_results["data"]:
             if task.get("task_name") == existing_task.get("task_name"):
@@ -69,7 +69,10 @@ class MEGABenchEvaluator:
                 if len(task["query_response"]) != len(existing_task["query_response"]):
                     return True
                 for res_example, saved_example in zip(task["query_response"], existing_task["query_response"]):
-                    if res_example["response"] != saved_example["response"] or res_example["correct_answer"] != saved_example["correct_answer"]:
+                    if (
+                        res_example["response"] != saved_example["response"]
+                        or res_example["correct_answer"] != saved_example["correct_answer"]
+                    ):
                         # model response or gt answer changed
                         return True
                     elif "scores" not in saved_example or "query" not in saved_example["scores"]:
@@ -110,7 +113,9 @@ class MEGABenchEvaluator:
                 num_queries += len(task["query_response"])
                 total_task_score += task["mean_task_score"]
                 total_query_score += task["task_score"]
-                print(f"[Task: {task_name}] Using cached results: Score = {task['task_score']} / {len(task['query_response'])}")
+                print(
+                    f"[Task: {task_name}] Using cached results: Score = {task['task_score']} / {len(task['query_response'])}"
+                )
                 continue
 
             # If no scoring config is found for the given task_name, skip
@@ -253,9 +258,9 @@ class MEGABenchEvaluator:
         task_name: str,
         metric: Any,
         field: str,
-        response_obj: Dict[str, Any],
-        correct_answer: Dict[str, Any],
-        query: Dict[str, Any],
+        response_obj: dict[str, Any],
+        correct_answer: dict[str, Any],
+        query: dict[str, Any],
         is_aux: bool = False,
     ) -> float:
         """Compute score for a single field using the given metric."""
@@ -299,11 +304,11 @@ class MEGABenchEvaluator:
         task_name: str,
         parser,
         response_text: str,
-        correct_answer: Dict[str, Any],
-        answer_fields: List[str],
-        query: Dict[str, Any],
-        task: Dict[str, Any],
-    ) -> Dict[str, Any]:
+        correct_answer: dict[str, Any],
+        answer_fields: list[str],
+        query: dict[str, Any],
+        task: dict[str, Any],
+    ) -> dict[str, Any]:
         """
         Parse the raw response into a structured object, depending on the parser.
         """
@@ -341,7 +346,7 @@ class MEGABenchEvaluator:
             print(f"Task:{task_name}, cannot parse query with global idx {query['global_idx']}")
         return response_obj
 
-    def _build_metric(self, metric_name: str, score_config: Dict[str, Any]):
+    def _build_metric(self, metric_name: str, score_config: dict[str, Any]):
         """
         Given a string for the metric (e.g. 'exact_str_match'),
         return the actual MetricType or a specialized metric class.
@@ -355,7 +360,7 @@ class MEGABenchEvaluator:
 
     @staticmethod
     def _load_json(file_path: str) -> Any:
-        with open(file_path, "r", encoding="utf-8") as f:
+        with open(file_path, encoding="utf-8") as f:
             return json.load(f)
 
     @staticmethod

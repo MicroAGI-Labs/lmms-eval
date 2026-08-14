@@ -8,10 +8,9 @@ This module provides functions to:
 
 import json
 import re
-from typing import Dict, Optional, Tuple
 
 
-def extract_answer(text: str) -> Optional[str]:
+def extract_answer(text: str) -> str | None:
     """Extract the answer from model response text using regular expressions.
     Returns the last occurrence of the letter of the answer (A, B, C, D, or E)
     based on pattern priority - tries higher priority patterns first.
@@ -92,7 +91,7 @@ def extract_answer(text: str) -> Optional[str]:
     return None  # No answer found
 
 
-def extract_json_from_text(text: str) -> Optional[Dict]:
+def extract_json_from_text(text: str) -> dict | None:
     """Extract JSON cognitive map from text response.
     Returns the JSON object if found, otherwise None.
 
@@ -125,7 +124,7 @@ def extract_json_from_text(text: str) -> Optional[Dict]:
         return clean_and_parse_json(json_str)
 
 
-def clean_and_parse_json(json_str: str) -> Optional[Dict]:
+def clean_and_parse_json(json_str: str) -> dict | None:
     """Attempt to clean and parse a malformed JSON string.
 
     Args:
@@ -180,7 +179,7 @@ def clean_and_parse_json(json_str: str) -> Optional[Dict]:
         return None
 
 
-def determine_answer_fields(item: Dict) -> Tuple[str, str]:
+def determine_answer_fields(item: dict) -> tuple[str, str]:
     """Determine which fields contain the answers.
 
     Args:

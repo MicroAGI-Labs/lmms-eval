@@ -92,7 +92,9 @@ def decode_utf8(raw):
         return None
 
 
-def validate_lines_in_file(fileName, file_contents, CRLF=True, LTRB=True, withTranscription=False, withConfidence=False, imWidth=0, imHeight=0):
+def validate_lines_in_file(
+    fileName, file_contents, CRLF=True, LTRB=True, withTranscription=False, withConfidence=False, imWidth=0, imHeight=0
+):
     """
     This function validates that all lines of the file calling the Line validation function for each line
     """
@@ -107,7 +109,11 @@ def validate_lines_in_file(fileName, file_contents, CRLF=True, LTRB=True, withTr
             try:
                 validate_tl_line(line, LTRB, withTranscription, withConfidence, imWidth, imHeight)
             except Exception as e:
-                raise Exception(("Line in sample not valid. Sample: %s Line: %s Error: %s" % (fileName, line, str(e))).encode("utf-8", "replace"))
+                raise Exception(
+                    ("Line in sample not valid. Sample: %s Line: %s Error: %s" % (fileName, line, str(e))).encode(
+                        "utf-8", "replace"
+                    )
+                )
 
 
 def validate_tl_line(line, LTRB=True, withTranscription=True, withConfidence=True, imWidth=0, imHeight=0):
@@ -140,12 +146,19 @@ def get_tl_line_values(line, LTRB=True, withTranscription=False, withConfidence=
         numPoints = 4
 
         if withTranscription and withConfidence:
-            m = re.match(r"^\s*(-?[0-9]+)\s*,\s*(-?[0-9]+)\s*,\s*([0-9]+)\s*,\s*([0-9]+)\s*,\s*([0-1].?[0-9]*)\s*,(.*)$", line)
+            m = re.match(
+                r"^\s*(-?[0-9]+)\s*,\s*(-?[0-9]+)\s*,\s*([0-9]+)\s*,\s*([0-9]+)\s*,\s*([0-1].?[0-9]*)\s*,(.*)$", line
+            )
             if m == None:
-                m = re.match(r"^\s*(-?[0-9]+)\s*,\s*(-?[0-9]+)\s*,\s*([0-9]+)\s*,\s*([0-9]+)\s*,\s*([0-1].?[0-9]*)\s*,(.*)$", line)
+                m = re.match(
+                    r"^\s*(-?[0-9]+)\s*,\s*(-?[0-9]+)\s*,\s*([0-9]+)\s*,\s*([0-9]+)\s*,\s*([0-1].?[0-9]*)\s*,(.*)$",
+                    line,
+                )
                 raise Exception("Format incorrect. Should be: xmin,ymin,xmax,ymax,confidence,transcription")
         elif withConfidence:
-            m = re.match(r"^\s*(-?[0-9]+)\s*,\s*(-?[0-9]+)\s*,\s*([0-9]+)\s*,\s*([0-9]+)\s*,\s*([0-1].?[0-9]*)\s*$", line)
+            m = re.match(
+                r"^\s*(-?[0-9]+)\s*,\s*(-?[0-9]+)\s*,\s*([0-9]+)\s*,\s*([0-9]+)\s*,\s*([0-1].?[0-9]*)\s*$", line
+            )
             if m == None:
                 raise Exception("Format incorrect. Should be: xmin,ymin,xmax,ymax,confidence")
         elif withTranscription:
@@ -176,19 +189,31 @@ def get_tl_line_values(line, LTRB=True, withTranscription=False, withConfidence=
         numPoints = 8
 
         if withTranscription and withConfidence:
-            m = re.match(r"^\s*(-?[0-9]+)\s*,\s*(-?[0-9]+)\s*,\s*(-?[0-9]+)\s*,\s*(-?[0-9]+)\s*,\s*(-?[0-9]+)\s*,\s*(-?[0-9]+)\s*,\s*(-?[0-9]+)\s*,\s*(-?[0-9]+)\s*,\s*([0-1].?[0-9]*)\s*,(.*)$", line)
+            m = re.match(
+                r"^\s*(-?[0-9]+)\s*,\s*(-?[0-9]+)\s*,\s*(-?[0-9]+)\s*,\s*(-?[0-9]+)\s*,\s*(-?[0-9]+)\s*,\s*(-?[0-9]+)\s*,\s*(-?[0-9]+)\s*,\s*(-?[0-9]+)\s*,\s*([0-1].?[0-9]*)\s*,(.*)$",
+                line,
+            )
             if m == None:
                 raise Exception("Format incorrect. Should be: x1,y1,x2,y2,x3,y3,x4,y4,confidence,transcription")
         elif withConfidence:
-            m = re.match(r"^\s*(-?[0-9]+)\s*,\s*(-?[0-9]+)\s*,\s*(-?[0-9]+)\s*,\s*(-?[0-9]+)\s*,\s*(-?[0-9]+)\s*,\s*(-?[0-9]+)\s*,\s*(-?[0-9]+)\s*,\s*(-?[0-9]+)\s*,\s*([0-1].?[0-9]*)\s*$", line)
+            m = re.match(
+                r"^\s*(-?[0-9]+)\s*,\s*(-?[0-9]+)\s*,\s*(-?[0-9]+)\s*,\s*(-?[0-9]+)\s*,\s*(-?[0-9]+)\s*,\s*(-?[0-9]+)\s*,\s*(-?[0-9]+)\s*,\s*(-?[0-9]+)\s*,\s*([0-1].?[0-9]*)\s*$",
+                line,
+            )
             if m == None:
                 raise Exception("Format incorrect. Should be: x1,y1,x2,y2,x3,y3,x4,y4,confidence")
         elif withTranscription:
-            m = re.match(r"^\s*(-?[0-9]+)\s*,\s*(-?[0-9]+)\s*,\s*(-?[0-9]+)\s*,\s*(-?[0-9]+)\s*,\s*(-?[0-9]+)\s*,\s*(-?[0-9]+)\s*,\s*(-?[0-9]+)\s*,\s*(-?[0-9]+)\s*,(.*)$", line)
+            m = re.match(
+                r"^\s*(-?[0-9]+)\s*,\s*(-?[0-9]+)\s*,\s*(-?[0-9]+)\s*,\s*(-?[0-9]+)\s*,\s*(-?[0-9]+)\s*,\s*(-?[0-9]+)\s*,\s*(-?[0-9]+)\s*,\s*(-?[0-9]+)\s*,(.*)$",
+                line,
+            )
             if m == None:
                 raise Exception("Format incorrect. Should be: x1,y1,x2,y2,x3,y3,x4,y4,transcription")
         else:
-            m = re.match(r"^\s*(-?[0-9]+)\s*,\s*(-?[0-9]+)\s*,\s*(-?[0-9]+)\s*,\s*(-?[0-9]+)\s*,\s*(-?[0-9]+)\s*,\s*(-?[0-9]+)\s*,\s*(-?[0-9]+)\s*,\s*(-?[0-9]+)\s*$", line)
+            m = re.match(
+                r"^\s*(-?[0-9]+)\s*,\s*(-?[0-9]+)\s*,\s*(-?[0-9]+)\s*,\s*(-?[0-9]+)\s*,\s*(-?[0-9]+)\s*,\s*(-?[0-9]+)\s*,\s*(-?[0-9]+)\s*,\s*(-?[0-9]+)\s*$",
+                line,
+            )
             if m == None:
                 raise Exception("Format incorrect. Should be: x1,y1,x2,y2,x3,y3,x4,y4")
 
@@ -218,7 +243,9 @@ def get_tl_line_values(line, LTRB=True, withTranscription=False, withConfidence=
     return points, confidence, transcription
 
 
-def get_tl_dict_values(detection, withTranscription=False, withConfidence=False, imWidth=0, imHeight=0, validNumPoints=[], validate_cw=True):
+def get_tl_dict_values(
+    detection, withTranscription=False, withConfidence=False, imWidth=0, imHeight=0, validNumPoints=[], validate_cw=True
+):
     """
     Validate the format of the dictionary. If the dictionary is not valid an exception will be raised.
     If maxWidth and maxHeight are specified, all points must be inside the imgage bounds.
@@ -244,7 +271,9 @@ def get_tl_dict_values(detection, withTranscription=False, withConfidence=False,
     num_points = len(detection["points"])
 
     if num_points < 3:
-        raise Exception("Incorrect format. Incorrect number of points. At least 3 points are necessary. Found: " + str(num_points))
+        raise Exception(
+            "Incorrect format. Incorrect number of points. At least 3 points are necessary. Found: " + str(num_points)
+        )
 
     if len(validNumPoints) > 0 and num_points in validNumPoints == False:
         raise Exception("Incorrect format. Incorrect number of points. Only allowed 4,8 or 12 points)")
@@ -256,7 +285,10 @@ def get_tl_dict_values(detection, withTranscription=False, withConfidence=False,
         if len(detection["points"][i]) != 2:
             raise Exception("Incorrect format. Point #" + str(i + 1) + " has to be an array with 2 objects(x,y) )")
 
-        if isinstance(detection["points"][i][0], (int, float)) == False or isinstance(detection["points"][i][1], (int, float)) == False:
+        if (
+            isinstance(detection["points"][i][0], (int, float)) == False
+            or isinstance(detection["points"][i][1], (int, float)) == False
+        ):
             raise Exception("Incorrect format. Point #" + str(i + 1) + " childs have to be Integers)")
 
         if imWidth > 0 and imHeight > 0:
@@ -285,15 +317,22 @@ def get_tl_dict_values(detection, withTranscription=False, withConfidence=False,
             raise Exception("Incorrect format. No transcription key)")
 
         if isinstance(detection["transcription"], str) == False:
-            raise Exception("Incorrect format. Transcription has to be a string. Detected: " + type(detection["transcription"]).__name__)
+            raise Exception(
+                "Incorrect format. Transcription has to be a string. Detected: "
+                + type(detection["transcription"]).__name__
+            )
 
         transcription = detection["transcription"]
 
-        if "illegibility" in detection:  # Ensures that if illegibility atribute is present and is True the transcription is set to ### (don't care)
+        if (
+            "illegibility" in detection
+        ):  # Ensures that if illegibility atribute is present and is True the transcription is set to ### (don't care)
             if detection["illegibility"] == True:
                 transcription = "###"
 
-        if "dontCare" in detection:  # Ensures that if dontCare atribute is present and is True the transcription is set to ### (don't care)
+        if (
+            "dontCare" in detection
+        ):  # Ensures that if dontCare atribute is present and is True the transcription is set to ### (don't care)
             if detection["dontCare"] == True:
                 transcription = "###"
 
@@ -304,7 +343,9 @@ def validate_point_inside_bounds(x, y, imWidth, imHeight):
     if x < 0 or x > imWidth:
         raise Exception("X value (%s) not valid. Image dimensions: (%s,%s)" % (xmin, imWidth, imHeight))
     if y < 0 or y > imHeight:
-        raise Exception("Y value (%s)  not valid. Image dimensions: (%s,%s) Sample: %s Line:%s" % (ymin, imWidth, imHeight))
+        raise Exception(
+            "Y value (%s)  not valid. Image dimensions: (%s,%s) Sample: %s Line:%s" % (ymin, imWidth, imHeight)
+        )
 
 
 def validate_clockwise_points(points):
@@ -313,14 +354,26 @@ def validate_clockwise_points(points):
     """
     edge = []
     for i in range(len(points) // 2):
-        edge.append((int(points[(i + 1) * 2 % len(points)]) - int(points[i * 2])) * (int(points[((i + 1) * 2 + 1) % len(points)]) + int(points[i * 2 + 1])))
+        edge.append(
+            (int(points[(i + 1) * 2 % len(points)]) - int(points[i * 2]))
+            * (int(points[((i + 1) * 2 + 1) % len(points)]) + int(points[i * 2 + 1]))
+        )
     if sum(edge) > 0:
         raise Exception(
             "Points are not clockwise. The coordinates of bounding points have to be given in clockwise order. Regarding the correct interpretation of 'clockwise' remember that the image coordinate system used is the standard one, with the image origin at the upper left, the X axis extending to the right and Y axis extending downwards."
         )
 
 
-def get_tl_line_values_from_file_contents(content, CRLF=True, LTRB=True, withTranscription=False, withConfidence=False, imWidth=0, imHeight=0, sort_by_confidences=True):
+def get_tl_line_values_from_file_contents(
+    content,
+    CRLF=True,
+    LTRB=True,
+    withTranscription=False,
+    withConfidence=False,
+    imWidth=0,
+    imHeight=0,
+    sort_by_confidences=True,
+):
     """
     Returns all points, confindences and transcriptions of a file in lists. Valid line formats:
     xmin,ymin,xmax,ymax,[confidence],[transcription]
@@ -334,7 +387,9 @@ def get_tl_line_values_from_file_contents(content, CRLF=True, LTRB=True, withTra
     for line in lines:
         line = line.replace("\r", "").replace("\n", "")
         if line != "":
-            points, confidence, transcription = get_tl_line_values(line, LTRB, withTranscription, withConfidence, imWidth, imHeight)
+            points, confidence, transcription = get_tl_line_values(
+                line, LTRB, withTranscription, withConfidence, imWidth, imHeight
+            )
             pointsList.append(points)
             transcriptionsList.append(transcription)
             confidencesList.append(confidence)
@@ -350,7 +405,16 @@ def get_tl_line_values_from_file_contents(content, CRLF=True, LTRB=True, withTra
     return pointsList, confidencesList, transcriptionsList
 
 
-def get_tl_dict_values_from_array(array, withTranscription=False, withConfidence=False, imWidth=0, imHeight=0, sort_by_confidences=True, validNumPoints=[], validate_cw=True):
+def get_tl_dict_values_from_array(
+    array,
+    withTranscription=False,
+    withConfidence=False,
+    imWidth=0,
+    imHeight=0,
+    sort_by_confidences=True,
+    validNumPoints=[],
+    validate_cw=True,
+):
     """
     Returns all points, confindences and transcriptions of a file in lists. Valid dict formats:
     {"points":[[x1,y1],[x2,y2],[x3,x3],..,[xn,yn]],"transcription":"###","confidence":0.4}
@@ -361,7 +425,9 @@ def get_tl_dict_values_from_array(array, withTranscription=False, withConfidence
 
     for n in range(len(array)):
         objectDict = array[n]
-        points, confidence, transcription = get_tl_dict_values(objectDict, withTranscription, withConfidence, imWidth, imHeight, validNumPoints, validate_cw)
+        points, confidence, transcription = get_tl_dict_values(
+            objectDict, withTranscription, withConfidence, imWidth, imHeight, validNumPoints, validate_cw
+        )
         pointsList.append(points)
         transcriptionsList.append(transcription)
         confidencesList.append(confidence)
@@ -377,7 +443,9 @@ def get_tl_dict_values_from_array(array, withTranscription=False, withConfidence
     return pointsList, confidencesList, transcriptionsList
 
 
-def main_evaluation(p, default_evaluation_params_fn, validate_data_fn, evaluate_method_fn, show_result=True, per_sample=True):
+def main_evaluation(
+    p, default_evaluation_params_fn, validate_data_fn, evaluate_method_fn, show_result=True, per_sample=True
+):
     """
     This process validates a method, evaluates it and if it succed generates a ZIP file with a JSON entry for each sample.
     Params:

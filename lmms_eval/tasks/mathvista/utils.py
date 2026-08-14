@@ -2,10 +2,9 @@ from pathlib import Path
 
 import pandas as pd
 import yaml
-
 from lmms_eval.tasks.mathvista.mathvista_evals import MathVistaEvaluator
 
-with open(Path(__file__).parent / "mathvista.yaml", "r") as f:
+with open(Path(__file__).parent / "mathvista.yaml") as f:
     raw_data = f.readlines()
     safe_data = []
     for i, line in enumerate(raw_data):
@@ -57,9 +56,13 @@ def mathvista_process_results(doc, results):
     }
     extraction = mathvista_evaluator.extract_answer(prediction, problem, config["metadata"]["quick_extract"])
 
-    prediction = mathvista_evaluator.normalize_extracted_answer(extraction, problem["choices"], problem["question_type"], problem["answer_type"], problem["precision"])
+    prediction = mathvista_evaluator.normalize_extracted_answer(
+        extraction, problem["choices"], problem["question_type"], problem["answer_type"], problem["precision"]
+    )
     # set test set answer to None
-    true_false = mathvista_evaluator.safe_equal(prediction, problem["answer"]) if problem["answer"] is not None else False
+    true_false = (
+        mathvista_evaluator.safe_equal(prediction, problem["answer"]) if problem["answer"] is not None else False
+    )
 
     result = {
         "question_id": doc["pid"],
@@ -94,7 +97,17 @@ def mathvista_aggregate_results(results, args, *, calculate_gain=False, random_s
 
     results_dict = {result["question_id"]: result for result in results}
     df = pd.DataFrame(results_dict).T
-    target_keys = ["question_type", "answer_type", "language", "source", "category", "task", "context", "grade", "skills"]
+    target_keys = [
+        "question_type",
+        "answer_type",
+        "language",
+        "source",
+        "category",
+        "task",
+        "context",
+        "grade",
+        "skills",
+    ]
 
     for key in target_keys:
         values = df[key].explode().unique() if key == "skills" else df[key].unique()
@@ -112,7 +125,9 @@ def mathvista_aggregate_results(results, args, *, calculate_gain=False, random_s
                 scores[key]["acc_gain"] = gain
             else:
                 for sub_key in scores[key]:
-                    gain = round(float(scores[key][sub_key]["accuracy"]) - float(random_scores[key][sub_key]["accuracy"]), 2)
+                    gain = round(
+                        float(scores[key][sub_key]["accuracy"]) - float(random_scores[key][sub_key]["accuracy"]), 2
+                    )
                     scores[key][sub_key]["acc_gain"] = gain
 
     if scores["average"]["accuracy"] == 0:

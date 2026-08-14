@@ -21,7 +21,6 @@ import copy
 import json
 import os
 import tempfile
-from typing import List, Optional, Tuple, Union
 
 import numpy as np
 import torch
@@ -56,11 +55,11 @@ class UniMoE2Omni(lmms):
     def __init__(
         self,
         pretrained: str = "HIT-TMG/Uni-MoE-2.0-Omni",
-        device: Optional[str] = "cuda",
-        dtype: Optional[Union[str, torch.dtype]] = "auto",
-        think_mode: Optional[bool] = False,
-        batch_size: Optional[Union[int, str]] = 1,
-        use_audio_in_video: Optional[bool] = False,
+        device: str | None = "cuda",
+        dtype: str | torch.dtype | None = "auto",
+        think_mode: bool | None = False,
+        batch_size: int | str | None = 1,
+        use_audio_in_video: bool | None = False,
         **kwargs,
     ) -> None:
         super().__init__()
@@ -76,7 +75,10 @@ class UniMoE2Omni(lmms):
             from uni_moe.model.processing_qwen2_vl import Qwen2VLProcessor
             from uni_moe.qwen_vl_utils import process_mm_info
         except ImportError:
-            raise ImportError("Please install uni_moe package from https://github.com/HITsz-TMG/Uni-MoE. " "Run: pip install git+https://github.com/HITsz-TMG/Uni-MoE.git")
+            raise ImportError(
+                "Please install uni_moe package from https://github.com/HITsz-TMG/Uni-MoE. "
+                "Run: pip install git+https://github.com/HITsz-TMG/Uni-MoE.git"
+            )
 
         self.process_mm_info = process_mm_info
 
@@ -116,7 +118,9 @@ class UniMoE2Omni(lmms):
                     "train_batch_size": self.batch_size_per_gpu * accelerator.num_processes,
                 }
                 AcceleratorState().deepspeed_plugin.deepspeed_config_process(must_match=True, **batch_kwargs)
-                eval_logger.info("Detected DistributedType.DEEPSPEED. " "Make sure you run `accelerate config` and set zero stage to 0")
+                eval_logger.info(
+                    "Detected DistributedType.DEEPSPEED. Make sure you run `accelerate config` and set zero stage to 0"
+                )
             if accelerator.distributed_type in [
                 DistributedType.FSDP,
                 DistributedType.DEEPSPEED,
@@ -173,7 +177,7 @@ class UniMoE2Omni(lmms):
     def world_size(self):
         return self._world_size
 
-    def tok_encode(self, string: str, left_truncate_len=None, add_special_tokens=None) -> List[int]:
+    def tok_encode(self, string: str, left_truncate_len=None, add_special_tokens=None) -> list[int]:
         """Tokenize a string."""
         add_special_tokens = False if add_special_tokens is None else add_special_tokens
         encoding = self.tokenizer.encode(string, add_special_tokens=add_special_tokens)
@@ -195,7 +199,7 @@ class UniMoE2Omni(lmms):
         except Exception:
             return False
 
-    def meta_form(self, sources, image_folder="", audio_folder="", video_folder="") -> List[List[dict]]:
+    def meta_form(self, sources, image_folder="", audio_folder="", video_folder="") -> list[list[dict]]:
         """Convert data format to messages format."""
         messages = []
         images = audios = videos = None
@@ -305,7 +309,12 @@ class UniMoE2Omni(lmms):
         prompt = self._processor.apply_chat_template(messages, tokenize=False, add_generation_prompt=True, no=True)
 
         for pi, pr in enumerate(prompt):
-            prompt[pi] = prompt[pi].replace("<image>", "<|vision_start|><|image_pad|><|vision_end|>").replace("<audio>", "<|audio_start|><|audio_pad|><|audio_end|>").replace("<video>", "<|vision_start|><|video_pad|><|vision_end|>")
+            prompt[pi] = (
+                prompt[pi]
+                .replace("<image>", "<|vision_start|><|image_pad|><|vision_end|>")
+                .replace("<audio>", "<|audio_start|><|audio_pad|><|audio_end|>")
+                .replace("<video>", "<|vision_start|><|video_pad|><|vision_end|>")
+            )
 
         image_inputs, video_inputs, audio_inputs = self.process_mm_info(messages)
 
@@ -331,7 +340,7 @@ class UniMoE2Omni(lmms):
                 new_list.append(j)
         return new_list
 
-    def generate_until(self, requests: List[Instance]) -> List[str]:
+    def generate_until(self, requests: list[Instance]) -> list[str]:
         res = []
 
         def _collate(x):
@@ -340,7 +349,11 @@ class UniMoE2Omni(lmms):
 
         re_ords = utils.Collator([reg.args for reg in requests], _collate, grouping=True)
         chunks = re_ords.get_batched(n=self.batch_size, batch_fn=None)
-        num_iters = len(requests) // self.batch_size if len(requests) % self.batch_size == 0 else len(requests) // self.batch_size + 1
+        num_iters = (
+            len(requests) // self.batch_size
+            if len(requests) % self.batch_size == 0
+            else len(requests) // self.batch_size + 1
+        )
         pbar = tqdm(total=num_iters, disable=(self.rank != 0), desc="Model Responding")
 
         for chunk in chunks:
@@ -356,7 +369,9 @@ class UniMoE2Omni(lmms):
             if isinstance(until, str):
                 until = [until]
             elif not isinstance(until, list):
-                raise ValueError(f"Expected `gen_kwargs['until']` to be of type " f"Union[str, list], but got {type(until)}")
+                raise ValueError(
+                    f"Expected `gen_kwargs['until']` to be of type Union[str, list], but got {type(until)}"
+                )
             until = [item for item in until if item != "\n\n"]
 
             if isinstance(contexts, tuple):
@@ -461,8 +476,8 @@ class UniMoE2Omni(lmms):
         pbar.close()
         return res
 
-    def loglikelihood(self, requests: List[Instance]) -> List[Tuple[float, bool]]:
+    def loglikelihood(self, requests: list[Instance]) -> list[tuple[float, bool]]:
         raise NotImplementedError("Loglikelihood is not implemented for Uni-MoE-2")
 
-    def generate_until_multi_round(self, requests) -> List[str]:
+    def generate_until_multi_round(self, requests) -> list[str]:
         raise NotImplementedError("Multi-round generation is not implemented")

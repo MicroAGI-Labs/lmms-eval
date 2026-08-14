@@ -1,18 +1,17 @@
 import random
-from typing import Dict, List
 
 import numpy as np
 
 LETTERS = [chr(65 + i) for i in range(26)]  # A-Z
 
 
-def _get_choices(doc: Dict) -> Dict[str, str]:
+def _get_choices(doc: dict) -> dict[str, str]:
     lst = [str(x) for x in doc["options"]]
     n = len(lst)
     return {LETTERS[i]: lst[i] for i in range(n)}
 
 
-def super_gpqa_doc_to_text(doc: Dict, lmms_eval_specific_kwargs: Dict) -> str:
+def super_gpqa_doc_to_text(doc: dict, lmms_eval_specific_kwargs: dict) -> str:
     pre_prompt = lmms_eval_specific_kwargs["pre_prompt"]
     post_prompt = lmms_eval_specific_kwargs["post_prompt"]
     q = doc["question"]
@@ -25,11 +24,11 @@ def super_gpqa_doc_to_text(doc: Dict, lmms_eval_specific_kwargs: Dict) -> str:
     return f"{pre_prompt}{question}{post_prompt}"
 
 
-def super_gpqa_doc_to_target(doc: Dict) -> str:
+def super_gpqa_doc_to_target(doc: dict) -> str:
     return doc["answer_letter"].strip().upper()
 
 
-def super_gpqa_doc_to_choice(doc: Dict) -> List[str]:
+def super_gpqa_doc_to_choice(doc: dict) -> list[str]:
     choices = _get_choices(doc)
     return list(choices.keys())
 
@@ -76,7 +75,7 @@ def parse_multi_choice_response(response, all_choices):
     return pred_index
 
 
-def super_gpqa_process_results(doc: Dict, result: List[str]) -> Dict[str, float]:
+def super_gpqa_process_results(doc: dict, result: list[str]) -> dict[str, float]:
     response = result[0].strip() if result else ""
     all_choices = super_gpqa_doc_to_choice(doc)
     pred = parse_multi_choice_response(response, all_choices)
@@ -128,7 +127,7 @@ FEWSHOT_PROMPT = (
 )
 
 
-def super_gpqa_multishot_doc_to_text(doc: Dict, lmms_eval_specific_kwargs: Dict) -> str:
+def super_gpqa_multishot_doc_to_text(doc: dict, lmms_eval_specific_kwargs: dict) -> str:
     q = doc["question"]
     choices = _get_choices(doc)
     current_lines = [f"Question: {q}", ""]

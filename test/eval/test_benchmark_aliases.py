@@ -19,7 +19,7 @@ class TestBenchmarkAliasRegistration(unittest.TestCase):
         }
         for group_name, expected_task in expected_yaml_targets.items():
             yaml_path = task_manager.task_index[group_name]["yaml_path"]
-            with open(yaml_path, "r", encoding="utf-8") as handle:
+            with open(yaml_path, encoding="utf-8") as handle:
                 content = handle.read()
 
             self.assertIn(f"  - {expected_task}", content)

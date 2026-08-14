@@ -9,7 +9,7 @@ from loguru import logger as eval_logger
 hf_home = os.getenv("HF_HOME", "~/.cache/huggingface/")
 base_cache_dir = os.path.expanduser(hf_home)
 
-with open(Path(__file__).parent / "lsdbench.yaml", "r") as f:
+with open(Path(__file__).parent / "lsdbench.yaml") as f:
     raw_data = f.readlines()
     safe_data = []
     for i, line in enumerate(raw_data):
@@ -91,5 +91,7 @@ def lsdbench_aggregate_accuracy_results(results):
         total_answered += 1
         total_correct += result["pred_answer"] == result["answer"]
 
-    eval_logger.info(f"Overall Accuracy Performance: {100 * total_correct / total_answered if total_answered > 0 else 0 : .1f}%")
+    eval_logger.info(
+        f"Overall Accuracy Performance: {100 * total_correct / total_answered if total_answered > 0 else 0: .1f}%"
+    )
     return 100 * total_correct / total_answered if total_answered > 0 else 0

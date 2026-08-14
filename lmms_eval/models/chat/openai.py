@@ -1,29 +1,26 @@
 import time
-from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
-from typing import List, Union
+from concurrent.futures import FIRST_COMPLETED
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import wait
 
 from dotenv import load_dotenv
-from loguru import logger as eval_logger
-from tqdm import tqdm
-
-from lmms_eval.api.instance import GenerationResult, TokenCounts
+from lmms_eval.api.instance import GenerationResult
+from lmms_eval.api.instance import TokenCounts
 from lmms_eval.api.registry import register_model
 from lmms_eval.imports import optional_import
-from lmms_eval.models.model_utils.concurrency_control import (
-    decide_next_concurrency,
-    extract_text_prefix_from_chat_messages,
-    is_rate_limit_error,
-    make_prefix_hash,
-)
+from lmms_eval.models.model_utils.concurrency_control import decide_next_concurrency
+from lmms_eval.models.model_utils.concurrency_control import extract_text_prefix_from_chat_messages
+from lmms_eval.models.model_utils.concurrency_control import is_rate_limit_error
+from lmms_eval.models.model_utils.concurrency_control import make_prefix_hash
 from lmms_eval.models.model_utils.gen_metrics import log_metrics
-from lmms_eval.models.model_utils.usage_metrics import (
-    get_running_totals,
-    is_budget_exceeded,
-    log_usage,
-)
+from lmms_eval.models.model_utils.usage_metrics import get_running_totals
+from lmms_eval.models.model_utils.usage_metrics import is_budget_exceeded
+from lmms_eval.models.model_utils.usage_metrics import log_usage
 from lmms_eval.models.simple.openai import OpenAICompatible as OpenAICompatibleSimple
 from lmms_eval.models.simple.openai import _get_max_new_tokens
 from lmms_eval.protocol import ChatMessages
+from loguru import logger as eval_logger
+from tqdm import tqdm
 
 VideoReader, _ = optional_import("decord", "VideoReader")
 cpu, _ = optional_import("decord", "cpu")
@@ -35,7 +32,7 @@ load_dotenv(verbose=True)
 class OpenAICompatible(OpenAICompatibleSimple):
     is_simple = False
 
-    def generate_until(self, requests) -> List[GenerationResult]:
+    def generate_until(self, requests) -> list[GenerationResult]:
         if not requests:
             return []
 
@@ -46,7 +43,7 @@ class OpenAICompatible(OpenAICompatibleSimple):
             desc="Model Responding",
         )
 
-        responses: List[Union[GenerationResult, None]] = [None] * len(reordered_requests)
+        responses: list[GenerationResult | None] = [None] * len(reordered_requests)
         total_latency = 0.0
         total_tokens = 0
         current_concurrency = min(
@@ -68,7 +65,7 @@ class OpenAICompatible(OpenAICompatibleSimple):
         cursor = 0
         failed_requests = 0
         rate_limited_requests = 0
-        latencies: List[float] = []
+        latencies: list[float] = []
         completed_since_adapt = 0
         in_flight = {}
         max_workers = max(
@@ -86,15 +83,32 @@ class OpenAICompatible(OpenAICompatibleSimple):
                 try:
                     response = self.client.chat.completions.create(**payload)
                     elapsed = time.time() - started_at
-                    response_text = response.choices[0].message.content
+                    # sglang reasoning-mode endpoints (Cosmos-Reason2) put the
+                    # answer in ``message.reasoning_content`` while leaving
+                    # ``message.content`` empty. Fall back so we score the
+                    # actual model output instead of an empty string.
+                    message = response.choices[0].message
+                    response_text = message.content or ""
+                    if not response_text.strip() and self.thinking_mode != "disabled":
+                        response_text = (
+                            getattr(message, "reasoning", None) or getattr(message, "reasoning_content", None) or ""
+                        )
+                    if not response_text.strip():
+                        finish_reason = response.choices[0].finish_reason
+                        raise ValueError(f"OpenAI-compatible endpoint returned empty content ({finish_reason=})")
                     input_tokens = 0
                     output_tokens = 0
                     reasoning_tokens = 0
                     if hasattr(response, "usage") and response.usage:
                         input_tokens = getattr(response.usage, "prompt_tokens", 0) or 0
                         output_tokens = getattr(response.usage, "completion_tokens", 0) or 0
-                        if hasattr(response.usage, "completion_tokens_details") and response.usage.completion_tokens_details:
-                            reasoning_tokens = getattr(response.usage.completion_tokens_details, "reasoning_tokens", 0) or 0
+                        if (
+                            hasattr(response.usage, "completion_tokens_details")
+                            and response.usage.completion_tokens_details
+                        ):
+                            reasoning_tokens = (
+                                getattr(response.usage.completion_tokens_details, "reasoning_tokens", 0) or 0
+                            )
                         completion_tokens = output_tokens
                     else:
                         completion_tokens = len(response_text.split())
@@ -192,8 +206,15 @@ class OpenAICompatible(OpenAICompatibleSimple):
                 "max_tokens": max_new_tokens,
                 "temperature": temperature,
             }
+            if self.thinking_mode is not None:
+                payload["extra_body"] = {"chat_template_kwargs": {"thinking_mode": self.thinking_mode}}
 
-            if "o1" in self.model_version or "o3" in self.model_version or "o4" in self.model_version or "gpt-5" in self.model_version:
+            if (
+                "o1" in self.model_version
+                or "o3" in self.model_version
+                or "o4" in self.model_version
+                or "gpt-5" in self.model_version
+            ):
                 payload.pop("temperature")
                 payload.pop("max_tokens")
                 payload["response_format"] = {"type": "text"}
@@ -213,7 +234,9 @@ class OpenAICompatible(OpenAICompatibleSimple):
                         continue
 
                     if is_budget_exceeded():
-                        responses[request_index] = GenerationResult(text="[LMMS_EVAL_BUDGET_EXCEEDED]", token_counts=TokenCounts())
+                        responses[request_index] = GenerationResult(
+                            text="[LMMS_EVAL_BUDGET_EXCEEDED]", token_counts=TokenCounts()
+                        )
                         pbar.update(1)
                         cursor += 1
                         continue
@@ -270,4 +293,7 @@ class OpenAICompatible(OpenAICompatibleSimple):
         )
 
         pbar.close()
-        return [response if response is not None else GenerationResult(text="", token_counts=TokenCounts()) for response in responses]
+        return [
+            response if response is not None else GenerationResult(text="", token_counts=TokenCounts())
+            for response in responses
+        ]

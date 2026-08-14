@@ -1,18 +1,16 @@
 import os
 from datetime import timedelta
-from typing import List, Optional, Tuple, Union
 
 import torch
 from accelerate import Accelerator, DistributedType, InitProcessGroupKwargs
 from accelerate.state import AcceleratorState
 from huggingface_hub import snapshot_download
-from loguru import logger
-from PIL import Image
-from tqdm import tqdm
-
 from lmms_eval.api.instance import Instance
 from lmms_eval.api.model import lmms
 from lmms_eval.api.registry import register_model
+from loguru import logger
+from PIL import Image
+from tqdm import tqdm
 
 eval_logger = logger
 
@@ -36,12 +34,12 @@ from lmms_eval.models.model_utils.load_video import read_video
 class VideoChatGPT(lmms):
     def __init__(
         self,
-        batch_size: Optional[Union[int, str]] = 1,
+        batch_size: int | str | None = 1,
         projection_path: str = "MBZUAI/Video-ChatGPT-7B",
         model_path: str = "mmaaz60/LLaVA-7B-Lightening-v1-1",
         device_map="cuda:0",
-        device: Optional[str] = "cuda:0",
-        num_frm: Optional[Union[int, str]] = 100,
+        device: str | None = "cuda:0",
+        num_frm: int | str | None = 100,
     ) -> None:
         super().__init__()
         self.batch_size_per_gpu = int(batch_size)
@@ -58,15 +56,23 @@ class VideoChatGPT(lmms):
             self._device = torch.device(f"cuda:{accelerator.local_process_index}")
             self.device_map = f"cuda:{accelerator.local_process_index}"
         try:
-            self.model, self.vision_tower, self.tokenizer, self.image_processor, self.video_token_len = initialize_model(model_path, projection_path, device=self.device)
+            self.model, self.vision_tower, self.tokenizer, self.image_processor, self.video_token_len = (
+                initialize_model(model_path, projection_path, device=self.device)
+            )
         except:
             eval_logger.info("Does not find the model from the path you provide, try downloading from the hf repo.")
             model_path = snapshot_download(repo_id=model_path)
             projection_path = os.path.join(snapshot_download(repo_id=projection_path), "video_chatgpt-7B.bin")
-            self.model, self.vision_tower, self.tokenizer, self.image_processor, self.video_token_len = initialize_model(model_path, projection_path, device=self.device)
+            self.model, self.vision_tower, self.tokenizer, self.image_processor, self.video_token_len = (
+                initialize_model(model_path, projection_path, device=self.device)
+            )
 
         if accelerator.num_processes > 1:
-            assert accelerator.distributed_type in [DistributedType.FSDP, DistributedType.MULTI_GPU, DistributedType.DEEPSPEED], "Unsupported distributed type provided. Only DDP and FSDP are supported."
+            assert accelerator.distributed_type in [
+                DistributedType.FSDP,
+                DistributedType.MULTI_GPU,
+                DistributedType.DEEPSPEED,
+            ], "Unsupported distributed type provided. Only DDP and FSDP are supported."
             # If you want to use DistributedType.DEEPSPEED, you have to run accelerate config before using the model
             # Also, you have to select zero stage 0 (equivalent to DDP) in order to make the prepare model works
             # I tried to set different parameters in the kwargs to let default zero 2 stage works, but it didn't work.
@@ -76,8 +82,13 @@ class VideoChatGPT(lmms):
                     "train_batch_size": self.batch_size_per_gpu * accelerator.num_processes,
                 }
                 AcceleratorState().deepspeed_plugin.deepspeed_config_process(must_match=True, **kwargs)
-                eval_logger.info("Detected that you are using DistributedType.DEEPSPEED. Make sure you run `accelerate config` and set zero stage to 0")
-            if accelerator.distributed_type == DistributedType.FSDP or accelerator.distributed_type == DistributedType.DEEPSPEED:
+                eval_logger.info(
+                    "Detected that you are using DistributedType.DEEPSPEED. Make sure you run `accelerate config` and set zero stage to 0"
+                )
+            if (
+                accelerator.distributed_type == DistributedType.FSDP
+                or accelerator.distributed_type == DistributedType.DEEPSPEED
+            ):
                 self._model = accelerator.prepare(self.model)
             else:
                 self._model = accelerator.prepare_model(self.model, evaluation_mode=True)
@@ -103,7 +114,7 @@ class VideoChatGPT(lmms):
                 new_list.append(j)
         return new_list
 
-    def generate_until(self, requests) -> List[str]:
+    def generate_until(self, requests) -> list[str]:
         res = []
         pbar = tqdm(total=len(requests), disable=(self.rank != 0), desc="Model Responding")
 
@@ -127,7 +138,14 @@ class VideoChatGPT(lmms):
                 # videos += video_frames
 
             output = video_chatgpt_infer(
-                video_frames, contexts, conv_mode="video-chatgpt_v1", model=self.model, vision_tower=self.vision_tower, tokenizer=self.tokenizer, image_processor=self.image_processor, video_token_len=self.video_token_len
+                video_frames,
+                contexts,
+                conv_mode="video-chatgpt_v1",
+                model=self.model,
+                vision_tower=self.vision_tower,
+                tokenizer=self.tokenizer,
+                image_processor=self.image_processor,
+                video_token_len=self.video_token_len,
             )
 
             res.append(output)
@@ -135,7 +153,7 @@ class VideoChatGPT(lmms):
 
         return res
 
-    def loglikelihood(self, requests: List[Instance]) -> List[Tuple[float, bool]]:
+    def loglikelihood(self, requests: list[Instance]) -> list[tuple[float, bool]]:
         res = []
         pbar = tqdm(total=len(requests), disable=(self.rank != 0), desc="Model Responding")
 
@@ -204,5 +222,5 @@ class VideoChatGPT(lmms):
     def world_size(self):
         return self._world_size
 
-    def generate_until_multi_round(self, requests) -> List[str]:
+    def generate_until_multi_round(self, requests) -> list[str]:
         raise NotImplementedError("TODO: Implement multi-round generation")

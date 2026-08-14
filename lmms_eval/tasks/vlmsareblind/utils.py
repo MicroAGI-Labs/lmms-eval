@@ -51,7 +51,13 @@ def parse_response(response: str, task: str) -> str | None:
         if response in ["yes", "no"]:
             return response
 
-    if task in ["line plot intersections", "subway connections", "olympic counting - circles", "olympic counting - pentagons", "nested squares"]:
+    if task in [
+        "line plot intersections",
+        "subway connections",
+        "olympic counting - circles",
+        "olympic counting - pentagons",
+        "nested squares",
+    ]:
         match = re.search(r"\{?(\d+)\}?", response)
         if match:
             return match.group(1)
@@ -68,7 +74,9 @@ def parse_response(response: str, task: str) -> str | None:
         match = re.search(r"\((\d+)\s*,\s*(\d+)\)", response)  # (3,4), (3, 4), etc.
         if match:
             return f"{match.group(1)},{match.group(2)}"
-        match = re.search(r"rows=\{(\d+)\}\scolumns=\{(\d+)\}", response)  # rows={3} columns={4}, rows={3} columns={4}, etc.
+        match = re.search(
+            r"rows=\{(\d+)\}\scolumns=\{(\d+)\}", response
+        )  # rows={3} columns={4}, rows={3} columns={4}, etc.
         if match:
             return f"{match.group(1)},{match.group(2)}"
 

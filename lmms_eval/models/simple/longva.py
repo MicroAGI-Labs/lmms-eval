@@ -9,7 +9,6 @@ import copy
 import logging
 import warnings
 from datetime import timedelta
-from typing import List, Optional, Tuple, Union
 
 import numpy as np
 import PIL
@@ -59,20 +58,20 @@ class LongVA(lmms):
     def __init__(
         self,
         pretrained: str = "lmms-lab/LongVA-7B",
-        truncation: Optional[bool] = True,
-        device: Optional[str] = "cuda:0",
-        batch_size: Optional[Union[int, str]] = 1,
-        model_name: Optional[str] = None,
-        attn_implementation: Optional[str] = best_fit_attn_implementation,
-        device_map: Optional[str] = "cuda:0",
-        conv_template: Optional[str] = "vicuna_v1",
-        use_cache: Optional[bool] = True,
-        truncate_context: Optional[bool] = False,  # whether to truncate the context in generation, set it False for LLaVA-1.6
-        customized_config: Optional[str] = None,  # ends in json
-        max_frames_num: Optional[int] = 32,
-        mm_spatial_pool_stride: Optional[int] = 2,
-        mm_spatial_pool_mode: Optional[str] = "average",
-        token_strategy: Optional[str] = "single",  # could be "single" or "multiple", "multiple" denotes adding multiple <image> tokens for each frame
+        truncation: bool | None = True,
+        device: str | None = "cuda:0",
+        batch_size: int | str | None = 1,
+        model_name: str | None = None,
+        attn_implementation: str | None = best_fit_attn_implementation,
+        device_map: str | None = "cuda:0",
+        conv_template: str | None = "vicuna_v1",
+        use_cache: bool | None = True,
+        truncate_context: bool | None = False,  # whether to truncate the context in generation, set it False for LLaVA-1.6
+        customized_config: str | None = None,  # ends in json
+        max_frames_num: int | None = 32,
+        mm_spatial_pool_stride: int | None = 2,
+        mm_spatial_pool_mode: str | None = "average",
+        token_strategy: str | None = "single",  # could be "single" or "multiple", "multiple" denotes adding multiple <image> tokens for each frame
         video_decode_backend: str = "pyav",
         **kwargs,
     ) -> None:
@@ -145,7 +144,9 @@ class LongVA(lmms):
         self.conv_template = conv_template
         self.use_cache = use_cache
         self.truncate_context = truncate_context
-        assert self.batch_size_per_gpu == 1, "Llava currently does not support batched generation. See https://github.com/haotian-liu/LLaVA/issues/754. HF Llava also has this issue."
+        assert self.batch_size_per_gpu == 1, (
+            "Llava currently does not support batched generation. See https://github.com/haotian-liu/LLaVA/issues/754. HF Llava also has this issue."
+        )
 
         if accelerator.num_processes > 1:
             assert accelerator.distributed_type in [
@@ -162,9 +163,14 @@ class LongVA(lmms):
                     "train_batch_size": self.batch_size_per_gpu * accelerator.num_processes,
                 }
                 AcceleratorState().deepspeed_plugin.deepspeed_config_process(must_match=True, **kwargs)
-                eval_logger.info("Detected that you are using DistributedType.DEEPSPEED. Make sure you run `accelerate config` and set zero stage to 0")
+                eval_logger.info(
+                    "Detected that you are using DistributedType.DEEPSPEED. Make sure you run `accelerate config` and set zero stage to 0"
+                )
 
-            if accelerator.distributed_type == DistributedType.FSDP or accelerator.distributed_type == DistributedType.DEEPSPEED:
+            if (
+                accelerator.distributed_type == DistributedType.FSDP
+                or accelerator.distributed_type == DistributedType.DEEPSPEED
+            ):
                 self._model = accelerator.prepare(self.model)
             else:
                 self._model = accelerator.prepare_model(self.model, evaluation_mode=True)
@@ -235,7 +241,7 @@ class LongVA(lmms):
     def world_size(self):
         return self._world_size
 
-    def tok_encode(self, string: str, left_truncate_len=None, add_special_tokens=None) -> List[int]:
+    def tok_encode(self, string: str, left_truncate_len=None, add_special_tokens=None) -> list[int]:
         """ """
         add_special_tokens = False if add_special_tokens is None else add_special_tokens
         encoding = self.tokenizer.encode(string, add_special_tokens=add_special_tokens)
@@ -250,7 +256,7 @@ class LongVA(lmms):
         except:
             return self.tokenizer.decode([tokens])
 
-    def loglikelihood(self, requests: List[Instance]) -> List[Tuple[float, bool]]:
+    def loglikelihood(self, requests: list[Instance]) -> list[tuple[float, bool]]:
         # TODO
         res = []
         pbar = tqdm(total=len(requests), disable=(self.rank != 0), desc="Model Responding")
@@ -295,13 +301,23 @@ class LongVA(lmms):
             conv.append_message(conv.roles[0], prompts_input)
             conv.append_message(conv.roles[1], None)
             prompt = conv.get_prompt()
-            pad_token_id = self.tokenizer.pad_token_id if self.tokenizer.pad_token_id is not None else self.tokenizer.eos_token_id
-            contxt_id = tokenizer_image_token(prompt, self.tokenizer, IMAGE_TOKEN_INDEX, return_tensors="pt").unsqueeze(0).to(self.device)
+            pad_token_id = (
+                self.tokenizer.pad_token_id if self.tokenizer.pad_token_id is not None else self.tokenizer.eos_token_id
+            )
+            contxt_id = (
+                tokenizer_image_token(prompt, self.tokenizer, IMAGE_TOKEN_INDEX, return_tensors="pt")
+                .unsqueeze(0)
+                .to(self.device)
+            )
             # Add the answer of the second role
             conv.messages[1][1] = continuation
 
             prompt = conv.get_prompt()
-            input_ids = tokenizer_image_token(prompt, self.tokenizer, IMAGE_TOKEN_INDEX, return_tensors="pt").unsqueeze(0).to(self.device)
+            input_ids = (
+                tokenizer_image_token(prompt, self.tokenizer, IMAGE_TOKEN_INDEX, return_tensors="pt")
+                .unsqueeze(0)
+                .to(self.device)
+            )
             labels = input_ids.clone()
             # Context part no need to calculate for loss
             labels[0, : contxt_id.shape[1]] = -100
@@ -344,7 +360,7 @@ class LongVA(lmms):
         spare_frames = vr.get_batch(frame_idx).asnumpy()
         return spare_frames  # (frames, height, width, channels)
 
-    def generate_until(self, requests: List[Instance]) -> List[str]:
+    def generate_until(self, requests: list[Instance]) -> list[str]:
         res = []
 
         def _collate(x):
@@ -362,7 +378,11 @@ class LongVA(lmms):
         # in the same batch.
         re_ords = utils.Collator([reg.args for reg in requests], _collate, grouping=True)
         chunks = re_ords.get_batched(n=self.batch_size, batch_fn=None)
-        num_iters = len(requests) // self.batch_size if len(requests) % self.batch_size == 0 else len(requests) // self.batch_size + 1
+        num_iters = (
+            len(requests) // self.batch_size
+            if len(requests) % self.batch_size == 0
+            else len(requests) // self.batch_size + 1
+        )
         pbar = tqdm(total=num_iters, disable=(self.rank != 0), desc="Model Responding")
         for chunk in chunks:
             (
@@ -375,7 +395,9 @@ class LongVA(lmms):
             ) = zip(*chunk)
             task = batched_task[0]
             split = batched_split[0]
-            batched_visuals = [batched_doc_to_visual[0](self.task_dict[task][split][ids]) for ids in batched_doc_id]  # [B, N]
+            batched_visuals = [
+                batched_doc_to_visual[0](self.task_dict[task][split][ids]) for ids in batched_doc_id
+            ]  # [B, N]
             flattened_visuals = self.flatten(batched_visuals)  # [B*N]
             assert len(batched_visuals) == 1
 
@@ -410,7 +432,11 @@ class LongVA(lmms):
                             frames = self.load_video(visual, self.max_frames_num)
                         elif self.video_decode_backend == "pyav":
                             frames = read_video(visual[0], num_frm=self.max_frames_num)
-                        frames = self._image_processor.preprocess(frames, return_tensors="pt")["pixel_values"].half().to(self._device)
+                        frames = (
+                            self._image_processor.preprocess(frames, return_tensors="pt")["pixel_values"]
+                            .half()
+                            .to(self._device)
+                        )
                         image_tensor.append(frames)
                     except Exception as e:
                         eval_logger.error(f"Error {e} in loading video")
@@ -427,9 +453,15 @@ class LongVA(lmms):
                     4. For video tasks, we could add a <image> token or multiple <image> tokens for each frame in the context. This depends on the training strategy and should balance in test to decide which is better
                     """
                     if task_type == "image":
-                        image_tokens = [DEFAULT_IMAGE_TOKEN] * len(visual) if isinstance(visual, list) else [DEFAULT_IMAGE_TOKEN]
+                        image_tokens = (
+                            [DEFAULT_IMAGE_TOKEN] * len(visual) if isinstance(visual, list) else [DEFAULT_IMAGE_TOKEN]
+                        )
                     elif task_type == "video":
-                        image_tokens = [DEFAULT_IMAGE_TOKEN] * len(frames) if self.token_strategy == "multiple" else [DEFAULT_IMAGE_TOKEN]
+                        image_tokens = (
+                            [DEFAULT_IMAGE_TOKEN] * len(frames)
+                            if self.token_strategy == "multiple"
+                            else [DEFAULT_IMAGE_TOKEN]
+                        )
 
                     image_tokens = " ".join(image_tokens)
                     question = image_tokens + "\n" + context
@@ -458,8 +490,13 @@ class LongVA(lmms):
             if "num_beams" not in gen_kwargs:
                 gen_kwargs["num_beams"] = 1
 
-            input_ids_list = [tokenizer_image_token(prompt, self.tokenizer, IMAGE_TOKEN_INDEX, return_tensors="pt") for prompt in question_input]
-            pad_token_ids = self.tokenizer.pad_token_id if self.tokenizer.pad_token_id is not None else self.tokenizer.eos_token_id
+            input_ids_list = [
+                tokenizer_image_token(prompt, self.tokenizer, IMAGE_TOKEN_INDEX, return_tensors="pt")
+                for prompt in question_input
+            ]
+            pad_token_ids = (
+                self.tokenizer.pad_token_id if self.tokenizer.pad_token_id is not None else self.tokenizer.eos_token_id
+            )
             input_ids = self.pad_sequence(input_ids_list, batch_first=True, padding_value=pad_token_ids).to(self.device)
             attention_masks = input_ids.ne(pad_token_ids).to(self.device)
 
@@ -503,5 +540,5 @@ class LongVA(lmms):
         pbar.close()
         return res
 
-    def generate_until_multi_round(self, requests) -> List[str]:
+    def generate_until_multi_round(self, requests) -> list[str]:
         raise NotImplementedError("TODO: Implement multi-round generation for LongVA")

@@ -9,13 +9,13 @@ Evaluation for GEU (Generation Enhances Understanding) tasks:
 import re
 from collections import defaultdict
 from io import BytesIO
-from typing import Any, Dict, List
+from typing import Any
 
 from loguru import logger as eval_logger
 from PIL import Image
 
 
-def doc_to_visual(doc: Dict) -> List[Image.Image]:
+def doc_to_visual(doc: dict) -> list[Image.Image]:
     """Get visual input from document."""
     if "image" in doc and doc["image"]:
         img_data = doc["image"]
@@ -29,7 +29,7 @@ def doc_to_visual(doc: Dict) -> List[Image.Image]:
     return []
 
 
-def doc_to_text(doc: Dict, lmms_eval_specific_kwargs: Dict = None) -> str:
+def doc_to_text(doc: dict, lmms_eval_specific_kwargs: dict = None) -> str:
     """Format evaluation prompt."""
     # GEU tasks use evaluation_prompt field
     prompt = doc.get("evaluation_prompt", doc.get("prompt", "")).strip()
@@ -75,7 +75,7 @@ def extract_answer(response: str) -> str:
     return ""
 
 
-def process_results(doc: Dict, results: List[str]) -> Dict[str, Any]:
+def process_results(doc: dict, results: list[str]) -> dict[str, Any]:
     """Process results - extract answer and compare to ground truth."""
     pred_text = results[0] if results else ""
 
@@ -103,7 +103,7 @@ def process_results(doc: Dict, results: List[str]) -> Dict[str, Any]:
     }
 
 
-def aggregate_results(results: List[Dict]) -> float:
+def aggregate_results(results: list[dict]) -> float:
     """Aggregate results to compute accuracy."""
     task_scores = defaultdict(list)
 
@@ -127,20 +127,32 @@ def aggregate_results(results: List[Dict]) -> float:
 # ============================================================================
 
 # Mental Reconstruction: 图片被打乱，需要恢复
-MENTAL_RECONSTRUCTION_GEN_PROMPT = "Please restore the image that has been shuffled by patches, " "without adding extra content or altering the original image."
+MENTAL_RECONSTRUCTION_GEN_PROMPT = (
+    "Please restore the image that has been shuffled by patches, "
+    "without adding extra content or altering the original image."
+)
 
 # Attentional Focusing: 高亮与问题相关的区域
-ATTENTIONAL_FOCUSING_GEN_PROMPT_TEMPLATE = "Here is the question: {question}\n" "Please highlight the regions of the image that are relevant to the question."
+ATTENTIONAL_FOCUSING_GEN_PROMPT_TEMPLATE = (
+    "Here is the question: {question}\nPlease highlight the regions of the image that are relevant to the question."
+)
 
 # Mental Tracking: 根据问题对图片内容进行变换
-MENTAL_TRACKING_GEN_PROMPT_TEMPLATE = "Here is the question: {question}\n" "Please apply the corresponding transformations and modifications " "to the contents of the image according to the question."
+MENTAL_TRACKING_GEN_PROMPT_TEMPLATE = (
+    "Here is the question: {question}\n"
+    "Please apply the corresponding transformations and modifications "
+    "to the contents of the image according to the question."
+)
 
 
-def doc_to_text_mental_reconstruction_cot(doc: Dict, lmms_eval_specific_kwargs: Dict = None) -> str:
+def doc_to_text_mental_reconstruction_cot(doc: dict, lmms_eval_specific_kwargs: dict = None) -> str:
     """Visual CoT prompt for Mental Reconstruction task."""
     prompt = doc.get("evaluation_prompt", doc.get("prompt", "")).strip()
 
-    question_with_aux = "In addition to the original image, you are also given a restored version " "of the shuffled image to help you answer the question.\n\n" + prompt
+    question_with_aux = (
+        "In addition to the original image, you are also given a restored version "
+        "of the shuffled image to help you answer the question.\n\n" + prompt
+    )
 
     # Add pre_prompt and post_prompt
     if lmms_eval_specific_kwargs:
@@ -149,17 +161,20 @@ def doc_to_text_mental_reconstruction_cot(doc: Dict, lmms_eval_specific_kwargs: 
         if lmms_eval_specific_kwargs.get("post_prompt"):
             question_with_aux = question_with_aux + lmms_eval_specific_kwargs["post_prompt"]
 
-    return f"[GEN_PROMPT]{MENTAL_RECONSTRUCTION_GEN_PROMPT}[/GEN_PROMPT]" f"[QUESTION]{question_with_aux}[/QUESTION]"
+    return f"[GEN_PROMPT]{MENTAL_RECONSTRUCTION_GEN_PROMPT}[/GEN_PROMPT][QUESTION]{question_with_aux}[/QUESTION]"
 
 
-def doc_to_text_attentional_focusing_cot(doc: Dict, lmms_eval_specific_kwargs: Dict = None) -> str:
+def doc_to_text_attentional_focusing_cot(doc: dict, lmms_eval_specific_kwargs: dict = None) -> str:
     """Visual CoT prompt for Attentional Focusing task."""
     question = doc.get("question", "").strip()
     prompt = doc.get("evaluation_prompt", doc.get("prompt", "")).strip()
 
     gen_prompt = ATTENTIONAL_FOCUSING_GEN_PROMPT_TEMPLATE.format(question=question)
 
-    question_with_aux = "In addition to the original image, you are also given a visualization " "that highlights the regions relevant to the question.\n\n" + prompt
+    question_with_aux = (
+        "In addition to the original image, you are also given a visualization "
+        "that highlights the regions relevant to the question.\n\n" + prompt
+    )
 
     # Add pre_prompt and post_prompt
     if lmms_eval_specific_kwargs:
@@ -171,14 +186,17 @@ def doc_to_text_attentional_focusing_cot(doc: Dict, lmms_eval_specific_kwargs: D
     return f"[GEN_PROMPT]{gen_prompt}[/GEN_PROMPT][QUESTION]{question_with_aux}[/QUESTION]"
 
 
-def doc_to_text_mental_tracking_cot(doc: Dict, lmms_eval_specific_kwargs: Dict = None) -> str:
+def doc_to_text_mental_tracking_cot(doc: dict, lmms_eval_specific_kwargs: dict = None) -> str:
     """Visual CoT prompt for Mental Tracking task."""
     question = doc.get("question", "").strip()
     prompt = doc.get("evaluation_prompt", doc.get("prompt", "")).strip()
 
     gen_prompt = MENTAL_TRACKING_GEN_PROMPT_TEMPLATE.format(question=question)
 
-    question_with_aux = "In addition to the original image, you are also given a transformed version " "of the image with the modifications applied according to the question.\n\n" + prompt
+    question_with_aux = (
+        "In addition to the original image, you are also given a transformed version "
+        "of the image with the modifications applied according to the question.\n\n" + prompt
+    )
 
     # Add pre_prompt and post_prompt
     if lmms_eval_specific_kwargs:

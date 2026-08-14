@@ -8,7 +8,12 @@ if __name__ == "__main__":
     dump_tasks = []
     for task in tasks:
         for split in splits:
-            yaml_dict = {"group": f"refcocog_{task}", "task": f"refcocog_{task}_{split}", "include": f"_default_template_{task}_yaml", "test_split": split}
+            yaml_dict = {
+                "group": f"refcocog_{task}",
+                "task": f"refcocog_{task}_{split}",
+                "include": f"_default_template_{task}_yaml",
+                "test_split": split,
+            }
             if split == "train":
                 yaml_dict.pop("group")
             else:

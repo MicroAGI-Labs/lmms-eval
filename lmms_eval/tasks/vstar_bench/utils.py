@@ -103,7 +103,13 @@ def vstar_process_results(doc, results):
         eval_logger.debug(f"Raw prediction: {pred}")
 
     # Return metrics for different aggregations
-    result = {"question_id": doc["question_id"], "category": category, "score": score, "prediction": pred_letter, "ground_truth": gt_letter}
+    result = {
+        "question_id": doc["question_id"],
+        "category": category,
+        "score": score,
+        "prediction": pred_letter,
+        "ground_truth": gt_letter,
+    }
 
     return {f"vstar_{category}_acc": result, "vstar_overall_acc": result}
 

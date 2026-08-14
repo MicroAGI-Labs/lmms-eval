@@ -8,7 +8,7 @@ from pathlib import Path
 import requests
 import yaml
 
-with open(Path(__file__).parent / "_default_template_yaml", "r") as f:
+with open(Path(__file__).parent / "_default_template_yaml") as f:
     raw_data = f.readlines()
     safe_data = []
     for i, line in enumerate(raw_data):
@@ -137,7 +137,10 @@ def get_eval_generic(question, answer, pred, max_tokens: int, retries: int = 5):
         except Exception as e:
             eval_logger.error(f"Unexpected error on attempt {attempt + 1}: {e}")
 
-        if "Sorry! We've encountered an issue with repetitive patterns in your prompt. Please try again with a different prompt." in json.loads(response.content)["error"]["message"]:
+        if (
+            "Sorry! We've encountered an issue with repetitive patterns in your prompt. Please try again with a different prompt."
+            in json.loads(response.content)["error"]["message"]
+        ):
             eval_logger.error("Repetitive patterns in prompt. Drop this data.")
             return "", ""
 
@@ -201,7 +204,16 @@ def video_detail_description_process_results_generic(doc, result):
     doc["pred"] = pred
     eval_results = gpt_eval(doc)
 
-    return {"gpt_eval_score": {"video_name": doc["video_name"], "question": doc["question"], "answer": doc["answer"], "pred": pred, "score": eval_results["score"], "review": eval_results["review"]}}
+    return {
+        "gpt_eval_score": {
+            "video_name": doc["video_name"],
+            "question": doc["question"],
+            "answer": doc["answer"],
+            "pred": pred,
+            "score": eval_results["score"],
+            "review": eval_results["review"],
+        }
+    }
 
 
 def video_detail_description_aggregate_score(results, args):

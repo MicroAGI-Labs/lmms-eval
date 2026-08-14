@@ -1,17 +1,16 @@
 """Utility functions for MMSearch-Plus VQA task."""
 
 import re
-from typing import Any, Dict, List
-
-from loguru import logger as eval_logger
+from typing import Any
 
 from lmms_eval.tasks.mmsearch_plus.decrypt_utils import decrypt_sample
+from loguru import logger as eval_logger
 
 # Canary string for decryption (full dataset name)
 CANARY = "MMSearch-Plus"
 
 
-def mmsearch_plus_doc_to_visual(doc: Dict[str, Any]) -> List[Any]:
+def mmsearch_plus_doc_to_visual(doc: dict[str, Any]) -> list[Any]:
     """
     Extract images from document.
 
@@ -37,12 +36,12 @@ def mmsearch_plus_doc_to_visual(doc: Dict[str, Any]) -> List[Any]:
                 eval_logger.warning(f"Failed to load image {img_key}: {e}")
 
     if not images:
-        eval_logger.warning(f"No images found in document")
+        eval_logger.warning("No images found in document")
 
     return images
 
 
-def mmsearch_plus_doc_to_text(doc: Dict[str, Any], lmms_eval_specific_kwargs: Dict[str, Any] = None) -> str:
+def mmsearch_plus_doc_to_text(doc: dict[str, Any], lmms_eval_specific_kwargs: dict[str, Any] = None) -> str:
     """
     Convert document to text prompt.
 
@@ -142,7 +141,7 @@ def compute_exact_match(prediction: str, ground_truth: str) -> float:
     return 1.0 if pred_norm == gt_norm else 0.0
 
 
-def mmsearch_plus_process_results(doc: Dict[str, Any], result: List[str]) -> Dict[str, Any]:
+def mmsearch_plus_process_results(doc: dict[str, Any], result: list[str]) -> dict[str, Any]:
     """
     Process model results and compute metrics.
 

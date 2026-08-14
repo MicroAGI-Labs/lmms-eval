@@ -30,7 +30,6 @@ import os.path as osp
 import re
 import subprocess
 import tempfile
-from typing import List, Optional
 
 from loguru import logger as eval_logger
 
@@ -148,7 +147,7 @@ def _extract_clip(video_id: str, start_s: float, end_s: float, video_dir: str) -
     return out_fn
 
 
-def _parse_tags(text: str, video_ids: List[str], start_times: List[float], input_labels: List[str] = None) -> str:
+def _parse_tags(text: str, video_ids: list[str], start_times: list[float], input_labels: list[str] = None) -> str:
     """
     Replace <TIME HH:MM:SS.fff VID_ID> with a human-readable timestamp
     and <BBOX y1 x1 y2 x2> with a formatted string.
@@ -207,13 +206,16 @@ def _format_choice(choice, video_ids, start_times, input_labels=None):
 def _format_question_text(doc: dict) -> str:
     """Build the formatted question string (with answer choices)."""
     q_text = doc["question"]
-    video_ids: List[str] = doc.get("video_ids", [])
-    start_times: List[float] = doc.get("start_times", [])
-    input_labels: List[str] = doc.get("input_labels", [])
+    video_ids: list[str] = doc.get("video_ids", [])
+    start_times: list[float] = doc.get("start_times", [])
+    input_labels: list[str] = doc.get("input_labels", [])
 
     q_text = _parse_tags(q_text, video_ids, start_times, input_labels)
 
-    choices_str = " ".join(f"({CHOICE_LETTERS[i]}) {_format_choice(c, video_ids, start_times, input_labels)}." for i, c in enumerate(doc["choices"]))
+    choices_str = " ".join(
+        f"({CHOICE_LETTERS[i]}) {_format_choice(c, video_ids, start_times, input_labels)}."
+        for i, c in enumerate(doc["choices"])
+    )
     return f"Question: {q_text}. Answers: {choices_str} Correct: "
 
 
@@ -222,15 +224,15 @@ def _format_question_text(doc: dict) -> str:
 # ---------------------------------------------------------------------------
 
 
-def hd_epic_doc_to_visual(doc: dict) -> List[str]:
+def hd_epic_doc_to_visual(doc: dict) -> list[str]:
     """
     Legacy simple-model path: return a list of local video file paths
     (one per input video, trimmed to the required time window).
     """
     video_dir = _resolve_video_dir(doc)
-    video_ids: List[str] = doc.get("video_ids", [])
-    start_times: List[float] = doc.get("start_times", [])
-    end_times: List[float] = doc.get("end_times", [])
+    video_ids: list[str] = doc.get("video_ids", [])
+    start_times: list[float] = doc.get("start_times", [])
+    end_times: list[float] = doc.get("end_times", [])
 
     paths = []
     for vid, st, et in zip(video_ids, start_times, end_times):
@@ -239,7 +241,7 @@ def hd_epic_doc_to_visual(doc: dict) -> List[str]:
     return paths
 
 
-def hd_epic_doc_to_text(doc: dict, lmms_eval_specific_kwargs: Optional[dict] = None) -> str:
+def hd_epic_doc_to_text(doc: dict, lmms_eval_specific_kwargs: dict | None = None) -> str:
     """
     Legacy simple-model path: return the formatted question string.
     The system instruction is prepended by the model, so we only return
@@ -248,7 +250,7 @@ def hd_epic_doc_to_text(doc: dict, lmms_eval_specific_kwargs: Optional[dict] = N
     return _format_question_text(doc)
 
 
-def hd_epic_doc_to_messages(doc: dict, lmms_eval_specific_kwargs: Optional[dict] = None) -> List[dict]:
+def hd_epic_doc_to_messages(doc: dict, lmms_eval_specific_kwargs: dict | None = None) -> list[dict]:
     """
     Chat-model path (recommended). Produces a structured message list:
 
@@ -274,10 +276,10 @@ def hd_epic_doc_to_messages(doc: dict, lmms_eval_specific_kwargs: Optional[dict]
     )
 
     video_dir = _resolve_video_dir(doc)
-    video_ids: List[str] = doc.get("video_ids", [])
-    input_labels: List[str] = doc.get("input_labels", [])
-    start_times: List[float] = doc.get("start_times", [])
-    end_times: List[float] = doc.get("end_times", [])
+    video_ids: list[str] = doc.get("video_ids", [])
+    input_labels: list[str] = doc.get("input_labels", [])
+    start_times: list[float] = doc.get("start_times", [])
+    end_times: list[float] = doc.get("end_times", [])
 
     user_content = []
     for i, (vid, st, et) in enumerate(zip(video_ids, start_times, end_times)):
@@ -300,7 +302,7 @@ def hd_epic_doc_to_messages(doc: dict, lmms_eval_specific_kwargs: Optional[dict]
     ]
 
 
-def hd_epic_process_results(doc: dict, results: List[str]) -> dict:
+def hd_epic_process_results(doc: dict, results: list[str]) -> dict:
     """
     Parse the model's free-text response and compare it to `correct_idx`.
 
@@ -336,7 +338,7 @@ def hd_epic_doc_to_target(doc: dict) -> str:
     return CHOICE_LETTERS[correct_idx]
 
 
-def hd_epic_aggregate_accuracy(results: List[float]) -> float:
+def hd_epic_aggregate_accuracy(results: list[float]) -> float:
     """Aggregate accuracy across all results."""
     if not results:
         return 0.0

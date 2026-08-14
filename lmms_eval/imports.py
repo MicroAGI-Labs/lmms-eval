@@ -26,7 +26,7 @@ from __future__ import annotations
 import importlib
 import importlib.util
 from functools import lru_cache
-from typing import Any, Optional, Tuple
+from typing import Any
 
 
 @lru_cache(maxsize=128)
@@ -37,9 +37,9 @@ def is_package_available(package_name: str) -> bool:
 
 def optional_import(
     module_name: str,
-    attribute: Optional[str] = None,
+    attribute: str | None = None,
     fallback: Any = None,
-) -> Tuple[Any, bool]:
+) -> tuple[Any, bool]:
     """Import a module or attribute optionally, returning fallback if unavailable.
 
     Args:
@@ -69,8 +69,8 @@ class MissingOptionalDependencyError(ImportError):
     def __init__(
         self,
         package: str,
-        extras: Optional[str] = None,
-        feature: Optional[str] = None,
+        extras: str | None = None,
+        feature: str | None = None,
     ):
         if extras:
             install_cmd = f"pip install lmms_eval[{extras}]"
@@ -84,8 +84,8 @@ class MissingOptionalDependencyError(ImportError):
 
 def require_package(
     package: str,
-    extras: Optional[str] = None,
-    feature: Optional[str] = None,
+    extras: str | None = None,
+    feature: str | None = None,
 ) -> None:
     """Require an optional package, raising helpful error if missing."""
     if not is_package_available(package):

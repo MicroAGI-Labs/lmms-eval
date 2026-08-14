@@ -75,7 +75,9 @@ def gedit_bench_doc_to_target(doc):
     return doc.get("instruction", "")
 
 
-def _create_all_metric_results(key, task_type, instruction_language, semantics_score, quality_score, overall_score, intersection_exist):
+def _create_all_metric_results(
+    key, task_type, instruction_language, semantics_score, quality_score, overall_score, intersection_exist
+):
     """
     Create result dict with all metric keys for detailed breakdown.
 
@@ -158,8 +160,12 @@ def gedit_bench_process_results(doc, results, **kwargs):
         edited_image_pil = Image.open(model_images[0]).convert("RGB")
 
         # Resize images to target area (512x512 equivalent)
-        source_img_width, source_img_height, _ = calculate_dimensions(512 * 512, input_image_pil.width / input_image_pil.height)
-        edited_img_width, edited_img_height, _ = calculate_dimensions(512 * 512, edited_image_pil.width / edited_image_pil.height)
+        source_img_width, source_img_height, _ = calculate_dimensions(
+            512 * 512, input_image_pil.width / input_image_pil.height
+        )
+        edited_img_width, edited_img_height, _ = calculate_dimensions(
+            512 * 512, edited_image_pil.width / edited_image_pil.height
+        )
 
         input_image_pil = input_image_pil.resize((source_img_width, source_img_height))
         edited_image_pil = edited_image_pil.resize((edited_img_width, edited_img_height))
@@ -171,7 +177,15 @@ def gedit_bench_process_results(doc, results, **kwargs):
         score_list = vie_score.evaluate([input_image_pil, edited_image_pil], instruction)
         semantics_score, quality_score, overall_score = score_list
 
-        return _create_all_metric_results(key, task_type, instruction_language, float(semantics_score), float(quality_score), float(overall_score), intersection_exist)
+        return _create_all_metric_results(
+            key,
+            task_type,
+            instruction_language,
+            float(semantics_score),
+            float(quality_score),
+            float(overall_score),
+            intersection_exist,
+        )
     except Exception as e:
         eval_logger.error(f"Error evaluating key {key}: {e}")
         return _create_all_metric_results(key, task_type, instruction_language, 0.0, 0.0, 0.0, intersection_exist)
@@ -245,7 +259,9 @@ def gedit_bench_aggregate_results(results):
 
     if non_intersection_scores:
         non_intersection_avg = np.mean(non_intersection_scores)
-        eval_logger.info(f"Non-intersection samples average: {non_intersection_avg:.4f} (n={len(non_intersection_scores)})")
+        eval_logger.info(
+            f"Non-intersection samples average: {non_intersection_avg:.4f} (n={len(non_intersection_scores)})"
+        )
 
     return float(avg_score)
 

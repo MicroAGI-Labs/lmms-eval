@@ -1,11 +1,6 @@
-import json
-import logging
-import os
-import random
 import re
 from collections import defaultdict
 
-import numpy as np
 from PIL import Image
 
 MULTI_CHOICE_DIRECT_PROMPT = "Answer the question with the option's letter from the given choices directly."
@@ -36,7 +31,9 @@ def VisualPuzzles_doc_to_text(doc, lmms_eval_specific_kwargs):
     question = "Question: " + doc["question"].strip()
     options = doc["options"]
     if options is not None:
-        question += "\nOptions:\n(A) " + options[0] + "\n(B) " + options[1] + "\n(C) " + options[2] + "\n(D) " + options[3]
+        question += (
+            "\nOptions:\n(A) " + options[0] + "\n(B) " + options[1] + "\n(C) " + options[2] + "\n(D) " + options[3]
+        )
     else:
         question += "\nOptions: Choose from (A) (B) (C) (D) in the image."
     question += "\n" + PROMPTS[lmms_eval_specific_kwargs["prompt"]]
@@ -149,7 +146,10 @@ def VisualPuzzles_process_result(doc, results):
     category = doc.get("category", "Unknown")
 
     # Return results for both category-specific and overall metrics
-    result_dict = {category: {"question_id": doc.get("id", doc.get("idx", "unknown")), "category": category, "score": score}, "average": {"question_id": doc.get("id", doc.get("idx", "unknown")), "category": category, "score": score}}
+    result_dict = {
+        category: {"question_id": doc.get("id", doc.get("idx", "unknown")), "category": category, "score": score},
+        "average": {"question_id": doc.get("id", doc.get("idx", "unknown")), "category": category, "score": score},
+    }
 
     return result_dict
 
@@ -236,7 +236,9 @@ def VisualPuzzles_doc_to_text_visual_cot_algorithmic(doc, lmms_eval_specific_kwa
     question = "Question: " + doc["question"].strip()
     options = doc["options"]
     if options is not None:
-        question += "\nOptions:\n(A) " + options[0] + "\n(B) " + options[1] + "\n(C) " + options[2] + "\n(D) " + options[3]
+        question += (
+            "\nOptions:\n(A) " + options[0] + "\n(B) " + options[1] + "\n(C) " + options[2] + "\n(D) " + options[3]
+        )
     else:
         question += "\nOptions: Choose from (A) (B) (C) (D) in the image."
 
@@ -277,7 +279,9 @@ def VisualPuzzles_doc_to_text_visual_cot_analogical(doc, lmms_eval_specific_kwar
     question = "Question: " + doc["question"].strip()
     options = doc["options"]
     if options is not None:
-        question += "\nOptions:\n(A) " + options[0] + "\n(B) " + options[1] + "\n(C) " + options[2] + "\n(D) " + options[3]
+        question += (
+            "\nOptions:\n(A) " + options[0] + "\n(B) " + options[1] + "\n(C) " + options[2] + "\n(D) " + options[3]
+        )
     else:
         question += "\nOptions: Choose from (A) (B) (C) (D) in the image."
 
@@ -318,7 +322,9 @@ def VisualPuzzles_doc_to_text_visual_cot_deductive(doc, lmms_eval_specific_kwarg
     question = "Question: " + doc["question"].strip()
     options = doc["options"]
     if options is not None:
-        question += "\nOptions:\n(A) " + options[0] + "\n(B) " + options[1] + "\n(C) " + options[2] + "\n(D) " + options[3]
+        question += (
+            "\nOptions:\n(A) " + options[0] + "\n(B) " + options[1] + "\n(C) " + options[2] + "\n(D) " + options[3]
+        )
     else:
         question += "\nOptions: Choose from (A) (B) (C) (D) in the image."
 
@@ -360,7 +366,9 @@ def VisualPuzzles_doc_to_text_visual_cot_inductive(doc, lmms_eval_specific_kwarg
     question = "Question: " + doc["question"].strip()
     options = doc["options"]
     if options is not None:
-        question += "\nOptions:\n(A) " + options[0] + "\n(B) " + options[1] + "\n(C) " + options[2] + "\n(D) " + options[3]
+        question += (
+            "\nOptions:\n(A) " + options[0] + "\n(B) " + options[1] + "\n(C) " + options[2] + "\n(D) " + options[3]
+        )
     else:
         question += "\nOptions: Choose from (A) (B) (C) (D) in the image."
 
@@ -402,7 +410,9 @@ def VisualPuzzles_doc_to_text_visual_cot_spatial(doc, lmms_eval_specific_kwargs=
     question = "Question: " + doc["question"].strip()
     options = doc["options"]
     if options is not None:
-        question += "\nOptions:\n(A) " + options[0] + "\n(B) " + options[1] + "\n(C) " + options[2] + "\n(D) " + options[3]
+        question += (
+            "\nOptions:\n(A) " + options[0] + "\n(B) " + options[1] + "\n(C) " + options[2] + "\n(D) " + options[3]
+        )
     else:
         question += "\nOptions: Choose from (A) (B) (C) (D) in the image."
 

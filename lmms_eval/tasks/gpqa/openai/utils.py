@@ -3,7 +3,6 @@ import random
 import re
 import time
 from collections import Counter
-from typing import Dict, List, Optional
 
 import datasets
 import openai
@@ -15,7 +14,9 @@ QUERY_TEMPLATE_API = "{Question}\nAnswer Choices:\n(A) {choice1}\n(B) {choice2}\
 if os.getenv("PROMPTLONG") is not None:
     QUERY_TEMPLATE += "\n\nAnswer after a long amount of thinking. If you feel like you are finished early, spend the extra time trying to double-check your work until you are absolutely sure that you have the correct answer."
 elif os.getenv("PROMPTSHORT") is not None:
-    QUERY_TEMPLATE += "\n\nAnswer after a short amount of thinking. Do not spend excessive time double-checking your work."
+    QUERY_TEMPLATE += (
+        "\n\nAnswer after a short amount of thinking. Do not spend excessive time double-checking your work."
+    )
 elif os.getenv("PROMPTTOKEN") is not None:
     QUERY_TEMPLATE += "\n\nThink for up to " + os.getenv("PROMPTTOKEN") + " tokens."
 elif os.getenv("PROMPTSTEP") is not None:
@@ -154,7 +155,7 @@ class ChatCompletionSampler:
             # unknown error shall throw exception
 
 
-def process_results(doc: dict, results: List[str]) -> Dict[str, int]:
+def process_results(doc: dict, results: list[str]) -> dict[str, int]:
     metrics = {"exact_match": None, "extracted_answers": []}
     # Multiple results -> we are measuring cov/maj etc
     if len(results) > 1:
@@ -172,9 +173,17 @@ def process_results(doc: dict, results: List[str]) -> Dict[str, int]:
 
     if os.getenv("PROCESSOR", "") == "gpt-4o-mini":
         sampler = ChatCompletionSampler(model="gpt-4o-mini")
-        question = QUERY_TEMPLATE_API.format(Question=doc["Question"], choice1=doc["choice1"], choice2=doc["choice2"], choice3=doc["choice3"], choice4=doc["choice4"])
+        question = QUERY_TEMPLATE_API.format(
+            Question=doc["Question"],
+            choice1=doc["choice1"],
+            choice2=doc["choice2"],
+            choice3=doc["choice3"],
+            choice4=doc["choice4"],
+        )
     else:
-        print(f"Unknown processor: {os.getenv('PROCESSOR')}; set 'PROCESSOR=gpt-4o-mini' and 'OPENAI_API_KEY=YOUR_KEY' for best results.")
+        print(
+            f"Unknown processor: {os.getenv('PROCESSOR')}; set 'PROCESSOR=gpt-4o-mini' and 'OPENAI_API_KEY=YOUR_KEY' for best results."
+        )
         sampler = None
 
     split_tokens = ["<|im_start|>answer\n", "<|im_start|>"]
@@ -202,7 +211,7 @@ def process_results(doc: dict, results: List[str]) -> Dict[str, int]:
                 pass  # TODO: Maybe add back legacy processing
 
         if a not in ["A", "B", "C", "D"]:
-            print(f"Warning: Default to A as given {results[i-1]} extracted {a}")
+            print(f"Warning: Default to A as given {results[i - 1]} extracted {a}")
             a = "A"
 
         metrics["extracted_answers"].append(a)
@@ -247,7 +256,7 @@ def process_docs(dataset: datasets.Dataset) -> datasets.Dataset:
     return dataset.map(_process_doc)
 
 
-def last_boxed_only_string(string: str) -> Optional[str]:
+def last_boxed_only_string(string: str) -> str | None:
     idx = string.rfind("\\boxed")
     if "\\boxed " in string:
         return "\\boxed " + string.split("\\boxed ")[-1].split("$")[0]
@@ -292,4 +301,10 @@ def remove_boxed(s: str) -> str:
 
 
 def doc_to_text_gpqa(doc: dict) -> str:
-    return QUERY_TEMPLATE.format(Question=doc["Question"], choice1=doc["choice1"], choice2=doc["choice2"], choice3=doc["choice3"], choice4=doc["choice4"])
+    return QUERY_TEMPLATE.format(
+        Question=doc["Question"],
+        choice1=doc["choice1"],
+        choice2=doc["choice2"],
+        choice3=doc["choice3"],
+        choice4=doc["choice4"],
+    )

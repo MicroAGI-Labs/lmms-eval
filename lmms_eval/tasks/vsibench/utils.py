@@ -1,4 +1,5 @@
 import os
+from collections.abc import Callable
 from functools import partial
 from pathlib import Path
 
@@ -23,18 +24,21 @@ NA_QUESTION_TYPES = [
     "room_size_estimation",
 ]
 
-METRICS_FOR_MCA = {
-    "accuracy": "exact_match",
-}
-
-METRICS_FOR_NA = {
-    "MRA:.5:.95:.05": "partial(mean_relative_accuracy, start=.5, end=.95, interval=.05)",
-}
+# Metric callable dicts are populated below, *after* the metric functions are
+# defined (Python eagerly evaluates the dict values, so the referenced
+# callables must already exist at module-import time). This replaces the
+# upstream pattern of storing the metric as an ``eval()``-able source string,
+# which is brittle: the string is parsed at process-results time, references
+# resolved against the module globals at that moment, and a missing import
+# raises ``NameError`` mid-eval. Direct Callable values catch any rename or
+# missing-import at module-load time instead.
+METRICS_FOR_MCA: dict[str, Callable[..., float]] = {}
+METRICS_FOR_NA: dict[str, Callable[..., float]] = {}
 
 
 hf_home = os.getenv("HF_HOME", "~/.cache/huggingface/")
 base_cache_dir = os.path.expanduser(hf_home)
-with open(Path(__file__).parent / "vsibench.yaml", "r") as f:
+with open(Path(__file__).parent / "vsibench.yaml") as f:
     raw_data = f.readlines()
     safe_data = []
     for i, line in enumerate(raw_data):
@@ -60,11 +64,17 @@ def vsibench_doc_to_text(doc, lmms_eval_specific_kwargs=None):
     pre_prompt = lmms_eval_specific_kwargs.get("pre_prompt", "") or "These are frames of a video."
 
     if doc["question_type"] in NA_QUESTION_TYPES:
-        post_prompt = lmms_eval_specific_kwargs.get("na_post_prompt", "") or "Please answer the question using a single word or phrase."
+        post_prompt = (
+            lmms_eval_specific_kwargs.get("na_post_prompt", "")
+            or "Please answer the question using a single word or phrase."
+        )
         return pre_prompt + "\n" + question + "\n" + post_prompt
     elif doc["question_type"] in MCA_QUESTION_TYPES:
         options = "Options:\n" + "\n".join(doc["options"])
-        post_prompt = lmms_eval_specific_kwargs.get("mca_post_prompt", "") or "Answer with the option's letter from the given choices directly."
+        post_prompt = (
+            lmms_eval_specific_kwargs.get("mca_post_prompt", "")
+            or "Answer with the option's letter from the given choices directly."
+        )
         return "\n".join([pre_prompt, question, options, post_prompt])
     else:
         raise ValueError(f"Unknown question type: {doc['question_type']}")
@@ -96,6 +106,13 @@ def mean_relative_accuracy(pred, target, start, end, interval):
     return accuracy.mean()
 
 
+# Populate the metric registries now that the callables they reference are
+# defined. ``MRA:.5:.95:.05`` reads as "mean relative accuracy across IoU-style
+# thresholds from 0.5 to 0.95 in steps of 0.05" per the upstream paper.
+METRICS_FOR_MCA["accuracy"] = exact_match
+METRICS_FOR_NA["MRA:.5:.95:.05"] = partial(mean_relative_accuracy, start=0.5, end=0.95, interval=0.05)
+
+
 WORST_CASE_FOR_METRICS = {
     "accuracy": 0.0,
     "MRA:.5:.95:.05": 0.0,
@@ -113,13 +130,16 @@ def to_float(pred):
 def vsibench_process_results(doc, results):
     doc["prediction"] = results[0]
     if doc["question_type"] in MCA_QUESTION_TYPES:
-        for key, value in METRICS_FOR_MCA.items():
-            doc[key] = eval(value)(fuzzy_matching(doc["prediction"]), doc["ground_truth"])
+        for key, metric_fn in METRICS_FOR_MCA.items():
+            doc[key] = metric_fn(fuzzy_matching(doc["prediction"]), doc["ground_truth"])
     elif doc["question_type"] in NA_QUESTION_TYPES:
-        for key, value in METRICS_FOR_NA.items():
+        for key, metric_fn in METRICS_FOR_NA.items():
             try:
-                doc[key] = eval(value)(to_float(fuzzy_matching(doc["prediction"])), to_float(doc["ground_truth"]))
+                doc[key] = metric_fn(to_float(fuzzy_matching(doc["prediction"])), to_float(doc["ground_truth"]))
             except TypeError:
+                # to_float returns None for non-numeric predictions; the metric
+                # then tries arithmetic on None and raises TypeError. Fall back
+                # to the per-metric worst case so the row still tallies.
                 doc[key] = WORST_CASE_FOR_METRICS[key]
     else:
         raise ValueError(f"Unknown question type: {doc['question_type']}")

@@ -1,6 +1,6 @@
 import os
 import re
-from typing import Any, Optional
+from typing import Any
 
 import requests
 
@@ -65,7 +65,7 @@ TOXICITY_TERMS = [
 ]
 
 
-def safety_redteam_doc_to_text(doc: dict[str, Any], lmms_eval_specific_kwargs: Optional[dict[str, str]] = None) -> str:
+def safety_redteam_doc_to_text(doc: dict[str, Any], lmms_eval_specific_kwargs: dict[str, str] | None = None) -> str:
     if lmms_eval_specific_kwargs is None:
         lmms_eval_specific_kwargs = {}
 
@@ -115,7 +115,7 @@ def _heuristic_toxicity_score(response: str) -> float:
     return min(1.0, hits / 4.0)
 
 
-def _perspective_toxicity_score(response: str) -> Optional[float]:
+def _perspective_toxicity_score(response: str) -> float | None:
     api_key = os.getenv("PERSPECTIVE_API_KEY")
     if not api_key:
         return None

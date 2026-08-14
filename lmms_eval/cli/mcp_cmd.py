@@ -10,7 +10,9 @@ def add_mcp_parser(subparsers: argparse._SubParsersAction) -> None:
         "mcp",
         help="Start the MCP (Model Context Protocol) server for AI agent integration",
     )
-    p.add_argument("--transport", type=str, default="stdio", choices=["stdio", "sse"], help="MCP transport type (default: stdio)")
+    p.add_argument(
+        "--transport", type=str, default="stdio", choices=["stdio", "sse"], help="MCP transport type (default: stdio)"
+    )
     p.set_defaults(func=run_mcp)
 
 

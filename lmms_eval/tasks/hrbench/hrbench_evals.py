@@ -45,7 +45,12 @@ class HRBenchEval:
         if "Failed to obtain answer via API" in answer:
             return False
 
-        reject_to_answer = ["Sorry, I can't help with images of people yet.", "I can't process this file.", "I'm sorry, but without the image provided", "Cannot determine the answer"]
+        reject_to_answer = [
+            "Sorry, I can't help with images of people yet.",
+            "I can't process this file.",
+            "I'm sorry, but without the image provided",
+            "Cannot determine the answer",
+        ]
         for err in reject_to_answer:
             if err in answer:
                 return "Z"
@@ -107,7 +112,13 @@ class HRBenchEval:
         messages = [
             {"role": "user", "content": prompt},
         ]
-        payload = {"model": self.gpt_model, "messages": messages, "temperature": temperature, "max_tokens": max_tokens, "n": 1}
+        payload = {
+            "model": self.gpt_model,
+            "messages": messages,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+            "n": 1,
+        }
 
         while patience > 0:
             patience -= 1

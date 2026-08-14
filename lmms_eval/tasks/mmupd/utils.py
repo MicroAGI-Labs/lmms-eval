@@ -6,12 +6,11 @@ from pathlib import Path
 
 import pandas as pd
 import yaml
-from PIL import Image
-
 from lmms_eval.tasks._task_utils.file_utils import generate_submission_file
 from lmms_eval.tasks.mmupd.mmupd_evals import MMUPD_Evaluator
+from PIL import Image
 
-with open(Path(__file__).parent / "mmupd.yaml", "r") as f:
+with open(Path(__file__).parent / "mmupd.yaml") as f:
     raw_data = f.readlines()
     safe_data = []
     for i, line in enumerate(raw_data):
@@ -35,7 +34,9 @@ else:
     API_KEY = "YOUR_API_KEY"
 
 
-mmupd_evaluator = MMUPD_Evaluator(sys_prompt=config["metadata"]["sys_prompt"], API_KEY=API_KEY, API_URL=API_URL, model_version=GPT_EVAL_MODEL_NAME)
+mmupd_evaluator = MMUPD_Evaluator(
+    sys_prompt=config["metadata"]["sys_prompt"], API_KEY=API_KEY, API_URL=API_URL, model_version=GPT_EVAL_MODEL_NAME
+)
 
 
 def mmupd_doc_to_visual(doc):
@@ -59,7 +60,11 @@ def mmupd_doc_to_text(doc, lmms_eval_specific_kwargs=None):
         "split": doc["split"],
     }
 
-    query_prompt = f"{data['hint']}\n{data['question']}{data['options']}" if pd.notna(data["hint"]) and data["hint"] != "nan" else f"{data['question']}{data['options']}"
+    query_prompt = (
+        f"{data['hint']}\n{data['question']}{data['options']}"
+        if pd.notna(data["hint"]) and data["hint"] != "nan"
+        else f"{data['question']}{data['options']}"
+    )
 
     if lmms_eval_specific_kwargs:
         query_prompt = f"{query_prompt}{lmms_eval_specific_kwargs['post_prompt']}"
@@ -141,10 +146,16 @@ def mmivqd_instruction(results, args):
 def mmupd_results_eval(results, args, upd_type, question_type):
     print("============= MMUPD Bench Detailed Results =============")
 
-    overall_acc_standard, category_acc_standard, standard_results_df = mmupd_evaluator.eval_result(results, eval_method="openai", upd_type=upd_type, question_type=question_type, eval_type="standard")
-    overall_acc_upd, category_acc_upd, upd_results_df = mmupd_evaluator.eval_result(results, eval_method="openai", upd_type=upd_type, question_type=question_type, eval_type=upd_type)
+    overall_acc_standard, category_acc_standard, standard_results_df = mmupd_evaluator.eval_result(
+        results, eval_method="openai", upd_type=upd_type, question_type=question_type, eval_type="standard"
+    )
+    overall_acc_upd, category_acc_upd, upd_results_df = mmupd_evaluator.eval_result(
+        results, eval_method="openai", upd_type=upd_type, question_type=question_type, eval_type=upd_type
+    )
 
-    overall_acc_dual, category_acc_dual, dual_results_df = mmupd_evaluator.calculate_dual_acc(standard_results_df, upd_results_df)
+    overall_acc_dual, category_acc_dual, dual_results_df = mmupd_evaluator.calculate_dual_acc(
+        standard_results_df, upd_results_df
+    )
 
     file_json = generate_submission_file(f"mmupd_{upd_type}_{question_type}_dual_results.json", args)
 

@@ -11,12 +11,20 @@ def vggsound_doc_to_audio(doc):
     for key in ["audio", "audio_path", "media_path", "file", "path"]:
         value = doc.get(key)
         if value:
-            return [resolve_media_reference(value, media_type="audio", cache_dir="vggsound", env_vars=("VGGSOUND_AUDIO_DIR",))]
+            return [
+                resolve_media_reference(
+                    value, media_type="audio", cache_dir="vggsound", env_vars=("VGGSOUND_AUDIO_DIR",)
+                )
+            ]
 
     for key in ["audio_id", "id", "clip_id"]:
         value = doc.get(key)
         if value:
-            return [resolve_media_reference(str(value), media_type="audio", cache_dir="vggsound", env_vars=("VGGSOUND_AUDIO_DIR",))]
+            return [
+                resolve_media_reference(
+                    str(value), media_type="audio", cache_dir="vggsound", env_vars=("VGGSOUND_AUDIO_DIR",)
+                )
+            ]
     return []
 
 

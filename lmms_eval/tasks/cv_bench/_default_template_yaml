@@ -11,7 +11,7 @@ metric_list:
     higher_is_better: true
 
 generation_kwargs:
-  max_new_tokens: 1024
+  max_new_tokens: 16000
 
 lmms_eval_specific_kwargs:
   default:

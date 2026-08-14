@@ -6,8 +6,6 @@ from collections import defaultdict
 from pathlib import Path
 
 import yaml
-from loguru import logger as eval_logger
-
 from lmms_eval.llm_judge import ServerConfig, get_server
 from lmms_eval.tasks._task_utils.file_utils import generate_submission_file
 from lmms_eval.tasks._task_utils.mmmu_mcq_utils import (
@@ -16,8 +14,9 @@ from lmms_eval.tasks._task_utils.mmmu_mcq_utils import (
 from lmms_eval.tasks._task_utils.mmmu_mcq_utils import (
     parse_mmmu_multi_choice_response,
 )
+from loguru import logger as eval_logger
 
-with open(Path(__file__).parent / "_default_template_yaml", "r") as f:
+with open(Path(__file__).parent / "_default_template_yaml") as f:
     raw_data = f.readlines()
     safe_data = []
     for i, line in enumerate(raw_data):
@@ -71,7 +70,12 @@ def mmmu_doc_to_text(doc, lmms_eval_specific_kwargs=None):
     elif "format" in lmms_eval_specific_kwargs and lmms_eval_specific_kwargs["format"] == "qwen3_vl":
         return mmmu_doc_to_text_qwen3vl(doc, lmms_eval_specific_kwargs)
     else:
-        question = construct_prompt(doc, lmms_eval_specific_kwargs["multiple_choice_prompt"], lmms_eval_specific_kwargs["open_ended_prompt"], lmms_eval_specific_kwargs["prompt_type"])
+        question = construct_prompt(
+            doc,
+            lmms_eval_specific_kwargs["multiple_choice_prompt"],
+            lmms_eval_specific_kwargs["open_ended_prompt"],
+            lmms_eval_specific_kwargs["prompt_type"],
+        )
     if config["metadata"]["interleaved_format"]:
         question = replace_images_tokens(question)
 
@@ -112,7 +116,6 @@ def mmmu_doc_to_messages_qwen3vl(doc, lmms_eval_specific_kwargs=None):
 
 
 def mmmu_doc_to_messages(doc, lmms_eval_specific_kwargs=None):
-
     if "format" in lmms_eval_specific_kwargs and lmms_eval_specific_kwargs["format"] == "qwen3_vl":
         return mmmu_doc_to_messages_qwen3vl(doc, lmms_eval_specific_kwargs)
 
@@ -170,7 +173,13 @@ def mmmu_process_results(doc, results):
             parsed_pred = str(parsed_pred[0]) if parsed_pred else ""
         parsed_preds.append(parsed_pred)
     mmmu_submission = {doc["id"]: parsed_preds[0]}
-    mmmu_exact_acc = {"id": doc["id"], "subdomain": extract_subset_name(doc["id"]), "question_type": doc["question_type"], "answer": doc["answer"], "parsed_pred": parsed_preds}
+    mmmu_exact_acc = {
+        "id": doc["id"],
+        "subdomain": extract_subset_name(doc["id"]),
+        "question_type": doc["question_type"],
+        "answer": doc["answer"],
+        "parsed_pred": parsed_preds,
+    }
     return {"mmmu_acc": mmmu_exact_acc, "mmmu_acc_pass_at_k": mmmu_exact_acc, "submission": mmmu_submission}
 
 
@@ -188,7 +197,9 @@ def mmmu_reasoning_process_results(doc, results):
 
         try:
             # Use the llm_judge API for binary evaluation
-            result = server.evaluate_binary(question=formatted_question, answer=str(answer), prediction=pred, output_format="0/1")
+            result = server.evaluate_binary(
+                question=formatted_question, answer=str(answer), prediction=pred, output_format="0/1"
+            )
 
             # Parse the result
             if result["success"]:
@@ -497,7 +508,9 @@ def parse_open_response(response):
             # if last one, accept it's an equation (the entire response can be just one sentence with equation)
             if index == len(sub_responses) - 1:
                 indicators_of_keys.extend(["="])
-            shortest_key_response = None  # the shortest response that may contain the answer (tail part of the response)
+            shortest_key_response = (
+                None  # the shortest response that may contain the answer (tail part of the response)
+            )
             for indicator in indicators_of_keys:
                 if indicator in resp:
                     if not shortest_key_response:

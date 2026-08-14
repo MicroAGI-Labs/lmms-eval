@@ -1,6 +1,5 @@
 import os
 import time
-from typing import Dict, List, Optional, Union
 
 import requests
 from loguru import logger as eval_logger
@@ -15,7 +14,7 @@ from ..protocol import Request, Response, ServerConfig
 class OpenAIProvider(ServerInterface):
     """OpenAI API implementation of the Judge interface"""
 
-    def __init__(self, config: Optional[ServerConfig] = None):
+    def __init__(self, config: ServerConfig | None = None):
         super().__init__(config)
         self.api_key = os.getenv("OPENAI_API_KEY", "")
         self.api_url = os.getenv("OPENAI_API_URL", "https://api.openai.com/v1/chat/completions/v1")
@@ -105,7 +104,7 @@ class OpenAIProvider(ServerInterface):
                     eval_logger.error(f"All {config.num_retries} attempts failed")
                     raise
 
-    def _make_request(self, payload: Dict, timeout: int) -> Dict:
+    def _make_request(self, payload: dict, timeout: int) -> dict:
         """Make HTTP request to OpenAI API"""
         headers = {
             "Authorization": f"Bearer {self.api_key}",
@@ -116,7 +115,7 @@ class OpenAIProvider(ServerInterface):
         response.raise_for_status()
         return response.json()
 
-    def _add_images_to_messages(self, messages: List[Dict], images: List[Union[str, bytes]]) -> List[Dict]:
+    def _add_images_to_messages(self, messages: list[dict], images: list[str | bytes]) -> list[dict]:
         """Add images to the last user message"""
         # Find the last user message
         for i in range(len(messages) - 1, -1, -1):
@@ -130,10 +129,14 @@ class OpenAIProvider(ServerInterface):
                     if isinstance(image, str):
                         # File path
                         base64_image = self._encode_image(image)
-                        messages[i]["content"].append({"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}})
+                        messages[i]["content"].append(
+                            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}
+                        )
                     elif isinstance(image, bytes):
                         # Already base64 encoded
-                        messages[i]["content"].append({"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image.decode()}"}})
+                        messages[i]["content"].append(
+                            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image.decode()}"}}
+                        )
                 break
 
         return messages

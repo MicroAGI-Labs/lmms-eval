@@ -4,7 +4,7 @@ import re
 from collections import defaultdict
 from functools import lru_cache
 from shutil import copy2
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import datasets
 from loguru import logger as eval_logger
@@ -26,7 +26,7 @@ def _normalize_whitespace(text: str) -> str:
     return re.sub(r"\s+", " ", (text or "").strip())
 
 
-def _split_question_and_options(question_with_options: str) -> Tuple[str, List[Dict[str, str]]]:
+def _split_question_and_options(question_with_options: str) -> tuple[str, list[dict[str, str]]]:
     raw_text = (question_with_options or "").strip()
     if not raw_text:
         return "", []
@@ -37,7 +37,7 @@ def _split_question_and_options(question_with_options: str) -> Tuple[str, List[D
 
     first_match = matches[0]
     question_stem = _normalize_whitespace(raw_text[: first_match.start()])
-    options: List[Dict[str, str]] = []
+    options: list[dict[str, str]] = []
 
     for match in matches:
         label = match.group(2).upper()
@@ -51,11 +51,11 @@ def _split_question_and_options(question_with_options: str) -> Tuple[str, List[D
     return question_stem, options
 
 
-def _coerce_options(options_raw: Any) -> List[Dict[str, str]]:
+def _coerce_options(options_raw: Any) -> list[dict[str, str]]:
     if not isinstance(options_raw, list):
         return []
 
-    options: List[Dict[str, str]] = []
+    options: list[dict[str, str]] = []
     for option in options_raw:
         if isinstance(option, dict):
             label = str(option.get("label", "")).strip().upper()
@@ -66,7 +66,7 @@ def _coerce_options(options_raw: Any) -> List[Dict[str, str]]:
     return options
 
 
-def _to_metadata_row(raw_row: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+def _to_metadata_row(raw_row: dict[str, Any]) -> dict[str, Any] | None:
     if "text" in raw_row and isinstance(raw_row["text"], str):
         line = raw_row["text"].strip()
         if not line:
@@ -82,14 +82,14 @@ def _to_metadata_row(raw_row: Dict[str, Any]) -> Optional[Dict[str, Any]]:
 
 
 def _append_flat_doc(
-    flattened_docs: List[Dict[str, Any]],
+    flattened_docs: list[dict[str, Any]],
     *,
     uid: str,
     question_type: str,
     video_type: str,
     video_path: str,
     question: str,
-    options: List[Dict[str, str]],
+    options: list[dict[str, str]],
     answer: str,
     key: str,
 ) -> None:
@@ -112,7 +112,7 @@ def _append_flat_doc(
 
 
 def _flatten_motionbench_dataset(dataset: datasets.Dataset) -> datasets.Dataset:
-    flattened_docs: List[Dict[str, Any]] = []
+    flattened_docs: list[dict[str, Any]] = []
 
     for raw_row in dataset:
         row = _to_metadata_row(raw_row)
@@ -183,8 +183,8 @@ def motionbench_process_docs(dataset: datasets.Dataset) -> datasets.Dataset:
     return processed
 
 
-def _candidate_video_roots() -> List[str]:
-    roots: List[str] = []
+def _candidate_video_roots() -> list[str]:
+    roots: list[str] = []
 
     configured = os.getenv("MOTIONBENCH_VIDEO_DIR")
     if configured:
@@ -212,7 +212,7 @@ def _is_auto_download_enabled() -> bool:
 
 
 @lru_cache(maxsize=1)
-def _video_repo_index() -> Dict[str, str]:
+def _video_repo_index() -> dict[str, str]:
     try:
         from huggingface_hub import HfApi
     except Exception as exc:
@@ -227,7 +227,7 @@ def _video_repo_index() -> Dict[str, str]:
         eval_logger.warning("[motionbench] failed listing files for {}: {}", repo_id, exc)
         return {}
 
-    index: Dict[str, str] = {}
+    index: dict[str, str] = {}
     for path in files:
         if path.lower().endswith(".mp4"):
             basename = os.path.basename(path)
@@ -236,7 +236,7 @@ def _video_repo_index() -> Dict[str, str]:
     return index
 
 
-def _download_video(video_name: str) -> Optional[str]:
+def _download_video(video_name: str) -> str | None:
     if not _is_auto_download_enabled():
         return None
 
@@ -257,7 +257,12 @@ def _download_video(video_name: str) -> Optional[str]:
         eval_logger.warning("[motionbench] failed downloading {}: {}", video_name, exc)
         return None
 
-    cache_dir = os.path.expanduser(os.getenv("MOTIONBENCH_CACHE_DIR", os.path.join(os.path.expanduser(os.getenv("HF_HOME", "~/.cache/huggingface")), "motionbench", "videos")))
+    cache_dir = os.path.expanduser(
+        os.getenv(
+            "MOTIONBENCH_CACHE_DIR",
+            os.path.join(os.path.expanduser(os.getenv("HF_HOME", "~/.cache/huggingface")), "motionbench", "videos"),
+        )
+    )
     os.makedirs(cache_dir, exist_ok=True)
     flat_path = os.path.join(cache_dir, video_name)
     if not os.path.exists(flat_path):
@@ -268,7 +273,7 @@ def _download_video(video_name: str) -> Optional[str]:
     return flat_path
 
 
-def _resolve_video_path(doc: Dict[str, Any]) -> Optional[str]:
+def _resolve_video_path(doc: dict[str, Any]) -> str | None:
     video_name = str(doc.get("video_path", "")).strip()
     if not video_name:
         return None
@@ -290,7 +295,7 @@ def _resolve_video_path(doc: Dict[str, Any]) -> Optional[str]:
     return None
 
 
-def motionbench_doc_to_visual(doc: Dict[str, Any], lmms_eval_specific_kwargs: Optional[dict] = None):
+def motionbench_doc_to_visual(doc: dict[str, Any], lmms_eval_specific_kwargs: dict | None = None):
     global _MISSING_VIDEO_WARNING_EMITTED
 
     video_path = _resolve_video_path(doc)
@@ -298,12 +303,14 @@ def motionbench_doc_to_visual(doc: Dict[str, Any], lmms_eval_specific_kwargs: Op
         return [video_path]
 
     if not _MISSING_VIDEO_WARNING_EMITTED:
-        eval_logger.warning("[motionbench] Video not found for sample. Set MOTIONBENCH_VIDEO_DIR to local dataset or keep MOTIONBENCH_AUTO_DOWNLOAD=1 for best-effort fetch. Continuing with text-only fallback.")
+        eval_logger.warning(
+            "[motionbench] Video not found for sample. Set MOTIONBENCH_VIDEO_DIR to local dataset or keep MOTIONBENCH_AUTO_DOWNLOAD=1 for best-effort fetch. Continuing with text-only fallback."
+        )
         _MISSING_VIDEO_WARNING_EMITTED = True
     return []
 
 
-def _resolve_prompt_kwargs(lmms_eval_specific_kwargs: Optional[dict]) -> Dict[str, str]:
+def _resolve_prompt_kwargs(lmms_eval_specific_kwargs: dict | None) -> dict[str, str]:
     kwargs = lmms_eval_specific_kwargs or {}
     if isinstance(kwargs.get("default"), dict):
         merged = dict(kwargs["default"])
@@ -314,7 +321,7 @@ def _resolve_prompt_kwargs(lmms_eval_specific_kwargs: Optional[dict]) -> Dict[st
     return kwargs
 
 
-def motionbench_doc_to_text(doc: Dict[str, Any], lmms_eval_specific_kwargs: Optional[dict] = None) -> str:
+def motionbench_doc_to_text(doc: dict[str, Any], lmms_eval_specific_kwargs: dict | None = None) -> str:
     prompt_kwargs = _resolve_prompt_kwargs(lmms_eval_specific_kwargs)
     pre_prompt = prompt_kwargs.get("pre_prompt", "")
     post_prompt = prompt_kwargs.get("post_prompt", "Answer with only the option letter (A, B, C, D, E, or F).")
@@ -336,9 +343,9 @@ def motionbench_doc_to_text(doc: Dict[str, Any], lmms_eval_specific_kwargs: Opti
     return f"{pre_prompt}{body}\n{post_prompt}".strip()
 
 
-def motionbench_doc_to_messages(doc: Dict[str, Any], lmms_eval_specific_kwargs: Optional[dict] = None):
+def motionbench_doc_to_messages(doc: dict[str, Any], lmms_eval_specific_kwargs: dict | None = None):
     prompt = motionbench_doc_to_text(doc, lmms_eval_specific_kwargs=lmms_eval_specific_kwargs)
-    content: List[Dict[str, Any]] = []
+    content: list[dict[str, Any]] = []
 
     for video_path in motionbench_doc_to_visual(doc, lmms_eval_specific_kwargs=lmms_eval_specific_kwargs):
         content.append({"type": "video", "url": video_path})
@@ -384,7 +391,7 @@ def _extract_choice_letter(text: str) -> str:
     return ""
 
 
-def motionbench_process_results(doc: Dict[str, Any], results):
+def motionbench_process_results(doc: dict[str, Any], results):
     response = results[0] if results else ""
     pred = _extract_choice_letter(response)
     target = str(doc.get("answer", "")).strip().upper()

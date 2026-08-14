@@ -12,16 +12,10 @@ import re
 import subprocess
 import sys
 import warnings
+from collections.abc import Callable, Iterable, Iterator
 from typing import (
     Any,
-    Callable,
-    Iterable,
-    Iterator,
-    List,
     Literal,
-    Optional,
-    Tuple,
-    Union,
 )
 
 import yaml
@@ -129,7 +123,7 @@ def is_multimodal_content(value: Any) -> bool:
     return False
 
 
-def resolve_cache_dir(cache_dir: str, base_dir: Optional[str] = None) -> str:
+def resolve_cache_dir(cache_dir: str, base_dir: str | None = None) -> str:
     """Resolve cache paths while allowing env vars and absolute paths.
 
     Relative values are resolved against ``base_dir`` when provided.
@@ -284,7 +278,7 @@ class MultiChoice:
                 eval_logger.info("Available tasks to choose:")
                 for choice in self.choices:
                     eval_logger.info(f"  - {choice}")
-                raise ValueError("'{}' is not in task list".format(value))
+                raise ValueError(f"'{value}' is not in task list")
         return True
 
     def __iter__(self) -> Iterator:
@@ -340,7 +334,9 @@ def sanitize_model_name(model_name: str, full_path: bool = False) -> str:
         return re.sub(r"[\"<>:/\|\\?\*\[\]]+", "__", model_name)
     else:
         parts = model_name.split("/")
-        last_two = "/".join(parts[-2:]) if len(parts) > 1 else parts[-1]  # accommondate for models that are in Hugging Face Hub format like lmms-lab/llava-onevision-qwen2-0.5b
+        last_two = (
+            "/".join(parts[-2:]) if len(parts) > 1 else parts[-1]
+        )  # accommondate for models that are in Hugging Face Hub format like lmms-lab/llava-onevision-qwen2-0.5b
         return re.sub(r"[\"<>:/\|\\?\*\[\]]+", "__", last_two)
 
 
@@ -351,21 +347,21 @@ def sanitize_task_name(task_name: str) -> str:
     return re.sub(r"\W", "_", task_name)
 
 
-def get_latest_filename(filenames: List[str]) -> str:
+def get_latest_filename(filenames: list[str]) -> str:
     """
     Given a list of filenames, returns the filename with the latest datetime.
     """
     return max(filenames, key=lambda f: get_file_datetime(f))
 
 
-def get_results_filenames(filenames: List[str]) -> List[str]:
+def get_results_filenames(filenames: list[str]) -> list[str]:
     """
     Extracts filenames that correspond to aggregated results.
     """
     return [f for f in filenames if "results" in f and ".json" in f]
 
 
-def get_sample_results_filenames(filenames: List[str]) -> List[str]:
+def get_sample_results_filenames(filenames: list[str]) -> list[str]:
     """
     Extracts filenames that correspond to sample results.
     """
@@ -432,7 +428,7 @@ class EnhancedJSONEncoder(json.JSONEncoder):
 
 
 class Reorderer:
-    def __init__(self, arr: List[Any], fn: Callable) -> None:
+    def __init__(self, arr: list[Any], fn: Callable) -> None:
         """Reorder an array according to some function
 
         Args:
@@ -657,12 +653,37 @@ def make_table(result_dict, column: str = "results", sort_results: bool = False)
                 ci_str = "N/A"
             # P_Value column
             pval = dic.get("paired_pvalue")
-            pval_str = "%.4f*" % pval if isinstance(pval, (int, float)) and pval < 0.05 else ("%.4f" % pval if isinstance(pval, (int, float)) else "N/A")
+            pval_str = (
+                "%.4f*" % pval
+                if isinstance(pval, (int, float)) and pval < 0.05
+                else ("%.4f" % pval if isinstance(pval, (int, float)) else "N/A")
+            )
 
             # Check if v is not empty (handle numpy array safely)
             is_empty = hasattr(v, "__len__") and not isinstance(v, str) and len(v) == 0
             if not is_empty:
-                values.append([k, f, n, m, hib, v, "±", se, se_clt, se_clustered, ea, ca, iv, cr, baseline_str, diff_str, ci_str, pval_str])
+                values.append(
+                    [
+                        k,
+                        f,
+                        n,
+                        m,
+                        hib,
+                        v,
+                        "±",
+                        se,
+                        se_clt,
+                        se_clustered,
+                        ea,
+                        ca,
+                        iv,
+                        cr,
+                        baseline_str,
+                        diff_str,
+                        ci_str,
+                        pval_str,
+                    ]
+                )
 
     # Determine which optional columns to hide (all values are N/A)
     cols_to_hide = set()
@@ -732,7 +753,11 @@ def positional_deprecated(fn):
     @functools.wraps(fn)
     def _wrapper(*args, **kwargs):
         if len(args) != 1 if inspect.ismethod(fn) else 0:
-            print(f"WARNING: using {fn.__name__} with positional arguments is " "deprecated and will be disallowed in a future version of " "lmms-evaluation-harness!")
+            print(
+                f"WARNING: using {fn.__name__} with positional arguments is "
+                "deprecated and will be disallowed in a future version of "
+                "lmms-evaluation-harness!"
+            )
         return fn(*args, **kwargs)
 
     return _wrapper
@@ -755,7 +780,7 @@ def find_test_root(start_path: pathlib.Path) -> pathlib.Path:
 
 
 @positional_deprecated
-def run_task_tests(task_list: List[str]):
+def run_task_tests(task_list: list[str]):
     """
     Find the package root and run the tests for the given tasks
     """
@@ -772,7 +797,9 @@ def run_task_tests(task_list: List[str]):
     sys.path.append(str(package_root))
     pytest_return_val = pytest.main(args)
     if pytest_return_val:
-        raise ValueError(f"Not all tests for the specified tasks ({task_list}) ran successfully! Error code: {pytest_return_val}")
+        raise ValueError(
+            f"Not all tests for the specified tasks ({task_list}) ran successfully! Error code: {pytest_return_val}"
+        )
 
 
 def get_git_commit_hash():
@@ -876,7 +903,7 @@ def get_datetime_str(timezone="Asia/Singapore"):
     """
     # Default: UTC+8 timezone
     tz = pytz.timezone(timezone)
-    utc_now = datetime.datetime.now(datetime.timezone.utc)
+    utc_now = datetime.datetime.now(datetime.UTC)
     local_time = utc_now.astimezone(tz)
     return local_time.strftime("%Y%m%d_%H%M%S")
 
@@ -900,7 +927,7 @@ def import_function(loader, node):
         module_name = ".".join(module_name)
 
     # 1) Try relative file import (original behavior)
-    module_path = os.path.normpath(os.path.join(yaml_path, "{}.py".format(module_name)))
+    module_path = os.path.normpath(os.path.join(yaml_path, f"{module_name}.py"))
     if os.path.exists(module_path):
         spec = importlib.util.spec_from_file_location(module_name, module_path)
         module = importlib.util.module_from_spec(spec)
@@ -916,7 +943,10 @@ def import_function(loader, node):
         return function
     except Exception as ex:
         # Re-raise with context to aid debugging
-        raise ImportError(f"Failed to import function '{function_name}' from module '{module_name}'. " f"Tried relative path '{module_path}' and absolute import.") from ex
+        raise ImportError(
+            f"Failed to import function '{function_name}' from module '{module_name}'. "
+            f"Tried relative path '{module_path}' and absolute import."
+        ) from ex
 
 
 def load_yaml_config(yaml_path=None, yaml_config=None, yaml_dir=None, mode="full"):
@@ -1013,7 +1043,7 @@ def create_iterator(raw_iterator, rank, world_size, limit=None, offset=0):
 
 def pad_and_concat(
     max_length: int,
-    tensors: List[torch.Tensor],
+    tensors: list[torch.Tensor],
     padding_side: Literal["right", "left"] = "right",
 ):
     """
@@ -1021,7 +1051,9 @@ def pad_and_concat(
     length in the batch. Used for batching inputs and continuations in
     seq2seq models.
     """
-    assert padding_side == "left" or padding_side == "right", f"Unrecognized padding type: '{padding_side}' not 'left' or 'right'"
+    assert padding_side == "left" or padding_side == "right", (
+        f"Unrecognized padding type: '{padding_side}' not 'left' or 'right'"
+    )
 
     for i, tensor in enumerate(tensors):
         if len(tensor.shape) == 2:
@@ -1065,7 +1097,7 @@ def clear_torch_cache() -> None:
     torch.cuda.empty_cache()
 
 
-def get_dtype(dtype: Union[str, torch.dtype]) -> torch.dtype:
+def get_dtype(dtype: str | torch.dtype) -> torch.dtype:
     """Converts `dtype` from `str` to torch.dtype when possible. Does not use an instantiated HF AutoConfig"""
     if isinstance(dtype, str) and dtype != "auto":
         # Convert `str` args torch dtype: `float16` -> `torch.float16`
@@ -1113,19 +1145,22 @@ class MultiTokenEOSCriteria(transformers.StoppingCriteria):
 
 def stop_sequences_criteria(
     tokenizer: transformers.PreTrainedTokenizer,
-    stop_sequences: List[str],
+    stop_sequences: list[str],
     initial_decoder_input_length: int,
     batch_size: int,
 ) -> transformers.StoppingCriteriaList:
     return transformers.StoppingCriteriaList(
         [
-            *[MultiTokenEOSCriteria(sequence, tokenizer, initial_decoder_input_length, batch_size) for sequence in stop_sequences],
+            *[
+                MultiTokenEOSCriteria(sequence, tokenizer, initial_decoder_input_length, batch_size)
+                for sequence in stop_sequences
+            ],
         ]
     )
 
 
 # from more_itertools
-def divide(iterable, n) -> List[Iterator]:
+def divide(iterable, n) -> list[Iterator]:
     """Divide the elements from *iterable* into *n* parts, maintaining
     order.
 
@@ -1185,7 +1220,7 @@ class Collator:
 
     def __init__(
         self,
-        arr: List,
+        arr: list,
         sort_fn: Callable,
         group_fn: Callable = lambda x: x[1],
         grouping: bool = False,
@@ -1193,7 +1228,7 @@ class Collator:
         self.grouping = grouping
         self.fn = sort_fn
         self.group_fn = lambda x: group_fn(x[1])  # first index are enumerated indices
-        self.reorder_indices: List = []
+        self.reorder_indices: list = []
         self.size = len(arr)
         self.arr_with_indices: Iterable[Any] = tuple(enumerate(arr))  # [indices, (arr)]
         if self.grouping is True:
@@ -1202,7 +1237,7 @@ class Collator:
     def group_by_index(self) -> None:
         self.arr_with_indices = self.group(self.arr_with_indices, fn=self.group_fn, values=False)
 
-    def get_batched(self, n: int = 1, batch_fn: Optional[Callable] = None) -> Iterator:
+    def get_batched(self, n: int = 1, batch_fn: Callable | None = None) -> Iterator:
         """
         Generates and yields batches from the reordered array.
 
@@ -1226,7 +1261,7 @@ class Collator:
             batch = self.get_chunks(values, n=n, fn=batch_fn)
             yield from batch
 
-    def _reorder(self, arr: Union[List, Tuple[Tuple[int, Any], ...]]) -> List:
+    def _reorder(self, arr: list | tuple[tuple[int, Any], ...]) -> list:
         """
         Reorders the elements in the array based on the sorting function.
 
@@ -1240,7 +1275,7 @@ class Collator:
         self.reorder_indices.extend([x[0] for x in arr])
         yield from [x[1] for x in arr]
 
-    def get_original(self, newarr: List) -> List:
+    def get_original(self, newarr: list) -> list:
         """
         Restores the original order of elements from the reordered list.
 

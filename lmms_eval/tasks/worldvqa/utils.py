@@ -1,100 +1,121 @@
 import base64
 import io
 import os
+import re
+import time
+from functools import lru_cache
 
+from loguru import logger as eval_logger
+from openai import OpenAI
 from PIL import Image
 
-from lmms_eval.tasks.worldqa.utils import (
-    MultiChoiceRegexFilter,
-    worldq_gen_gpt_eval,
-    worldqa_aggregate_gen,
-    worldqa_aggregate_mc,
-    worldqa_aggregate_mc_eval,
-    worldqa_aggregate_mc_ppl,
-    worldqa_doc_to_answer,
-    worldqa_doc_to_answer_mc,
-    worldqa_doc_to_answer_mc_ppl,
-    worldqa_doc_to_choice,
-    worldqa_doc_to_text,
-    worldqa_doc_to_visual,
-    worldqa_process_results,
-    worldqa_process_results_mc,
-)
+JUDGE_MAX_RETRIES = 6
+JUDGE_RETRY_SECONDS = 15
+
+JUDGE_PROMPT = """### Role
+You are an expert judge evaluating whether a model answer is correct for a visual question.
+
+Classify the model answer as exactly one of:
+
+1. Correct: It contains the ground truth's core information, has no contradiction, and its granularity is equal to or finer than the ground truth. Irrelevant details are allowed if they do not conflict.
+2. Incorrect: It contradicts the ground truth, names the wrong entity/value, or is less specific than the ground truth.
+3. Unattempted: It explicitly declines, redirects the user elsewhere, or provides no information from the ground truth without making a contradictory claim.
+
+Ignore differences in formatting, punctuation, language, and abbreviations. A more specific semantically correct answer is Correct. An uncertain answer followed by a wrong specific answer is Incorrect.
+
+Return exactly two lines:
+Evaluation: <brief explanation>
+Label: <Correct, Incorrect, or Unattempted>
+
+Question: {question}
+Model Answer: {model_answer}
+Ground Truth Answer: {ground_truth}
+"""
 
 
-def worldvqa_doc_to_visual(doc):
-    if "image" in doc and doc["image"] is not None:
-        image = doc["image"]
-        if isinstance(image, Image.Image):
-            return [image.convert("RGB")]
-        if isinstance(image, str):
-            if os.path.exists(image):
-                return [Image.open(image).convert("RGB")]
-            decoded = Image.open(io.BytesIO(base64.b64decode(image))).convert("RGB")
-            return [decoded]
-        if isinstance(image, dict):
-            image_path = image.get("path")
-            if image_path and os.path.exists(image_path):
-                return [Image.open(image_path).convert("RGB")]
-            image_bytes = image.get("bytes")
-            if image_bytes is not None:
-                return [Image.open(io.BytesIO(image_bytes)).convert("RGB")]
-
-    video = doc.get("video")
-    if isinstance(video, str) and video:
-        return [video]
-    if isinstance(video, dict):
-        video_path = video.get("path")
-        if video_path:
-            return [video_path]
-
-    try:
-        return worldqa_doc_to_visual(doc)
-    except SystemExit:
-        video_idx = doc.get("video_idx")
-        if not video_idx:
-            return []
-        hf_home = os.path.expanduser(os.getenv("HF_HOME", "~/.cache/huggingface/"))
-        return [os.path.join(hf_home, "multi-hop-reasoning", "videos", f"{video_idx}.mp4")]
+@lru_cache(maxsize=1)
+def _judge_client() -> OpenAI:
+    return OpenAI(api_key=os.environ["JUDGE_API_KEY"], base_url=os.environ["JUDGE_BASE_URL"])
 
 
-def worldvqa_doc_to_text(doc, lmms_eval_specific_kwargs=None):
-    if "option" in doc or "video_idx" in doc:
-        return worldqa_doc_to_text(doc, lmms_eval_specific_kwargs=lmms_eval_specific_kwargs)
+def worldvqa_doc_to_visual(doc: dict) -> list[Image.Image]:
+    image = doc["image"]
+    if isinstance(image, Image.Image):
+        return [image.convert("RGB")]
+    if isinstance(image, str):
+        if os.path.exists(image):
+            return [Image.open(image).convert("RGB")]
+        return [Image.open(io.BytesIO(base64.b64decode(image))).convert("RGB")]
+    if isinstance(image, dict):
+        if image["path"] is not None:
+            return [Image.open(image["path"]).convert("RGB")]
+        return [Image.open(io.BytesIO(image["bytes"])).convert("RGB")]
+    raise TypeError(f"Unsupported WorldVQA image type: {type(image).__name__}")
 
-    if lmms_eval_specific_kwargs is None:
-        lmms_eval_specific_kwargs = {}
 
-    pre_prompt = lmms_eval_specific_kwargs.get("pre_prompt", "")
-    post_prompt = lmms_eval_specific_kwargs.get("post_prompt", "")
-    return f"{pre_prompt}{doc['question'].strip()}{post_prompt}"
+def worldvqa_doc_to_text(doc: dict, lmms_eval_specific_kwargs: dict | None = None) -> str:
+    kwargs = lmms_eval_specific_kwargs or {}
+    detail_prompt = (
+        "请尽可能提供详细的回答。\n" if doc["language"] == "zh" else "Please provide as much detail as possible.\n"
+    )
+    return f"{kwargs.get('pre_prompt', '')}{detail_prompt}{doc['question'].strip()}{kwargs.get('post_prompt', '')}"
 
 
-worldvqa_doc_to_answer = worldqa_doc_to_answer
-worldvqa_doc_to_answer_mc = worldqa_doc_to_answer_mc
-worldvqa_doc_to_answer_mc_ppl = worldqa_doc_to_answer_mc_ppl
-worldvqa_doc_to_choice = worldqa_doc_to_choice
-worldvqa_process_results = worldqa_process_results
-worldvqa_process_results_mc = worldqa_process_results_mc
-worldvqa_aggregate_gen = worldqa_aggregate_gen
-worldvqa_aggregate_mc = worldqa_aggregate_mc
-worldvqa_aggregate_mc_eval = worldqa_aggregate_mc_eval
-worldvqa_aggregate_mc_ppl = worldqa_aggregate_mc_ppl
-worldvqa_gen_gpt_eval = worldq_gen_gpt_eval
+def _strip_thinking(text: str) -> str:
+    stripped = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL | re.IGNORECASE).strip()
+    stripped = re.sub(r"<think>.*$", "", stripped, flags=re.DOTALL | re.IGNORECASE).strip()
+    if "think>" in stripped.lower():
+        stripped = re.split(r"think>", stripped, flags=re.IGNORECASE)[-1].strip()
+    return stripped
 
-__all__ = [
-    "MultiChoiceRegexFilter",
-    "worldvqa_doc_to_visual",
-    "worldvqa_doc_to_text",
-    "worldvqa_doc_to_answer",
-    "worldvqa_doc_to_answer_mc",
-    "worldvqa_doc_to_answer_mc_ppl",
-    "worldvqa_doc_to_choice",
-    "worldvqa_process_results",
-    "worldvqa_process_results_mc",
-    "worldvqa_aggregate_gen",
-    "worldvqa_aggregate_mc",
-    "worldvqa_aggregate_mc_eval",
-    "worldvqa_aggregate_mc_ppl",
-    "worldvqa_gen_gpt_eval",
-]
+
+def _parse_label(judgment: str) -> str:
+    labels = re.findall(r"^Label:\s*(Correct|Incorrect|Unattempted)\s*$", judgment, flags=re.MULTILINE | re.IGNORECASE)
+    if len(labels) != 1:
+        raise ValueError(f"WorldVQA judge returned {len(labels)} parseable labels")
+    return labels[0].lower()
+
+
+def _judge_answer(question: str, prediction: str, ground_truth: str) -> tuple[str, str, str]:
+    prompt = JUDGE_PROMPT.format(
+        question=question,
+        model_answer=_strip_thinking(prediction),
+        ground_truth=ground_truth,
+    )
+    model = os.environ["JUDGE_MODEL_NAME"]
+    last_error = "judge did not return a response"
+    for attempt in range(JUDGE_MAX_RETRIES):
+        try:
+            response = _judge_client().chat.completions.create(
+                model=model,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0,
+                max_tokens=1024,
+            )
+            judgment = response.choices[0].message.content or ""
+            return _parse_label(judgment), judgment, response.model
+        except Exception as error:
+            last_error = str(error)
+            eval_logger.error(f"WorldVQA judge attempt {attempt + 1} failed: {error}")
+            if attempt < JUDGE_MAX_RETRIES - 1:
+                time.sleep(JUDGE_RETRY_SECONDS)
+    raise RuntimeError(f"WorldVQA judge failed after {JUDGE_MAX_RETRIES} attempts: {last_error}")
+
+
+def worldvqa_process_results(doc: dict, results: list[str]) -> dict[str, dict]:
+    prediction = results[0]
+    label, judgment, judge_model = _judge_answer(doc["question"], prediction, doc["answer"])
+    return {
+        "worldvqa_judge": {
+            "score": int(label == "correct"),
+            "label": label,
+            "judge": judgment,
+            "judge_model": judge_model,
+            "prediction": prediction,
+            "reference": doc["answer"],
+        }
+    }
+
+
+def worldvqa_aggregate_judge(results: list[dict]) -> float:
+    return sum(result["score"] for result in results) / len(results)

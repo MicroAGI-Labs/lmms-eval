@@ -1,18 +1,16 @@
 import warnings
-from typing import List, Optional, Tuple, Union
 
 import torch
 from accelerate import Accelerator, DistributedType
 from accelerate.state import AcceleratorState
-from torchvision.transforms.functional import to_pil_image
-from tqdm import tqdm
-from transformers import AutoProcessor, Idefics2ForConditionalGeneration
-
 from lmms_eval import utils
 from lmms_eval.api.instance import Instance
 from lmms_eval.api.model import lmms
 from lmms_eval.api.registry import register_model
 from lmms_eval.models.model_utils.load_video import load_video_decord
+from torchvision.transforms.functional import to_pil_image
+from tqdm import tqdm
+from transformers import AutoProcessor, Idefics2ForConditionalGeneration
 
 warnings.filterwarnings("ignore")
 
@@ -48,10 +46,10 @@ class Idefics2(lmms):
         pretrained: str = "HuggingFaceM4/idefics2-8b",
         revision: str = "main",
         device: str = "cuda",
-        dtype: Optional[Union[str, torch.dtype]] = "float16",
+        dtype: str | torch.dtype | None = "float16",
         batch_size: int = 1,
-        trust_remote_code: Optional[bool] = False,
-        attn_implementation: Optional[str] = best_fit_attn_implementation,
+        trust_remote_code: bool | None = False,
+        attn_implementation: str | None = best_fit_attn_implementation,
         device_map: str = "",
         use_cache: bool = True,
         do_image_splitting: bool = False,
@@ -71,8 +69,17 @@ class Idefics2(lmms):
             self.device_map = device_map
         if isinstance(dtype, str) and dtype != "auto":
             dtype = getattr(torch, dtype)
-        self._model = Idefics2ForConditionalGeneration.from_pretrained(pretrained, revision=revision, torch_dtype=dtype, device_map=self.device_map, trust_remote_code=trust_remote_code, attn_implementation=attn_implementation)
-        self._processor = AutoProcessor.from_pretrained(pretrained, do_image_splitting=do_image_splitting, revision=revision, trust_remote_code=trust_remote_code)
+        self._model = Idefics2ForConditionalGeneration.from_pretrained(
+            pretrained,
+            revision=revision,
+            torch_dtype=dtype,
+            device_map=self.device_map,
+            trust_remote_code=trust_remote_code,
+            attn_implementation=attn_implementation,
+        )
+        self._processor = AutoProcessor.from_pretrained(
+            pretrained, do_image_splitting=do_image_splitting, revision=revision, trust_remote_code=trust_remote_code
+        )
         self.max_frames_num = max_frames_num
 
         self._tokenizer = self._processor.tokenizer
@@ -80,7 +87,11 @@ class Idefics2(lmms):
         self.batch_size_per_gpu = int(batch_size)
         self.use_cache = use_cache
         if accelerator.num_processes > 1 and device_map == "":
-            assert accelerator.distributed_type in [DistributedType.FSDP, DistributedType.MULTI_GPU, DistributedType.DEEPSPEED], "Unsupported distributed type provided. Only DDP and FSDP are supported."
+            assert accelerator.distributed_type in [
+                DistributedType.FSDP,
+                DistributedType.MULTI_GPU,
+                DistributedType.DEEPSPEED,
+            ], "Unsupported distributed type provided. Only DDP and FSDP are supported."
             # If you want to use DistributedType.DEEPSPEED, you have to run accelerate config before using the model
             # Also, you have to select zero stage 0 (equivalent to DDP) in order to make the prepare model works
             # I tried to set different parameters in the kwargs to let default zero 2 stage works, but it didn't work.
@@ -90,8 +101,13 @@ class Idefics2(lmms):
                     "train_batch_size": self.batch_size_per_gpu * accelerator.num_processes,
                 }
                 AcceleratorState().deepspeed_plugin.deepspeed_config_process(must_match=True, **kwargs)
-                eval_logger.info("Detected that you are using DistributedType.DEEPSPEED. Make sure you run `accelerate config` and set zero stage to 0")
-            if accelerator.distributed_type == DistributedType.FSDP or accelerator.distributed_type == DistributedType.DEEPSPEED:
+                eval_logger.info(
+                    "Detected that you are using DistributedType.DEEPSPEED. Make sure you run `accelerate config` and set zero stage to 0"
+                )
+            if (
+                accelerator.distributed_type == DistributedType.FSDP
+                or accelerator.distributed_type == DistributedType.DEEPSPEED
+            ):
                 self._model = accelerator.prepare(self.model)
             else:
                 self._model = accelerator.prepare_model(self.model, evaluation_mode=True)
@@ -152,7 +168,7 @@ class Idefics2(lmms):
     def world_size(self):
         return self._world_size
 
-    def tok_encode(self, string: str, left_truncate_len=None, add_special_tokens=None) -> List[int]:
+    def tok_encode(self, string: str, left_truncate_len=None, add_special_tokens=None) -> list[int]:
         """ """
         add_special_tokens = False if add_special_tokens is None else add_special_tokens
         encoding = self.tokenizer.encode(string, add_special_tokens=add_special_tokens)
@@ -164,7 +180,7 @@ class Idefics2(lmms):
     def tok_decode(self, tokens):
         return self.tokenizer.decode(tokens)
 
-    def loglikelihood(self, requests: List[Instance]) -> List[Tuple[float, bool]]:
+    def loglikelihood(self, requests: list[Instance]) -> list[tuple[float, bool]]:
         raise NotImplementedError("Loglikelihood is not implemented for Idefics2 model")
 
     def flatten(self, input):
@@ -174,7 +190,7 @@ class Idefics2(lmms):
                 new_list.append(j)
         return new_list
 
-    def generate_until(self, requests: List[Instance]) -> List[str]:
+    def generate_until(self, requests: list[Instance]) -> list[str]:
         res = []
 
         def _collate(x):
@@ -192,11 +208,18 @@ class Idefics2(lmms):
         # in the same batch.
         re_ords = utils.Collator([reg.args for reg in requests], _collate, grouping=True)
         chunks = re_ords.get_batched(n=self.batch_size, batch_fn=None)
-        num_iters = len(requests) // self.batch_size if len(requests) % self.batch_size == 0 else len(requests) // self.batch_size + 1
+        num_iters = (
+            len(requests) // self.batch_size
+            if len(requests) % self.batch_size == 0
+            else len(requests) // self.batch_size + 1
+        )
         pbar = tqdm(total=num_iters, disable=(self.rank != 0), desc="Model Responding")
         for chunk in chunks:
             contexts, all_gen_kwargs, doc_to_visuals, doc_id, tasks, splits = zip(*chunk)
-            visuals = [doc_to_visual(self.task_dict[task][split][ids]) for ids, task, split, doc_to_visual in zip(doc_id, tasks, splits, doc_to_visuals)]
+            visuals = [
+                doc_to_visual(self.task_dict[task][split][ids])
+                for ids, task, split, doc_to_visual in zip(doc_id, tasks, splits, doc_to_visuals)
+            ]
             # we assume all gen kwargs in the batch are the same
             # this is safe to assume because the `grouper` object ensures it.
             gen_kwargs = all_gen_kwargs[0]
@@ -245,5 +268,5 @@ class Idefics2(lmms):
         pbar.close()
         return res
 
-    def generate_until_multi_round(self, requests) -> List[str]:
+    def generate_until_multi_round(self, requests) -> list[str]:
         raise NotImplementedError("TODO: Implement multi-round generation for Idefics2")

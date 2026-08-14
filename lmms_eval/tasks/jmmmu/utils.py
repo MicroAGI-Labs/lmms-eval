@@ -4,7 +4,6 @@ from collections import defaultdict
 from pathlib import Path
 
 import yaml
-
 from lmms_eval.tasks._task_utils.mmmu_mcq_utils import (
     get_multi_choice_info as shared_get_multi_choice_info,
 )
@@ -16,7 +15,7 @@ MULTI_CHOICE_PROMPT = "与えられた選択肢の中から最も適切な回答
 OPEN_ENDED_PROMPT = "質問に対する回答を単語や短いフレーズで記入してください。"
 
 
-with open(Path(__file__).parent / "_default_template_yaml", "r") as f:
+with open(Path(__file__).parent / "_default_template_yaml") as f:
     raw_data = f.readlines()
     safe_data = []
     for i, line in enumerate(raw_data):
@@ -80,7 +79,13 @@ def jmmmu_process_results(doc, results):
     else:
         parsed_pred = parse_open_response(pred)
     id = doc["id"]
-    jmmmu_acc = {"id": id, "subdomain": extract_subset_name(doc["id"]), "question_type": doc["question_type"], "answer": doc["answer"], "parsed_pred": parsed_pred}
+    jmmmu_acc = {
+        "id": id,
+        "subdomain": extract_subset_name(doc["id"]),
+        "question_type": doc["question_type"],
+        "answer": doc["answer"],
+        "parsed_pred": parsed_pred,
+    }
     return {
         "jmmmu_acc": jmmmu_acc,
         "submission": {
@@ -344,13 +349,25 @@ def parse_open_response(response):
         response = response.strip().strip("。")
         sub_responses = re.split(r"[。！？.]\s*|\n", response)
 
-        indicators_of_keys = ["よって", "よって、", "答えは", "答えは、", "最終的に", "最終的に、", "解答は", "解答は、" "回答は", "回答は、"]
+        indicators_of_keys = [
+            "よって",
+            "よって、",
+            "答えは",
+            "答えは、",
+            "最終的に",
+            "最終的に、",
+            "解答は",
+            "解答は、回答は",
+            "回答は、",
+        ]
         key_responses = []
         for index, resp in enumerate(sub_responses):
             # if last one, accept it's an equation (the entire response can be just one sentence with equation)
             if index == len(sub_responses) - 1:
                 indicators_of_keys.extend(["＝", "="])
-            shortest_key_response = None  # the shortest response that may contain the answer (tail part of the response)
+            shortest_key_response = (
+                None  # the shortest response that may contain the answer (tail part of the response)
+            )
             for indicator in indicators_of_keys:
                 if indicator in resp:
                     if not shortest_key_response:
@@ -362,7 +379,21 @@ def parse_open_response(response):
 
             if shortest_key_response:
                 # and it's not trivial
-                if shortest_key_response.strip() not in [",", ".", "!", "?", ";", ":", "'", "、", "。", "！", "？", "；", "："]:
+                if shortest_key_response.strip() not in [
+                    ",",
+                    ".",
+                    "!",
+                    "?",
+                    ";",
+                    ":",
+                    "'",
+                    "、",
+                    "。",
+                    "！",
+                    "？",
+                    "；",
+                    "：",
+                ]:
                     key_responses.append(shortest_key_response)
         if len(key_responses) == 0:  # did not found any
             return [response]

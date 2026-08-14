@@ -12,12 +12,11 @@ from azure.identity import (
     ManagedIdentityCredential,
     get_bearer_token_provider,
 )
+from lmms_eval.azure_openai_compat import build_client as build_azure_compat_client
+from lmms_eval.azure_openai_compat import has_endpoint_support
 from loguru import logger as eval_logger
 from openai import AzureOpenAI, OpenAI
 from PIL import Image
-
-from lmms_eval.azure_openai_compat import build_client as build_azure_compat_client
-from lmms_eval.azure_openai_compat import has_endpoint_support
 
 # ============================================================================
 # LLM Judge Client (Azure TRAPI or OpenAI)
@@ -143,7 +142,7 @@ def call_judge(question: str, groundtruth: str, modeloutput: str) -> bool:
 
 
 def load_phyx_config():
-    with open(Path(__file__).parent / "phyx.yaml", "r") as f:
+    with open(Path(__file__).parent / "phyx.yaml") as f:
         raw_data = f.readlines()
         safe_data = []
         for line in raw_data:
@@ -288,11 +287,17 @@ MECHANICS_GEN_PROMPT = (
 
 def phyx_doc_to_text_optics_cot(doc, lmms_eval_specific_kwargs=None):
     """Visual CoT prompt for PhyX Optics task."""
-    question = "In addition to the original image, you are also given an auxiliary " "light ray diagram to help you solve the problem.\n\n" + doc["question"]
+    question = (
+        "In addition to the original image, you are also given an auxiliary "
+        "light ray diagram to help you solve the problem.\n\n" + doc["question"]
+    )
     return f"[GEN_PROMPT]{OPTICS_GEN_PROMPT}[/GEN_PROMPT][QUESTION]{question}[/QUESTION]"
 
 
 def phyx_doc_to_text_mechanics_cot(doc, lmms_eval_specific_kwargs=None):
     """Visual CoT prompt for PhyX Mechanics task."""
-    question = "In addition to the original image, you are also given an auxiliary " "free body diagram (force analysis diagram) to help you solve the problem.\n\n" + doc["question"]
+    question = (
+        "In addition to the original image, you are also given an auxiliary "
+        "free body diagram (force analysis diagram) to help you solve the problem.\n\n" + doc["question"]
+    )
     return f"[GEN_PROMPT]{MECHANICS_GEN_PROMPT}[/GEN_PROMPT][QUESTION]{question}[/QUESTION]"

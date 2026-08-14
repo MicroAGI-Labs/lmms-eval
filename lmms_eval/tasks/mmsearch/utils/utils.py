@@ -3,7 +3,7 @@ import os
 import random
 import tempfile
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import matplotlib.pyplot as plt
 import requests
@@ -12,13 +12,12 @@ import requests
 from accelerate import Accelerator
 from duckduckgo_search import DDGS
 from langchain_community.document_loaders import UnstructuredHTMLLoader
+from lmms_eval.tasks.mmsearch.constants import *
+from lmms_eval.tasks.mmsearch.utils.web_content_utils import *
 from loguru import logger as eval_logger
 from playwright.async_api import TimeoutError as PlaywrightTimeoutError
 from playwright.async_api import async_playwright
 from requests.exceptions import RequestException
-
-from lmms_eval.tasks.mmsearch.constants import *
-from lmms_eval.tasks.mmsearch.utils.web_content_utils import *
 
 accelerator = Accelerator()
 WORLD_SIZE = accelerator.num_processes
@@ -71,20 +70,24 @@ class RapidAPI:
         self.rapidapi_name = rapidapi_name
         self.ddgs = DDGS(proxy=PROXY["https"], timeout=50) if len(PROXY) != 0 else DDGS(timeout=50)
 
-    def query(self, text: str, max_results: int) -> List[Dict[str, Any]]:
+    def query(self, text: str, max_results: int) -> list[dict[str, Any]]:
         initial_delay = 1
         max_retries = 3
 
         for attempt in range(max_retries):
             try:
-                time.sleep(random.choice([i for i in range(5, 10 + 20 * WORLD_SIZE, 5)]))  # Avoid frequent requests and multiple rank query at the same time
+                time.sleep(
+                    random.choice([i for i in range(5, 10 + 20 * WORLD_SIZE, 5)])
+                )  # Avoid frequent requests and multiple rank query at the same time
                 response = list(self.ddgs.text(" ".join(text.strip("'").split(" ")[:100]), max_results=max_results))
                 return response[:max_results]
             except Exception as e:
                 error_message = str(e)
                 if "202" in error_message or "Accepted" in error_message:
                     delay = initial_delay * (2**attempt) + random.uniform(0, 1)
-                    print(f"Received 202 status code, waiting {delay:.2f} seconds before retrying... (Attempt {attempt + 1}/{max_retries})")
+                    print(
+                        f"Received 202 status code, waiting {delay:.2f} seconds before retrying... (Attempt {attempt + 1}/{max_retries})"
+                    )
                     time.sleep(delay)
                 elif isinstance(e, RequestException):
                     print(f"Network error: {e}")
@@ -103,7 +106,7 @@ class DDGSQueryRun:
         self.max_results = max_results
         self.api_wrapper = RapidAPI(rapidapi_name)
 
-    async def __call__(self, query: str, screenshot_dir_path: str) -> List[Dict[str, Any]]:
+    async def __call__(self, query: str, screenshot_dir_path: str) -> list[dict[str, Any]]:
         try:
             output = self.api_wrapper.query(query, max_results=self.max_results + 20)  # account for error website
         except Exception as e:
@@ -113,7 +116,12 @@ class DDGSQueryRun:
 
         evidences = []
         for idx, result in enumerate(output):
-            evidence = {"title": result["title"], "snippet": result.get("description", result.get("body", "")), "url": result["href"], "screenshot_path": os.path.join(screenshot_dir_path, f"{idx}.jpg")}
+            evidence = {
+                "title": result["title"],
+                "snippet": result.get("description", result.get("body", "")),
+                "url": result["href"],
+                "screenshot_path": os.path.join(screenshot_dir_path, f"{idx}.jpg"),
+            }
             success = await take_screenshot_async(evidence["url"], os.path.join(screenshot_dir_path, f"{idx}.jpg"))
             if success:
                 evidences.append(evidence)
@@ -131,7 +139,9 @@ async def take_screenshot_async(url: str, screenshot_path: str, timeout: int = B
     async with async_playwright() as p:
         if len(PROXY) != 0:
             browser = await p.chromium.launch(headless=True, proxy={"server": PROXY["https"]})
-            context = await browser.new_context(user_agent=USER_AGENT, proxy={"server": PROXY["https"]}, viewport={"width": 1024, "height": 1024})
+            context = await browser.new_context(
+                user_agent=USER_AGENT, proxy={"server": PROXY["https"]}, viewport={"width": 1024, "height": 1024}
+            )
         else:
             browser = await p.chromium.launch(headless=True)
             context = await browser.new_context(user_agent=USER_AGENT, viewport={"width": 1024, "height": 1024})
@@ -196,7 +206,12 @@ async def _take_fullpage_screenshot(url: str, screenshot_path: str, timeout: int
     async with async_playwright() as p:
         if len(PROXY) != 0:
             browser = await p.chromium.launch(headless=True, proxy={"server": PROXY["https"]})
-            context = await browser.new_context(user_agent=USER_AGENT, proxy={"server": PROXY["https"]}, viewport={"width": 512, "height": 512}, is_mobile=True)
+            context = await browser.new_context(
+                user_agent=USER_AGENT,
+                proxy={"server": PROXY["https"]},
+                viewport={"width": 512, "height": 512},
+                is_mobile=True,
+            )
         else:
             browser = await p.chromium.launch(headless=True)
             context = await browser.new_context(
@@ -233,11 +248,11 @@ async def _take_fullpage_screenshot(url: str, screenshot_path: str, timeout: int
 
 
 ## Fullpage textual content
-def get_fullpage_content(url: str, timeout: int = FULLPAGE_TIMEOUT) -> Optional[str]:
+def get_fullpage_content(url: str, timeout: int = FULLPAGE_TIMEOUT) -> str | None:
     return asyncio.run(_get_fullpage_content(url, timeout))
 
 
-async def _get_fullpage_content(url: str, timeout: int = FULLPAGE_CONTENT_TIMEOUT) -> Optional[str]:
+async def _get_fullpage_content(url: str, timeout: int = FULLPAGE_CONTENT_TIMEOUT) -> str | None:
     async with async_playwright() as p:
         if len(PROXY) != 0:
             browser = await p.chromium.launch(headless=True, proxy={"server": PROXY["https"]})

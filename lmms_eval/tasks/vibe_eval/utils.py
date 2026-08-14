@@ -4,7 +4,6 @@ from copy import deepcopy
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import List, Optional
 
 import yaml
 
@@ -24,7 +23,7 @@ except ImportError:
 
 REKA_API_KEY = os.getenv("REKA_API_KEY", "YOUR_API_KEY")
 
-with open(Path(__file__).parent / "vibe_eval.yaml", "r") as f:
+with open(Path(__file__).parent / "vibe_eval.yaml") as f:
     raw_data = f.readlines()
     safe_data = []
     for i, line in enumerate(raw_data):
@@ -83,9 +82,9 @@ class Example:
     media_url: str
 
     # The fields below are not stored in the dataset, but are populated by this script.
-    generation: Optional[str] = None
-    score: Optional[int] = None
-    evaluator_explanation: Optional[str] = None
+    generation: str | None = None
+    score: int | None = None
+    evaluator_explanation: str | None = None
 
 
 class Evaluator(Enum):
@@ -164,7 +163,15 @@ def vibe_process_results(doc, results):
     media_filename = doc["media_url"]
     media_url = doc["media_url"]
     generation = results[0]
-    example = Example(example_id=example_id, category=category, prompt=prompt, reference=reference, media_filename=media_filename, media_url=media_url, generation=generation)
+    example = Example(
+        example_id=example_id,
+        category=category,
+        prompt=prompt,
+        reference=reference,
+        media_filename=media_filename,
+        media_url=media_url,
+        generation=generation,
+    )
 
     evaluator = Evaluator.REKA_CORE if EVALUATOR_NAME == "reka-core" else Evaluator.REKA_CORE_TEXT
 
@@ -185,7 +192,7 @@ def vibe_process_results(doc, results):
     }
 
 
-def _mean(scores: List[int]) -> float:
+def _mean(scores: list[int]) -> float:
     """Scale from 1-5 to 0-100 and compute means."""
     return sum(25 * (score - 1) for score in scores) / len(scores)
 

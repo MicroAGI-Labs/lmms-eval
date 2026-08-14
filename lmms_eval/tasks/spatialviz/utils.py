@@ -3,14 +3,14 @@ import re
 import zipfile
 from collections import defaultdict
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 import yaml
 from huggingface_hub import snapshot_download
 from loguru import logger as eval_logger
 from PIL import Image
 
-with open(Path(__file__).parent / "_default_template_yaml", "r") as f:
+with open(Path(__file__).parent / "_default_template_yaml") as f:
     raw_data = f.readlines()
     safe_data = []
     for i, line in enumerate(raw_data):
@@ -33,7 +33,7 @@ if os.path.exists(_zip_path) and not os.path.isdir(os.path.join(cache_dir, "Ment
         zf.extractall(cache_dir)
 
 
-def spatialviz_doc_to_visual(doc: Dict[str, Any]) -> List[Image.Image]:
+def spatialviz_doc_to_visual(doc: dict[str, Any]) -> list[Image.Image]:
     visual = []
 
     category = doc["Category"]
@@ -49,7 +49,7 @@ def spatialviz_doc_to_visual(doc: Dict[str, Any]) -> List[Image.Image]:
     return visual
 
 
-def spatialviz_doc_to_text(doc: Dict[str, Any]) -> str:
+def spatialviz_doc_to_text(doc: dict[str, Any]) -> str:
     ops = ["A", "B", "C", "D"]
     prompt = (
         "You should first provide a reasoning process, then provide a single "
@@ -68,7 +68,7 @@ def spatialviz_doc_to_text(doc: Dict[str, Any]) -> str:
     return text
 
 
-def spatialviz_process_results(doc: Dict[str, Any], results: List[str]) -> Dict[str, Dict[str, Any]]:
+def spatialviz_process_results(doc: dict[str, Any], results: list[str]) -> dict[str, dict[str, Any]]:
     key_name = "spatialviz_score"
     grounded_output = doc["Answer"]
     response = results[0]
@@ -79,7 +79,7 @@ def spatialviz_process_results(doc: Dict[str, Any], results: List[str]) -> Dict[
     think_match = re.search(think_pattern, response, re.DOTALL)
     answer_match = re.search(answer_pattern, response, re.DOTALL)
 
-    op: List[str] = []
+    op: list[str] = []
     if think_match and answer_match:
         final_answer = answer_match.group(1).strip()
         pred_answer = final_answer.split(".")[0]
@@ -130,10 +130,10 @@ def spatialviz_process_results(doc: Dict[str, Any], results: List[str]) -> Dict[
     return {key_name: spatialviz_submission}
 
 
-def spatialviz_aggregate_results(results: List[Dict[str, Any]]) -> float:
-    task_to_eval_samples: Dict[str, List[int]] = defaultdict(list)
-    category_to_eval_samples: Dict[str, List[int]] = defaultdict(list)
-    key_to_eval_samples: Dict[str, List[int]] = defaultdict(list)
+def spatialviz_aggregate_results(results: list[dict[str, Any]]) -> float:
+    task_to_eval_samples: dict[str, list[int]] = defaultdict(list)
+    category_to_eval_samples: dict[str, list[int]] = defaultdict(list)
+    key_to_eval_samples: dict[str, list[int]] = defaultdict(list)
     total_samples = len(results)
     total_correct = 0
 

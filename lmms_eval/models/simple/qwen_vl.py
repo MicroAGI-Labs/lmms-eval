@@ -1,17 +1,15 @@
 import os
 import uuid
 import warnings
-from typing import List, Optional, Tuple, Union
 
 import torch
 from accelerate import Accelerator, DistributedType
-from tqdm import tqdm
-
 from lmms_eval import utils
 from lmms_eval.api.instance import Instance
 from lmms_eval.api.model import lmms
 from lmms_eval.api.registry import register_model
 from lmms_eval.models.model_utils.qwen.qwen_generate_utils import make_context
+from tqdm import tqdm
 
 warnings.simplefilter("ignore", category=DeprecationWarning)
 warnings.filterwarnings("ignore")
@@ -30,9 +28,9 @@ class Qwen_VL(lmms):
     def __init__(
         self,
         pretrained: str = "Qwen/Qwen-VL",
-        device: Optional[str] = "cuda",
-        batch_size: Optional[Union[int, str]] = 1,
-        trust_remote_code: Optional[bool] = True,
+        device: str | None = "cuda",
+        batch_size: int | str | None = 1,
+        trust_remote_code: bool | None = True,
         use_cache=True,
         **kwargs,
     ) -> None:
@@ -45,7 +43,9 @@ class Qwen_VL(lmms):
             self._device = torch.device(f"cuda:{accelerator.local_process_index}")
         else:
             self._device = device
-        self._model = AutoModelForCausalLM.from_pretrained(pretrained, device_map=self._device, trust_remote_code=trust_remote_code).eval()
+        self._model = AutoModelForCausalLM.from_pretrained(
+            pretrained, device_map=self._device, trust_remote_code=trust_remote_code
+        ).eval()
         self._tokenizer = AutoTokenizer.from_pretrained(pretrained, trust_remote_code=trust_remote_code)
         self.tokenizer.padding_side = "left"
         self.tokenizer.pad_token_id = self.tokenizer.eod_id
@@ -120,7 +120,7 @@ class Qwen_VL(lmms):
     def world_size(self):
         return self._world_size
 
-    def loglikelihood(self, requests: List[Instance]) -> List[Tuple[float, bool]]:
+    def loglikelihood(self, requests: list[Instance]) -> list[tuple[float, bool]]:
         res = []
         pbar = tqdm(total=len(requests), disable=(self.rank != 0), desc="Model Responding")
 
@@ -149,12 +149,22 @@ class Qwen_VL(lmms):
             query = self.tokenizer.from_list_format(query)
 
             raw_contxt_text, context_tokens = make_context(
-                self.tokenizer, context_query, history=None, system="You are a helpful assistant", max_window_size=self.model.generation_config.max_window_size, chat_format=self.model.generation_config.chat_format
+                self.tokenizer,
+                context_query,
+                history=None,
+                system="You are a helpful assistant",
+                max_window_size=self.model.generation_config.max_window_size,
+                chat_format=self.model.generation_config.chat_format,
             )
             context_tokens = torch.tensor([context_tokens])
 
             raw_continuation_text, continuation_tokens = make_context(
-                self.tokenizer, query, history=None, system="You are a helpful assistant", max_window_size=self.model.generation_config.max_window_size, chat_format=self.model.generation_config.chat_format
+                self.tokenizer,
+                query,
+                history=None,
+                system="You are a helpful assistant",
+                max_window_size=self.model.generation_config.max_window_size,
+                chat_format=self.model.generation_config.chat_format,
             )
             continuation_tokens = torch.tensor([continuation_tokens]).to(self.model.device)
             attn_mask = torch.ones_like(continuation_tokens).to(self.model.device)
@@ -181,7 +191,7 @@ class Qwen_VL(lmms):
                 new_list.append(j)
         return new_list
 
-    def generate_until(self, requests: List[Instance]) -> List[str]:
+    def generate_until(self, requests: list[Instance]) -> list[str]:
         res = []
 
         def _collate(x):
@@ -227,7 +237,9 @@ class Qwen_VL(lmms):
                 if isinstance(until, str):
                     until = [until]
                 elif not isinstance(until, list):
-                    raise ValueError(f"Expected `gen_kwargs['until']` to be of type Union[str,list] but got {type(until)}")
+                    raise ValueError(
+                        f"Expected `gen_kwargs['until']` to be of type Union[str,list] but got {type(until)}"
+                    )
 
             if isinstance(contexts, tuple):
                 contexts = list(contexts)
@@ -265,7 +277,9 @@ class Qwen_VL(lmms):
             if "num_beams" not in gen_kwargs:
                 gen_kwargs["num_beams"] = 1
 
-            pad_token_id = self.tokenizer.pad_token_id if self.tokenizer.pad_token_id is not None else self.tokenizer.eod_id
+            pad_token_id = (
+                self.tokenizer.pad_token_id if self.tokenizer.pad_token_id is not None else self.tokenizer.eod_id
+            )
 
             cont = self.model.generate(
                 input_ids.input_ids.to(self.device),
@@ -308,5 +322,5 @@ class Qwen_VL(lmms):
         pbar.close()
         return res
 
-    def generate_until_multi_round(self, requests) -> List[str]:
+    def generate_until_multi_round(self, requests) -> list[str]:
         raise NotImplementedError("TODO: Implement multi-round generation")

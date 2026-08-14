@@ -33,7 +33,7 @@ DATA_LIST = {
 hf_home = os.getenv("HF_HOME", "~/.cache/huggingface")
 base_cache_dir = os.path.expanduser(hf_home)
 
-with open(Path(__file__).parent / "_default_template_yaml", "r") as f:
+with open(Path(__file__).parent / "_default_template_yaml") as f:
     raw_data = f.readlines()
     safe_data = []
     for i, line in enumerate(raw_data):
@@ -77,7 +77,9 @@ def mvbench_frames_doc_to_visual(doc, lmms_eval_specific_kwargs=None):
     else:
         eval_logger.error(f"Video path: {video_path} does not exist, please check.")
 
-    frame_path_list = [os.path.join(video_path, f) for f in os.listdir(video_path) if f.endswith(".jpg") or f.endswith(".png")]
+    frame_path_list = [
+        os.path.join(video_path, f) for f in os.listdir(video_path) if f.endswith(".jpg") or f.endswith(".png")
+    ]
     frame_image_list = [PIL.Image.open(frame_path).convert("RGB") for frame_path in frame_path_list]
     return frame_image_list
 

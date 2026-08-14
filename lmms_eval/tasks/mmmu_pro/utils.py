@@ -4,7 +4,6 @@ from collections import defaultdict
 from pathlib import Path
 
 import yaml
-
 from lmms_eval.tasks._task_utils.mmmu_mcq_utils import (
     get_multi_choice_info as shared_get_multi_choice_info,
 )
@@ -12,7 +11,7 @@ from lmms_eval.tasks._task_utils.mmmu_mcq_utils import (
     parse_mmmu_multi_choice_response,
 )
 
-with open(Path(__file__).parent / "_default_template_yaml", "r") as f:
+with open(Path(__file__).parent / "_default_template_yaml") as f:
     raw_data = f.readlines()
     safe_data = []
     for i, line in enumerate(raw_data):
@@ -117,7 +116,9 @@ def mmmu_pro_composite_process_results(doc, results):
     while len(cutout_letters) < len(gt_list):
         cutout_letters.append("")
 
-    assert len(cutout_letters) == len(gt_list), f"Mismatch in lengths: cutout_letters ({len(cutout_letters)}) != gt_list ({len(gt_list)})"
+    assert len(cutout_letters) == len(gt_list), (
+        f"Mismatch in lengths: cutout_letters ({len(cutout_letters)}) != gt_list ({len(gt_list)})"
+    )
 
     mmmu_acc = {"id": doc["id"], "subject": doc["subject"], "answer": gt_list, "parsed_pred": cutout_letters}
     return {"mmmu_acc": mmmu_acc}
@@ -398,7 +399,9 @@ def parse_open_response(response):
             # if last one, accept it's an equation (the entire response can be just one sentence with equation)
             if index == len(sub_responses) - 1:
                 indicators_of_keys.extend(["="])
-            shortest_key_response = None  # the shortest response that may contain the answer (tail part of the response)
+            shortest_key_response = (
+                None  # the shortest response that may contain the answer (tail part of the response)
+            )
             for indicator in indicators_of_keys:
                 if indicator in resp:
                     if not shortest_key_response:

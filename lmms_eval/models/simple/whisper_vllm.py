@@ -1,11 +1,9 @@
-from typing import List, Optional, Tuple, Union
-
-from tqdm import tqdm
-from vllm import LLM, SamplingParams
 
 from lmms_eval.api.instance import Instance
 from lmms_eval.api.model import lmms
 from lmms_eval.api.registry import register_model
+from tqdm import tqdm
+from vllm import LLM, SamplingParams
 
 
 @register_model("whisper_vllm")
@@ -19,7 +17,7 @@ class WhisperVllm(lmms):
         pretrained: str = "Qwen/Qwen2.5-VL-3B-Instruct",
         tensor_parallel_size: int = 1,
         gpu_memory_utilization: float = 0.8,
-        batch_size: Optional[Union[int, str]] = 1,
+        batch_size: int | str | None = 1,
         **model_kwargs,
     ) -> None:
         super().__init__()
@@ -69,7 +67,7 @@ class WhisperVllm(lmms):
     def world_size(self):
         return self._world_size
 
-    def loglikelihood(self, requests: List[Instance]) -> List[Tuple[float, bool]]:
+    def loglikelihood(self, requests: list[Instance]) -> list[tuple[float, bool]]:
         raise NotImplementedError("Loglikelihood is not implemented for Whisper")
 
     def flatten(self, input):
@@ -79,7 +77,7 @@ class WhisperVllm(lmms):
                 new_list.append(j)
         return new_list
 
-    def generate_until(self, requests: List[Instance]) -> List[str]:
+    def generate_until(self, requests: list[Instance]) -> list[str]:
         res = []
         pbar = tqdm(total=len(requests), disable=(self.rank != 0), desc="Model Responding")
 
@@ -112,7 +110,9 @@ class WhisperVllm(lmms):
 
                     if language in language_to_token:
                         token = language_to_token[language]
-                        prompt_text = f"{pre_prompt}<|startoftranscript|><|{token}|><|transcribe|><|notimestamps|>{post_prompt}"
+                        prompt_text = (
+                            f"{pre_prompt}<|startoftranscript|><|{token}|><|transcribe|><|notimestamps|>{post_prompt}"
+                        )
                     else:
                         prompt_text = f"{pre_prompt}Please recognize the speech and only output the recognized content:{post_prompt}"
                 else:
@@ -129,7 +129,9 @@ class WhisperVllm(lmms):
 
             outputs = self.model.generate(batched_prompts, sampling_params, use_tqdm=False)
             transcriptions = [output.outputs[0].text for output in outputs]
-            answers = [self.model.get_tokenizer().normalize(transcription) for transcription in transcriptions]  # whisper post processing
+            answers = [
+                self.model.get_tokenizer().normalize(transcription) for transcription in transcriptions
+            ]  # whisper post processing
 
             assert len(answers) == len(batch_requests)
             res.extend(answers)
@@ -138,5 +140,5 @@ class WhisperVllm(lmms):
         pbar.close()
         return res
 
-    def generate_until_multi_round(self, requests) -> List[str]:
+    def generate_until_multi_round(self, requests) -> list[str]:
         raise NotImplementedError("TODO: Implement multi-round generation")

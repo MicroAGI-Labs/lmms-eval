@@ -9,7 +9,7 @@ from worker threads without external synchronisation.
 """
 
 import threading
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from loguru import logger as eval_logger
 
@@ -17,16 +17,16 @@ from loguru import logger as eval_logger
 # Module-level state
 # ---------------------------------------------------------------------------
 
-_USAGE_HISTORY: List[Dict[str, Any]] = []
+_USAGE_HISTORY: list[dict[str, Any]] = []
 _USAGE_LOCK = threading.Lock()
 
-_BUDGET: Optional[int] = None  # max total tokens; None → no limit
+_BUDGET: int | None = None  # max total tokens; None → no limit
 _BUDGET_EXCEEDED: bool = False
 
 # Set by the evaluator before ``task.process_results()`` so that judge
 # providers (which have no visibility into the current task) can inherit
 # the task name automatically.
-_CURRENT_TASK_CONTEXT: Optional[str] = None
+_CURRENT_TASK_CONTEXT: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -49,7 +49,7 @@ def reset_usage_metrics() -> None:
     _CURRENT_TASK_CONTEXT = None
 
 
-def set_budget(max_tokens: Optional[int] = None) -> None:
+def set_budget(max_tokens: int | None = None) -> None:
     """Configure the token budget for the current evaluation run.
 
     Parameters
@@ -62,7 +62,7 @@ def set_budget(max_tokens: Optional[int] = None) -> None:
     _BUDGET = max_tokens
 
 
-def set_task_context(task_name: Optional[str]) -> None:
+def set_task_context(task_name: str | None) -> None:
     """Set the current task name used as fallback by ``log_usage``.
 
     The evaluator calls this before each task's ``process_results`` phase
@@ -77,7 +77,7 @@ def set_task_context(task_name: Optional[str]) -> None:
 
 def log_usage(
     model_name: str,
-    task_name: Optional[str] = None,
+    task_name: str | None = None,
     input_tokens: int = 0,
     output_tokens: int = 0,
     reasoning_tokens: int = 0,
@@ -103,7 +103,7 @@ def log_usage(
     if task_name is None:
         task_name = _CURRENT_TASK_CONTEXT
 
-    record: Dict[str, Any] = {
+    record: dict[str, Any] = {
         "model_name": model_name,
         "task_name": task_name,
         "input_tokens": input_tokens,
@@ -136,7 +136,7 @@ def is_budget_exceeded() -> bool:
     return _BUDGET_EXCEEDED
 
 
-def get_running_totals() -> Dict[str, Any]:
+def get_running_totals() -> dict[str, Any]:
     """Return aggregated totals suitable for tqdm postfix display."""
     with _USAGE_LOCK:
         history = list(_USAGE_HISTORY)
@@ -155,7 +155,7 @@ def get_running_totals() -> Dict[str, Any]:
     }
 
 
-def summarize_usage_metrics() -> Dict[str, Any]:
+def summarize_usage_metrics() -> dict[str, Any]:
     """Aggregate all recorded usage into a summary dict.
 
     Returns an empty dict when no usage has been recorded.  The returned
@@ -167,7 +167,7 @@ def summarize_usage_metrics() -> Dict[str, Any]:
     if not history:
         return {}
 
-    def _aggregate(records: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def _aggregate(records: list[dict[str, Any]]) -> dict[str, Any]:
         inp = sum(r["input_tokens"] for r in records)
         out = sum(r["output_tokens"] for r in records)
         reason = sum(r["reasoning_tokens"] for r in records)
@@ -183,14 +183,14 @@ def summarize_usage_metrics() -> Dict[str, Any]:
     total = _aggregate(history)
 
     # -- by_task --
-    by_task: Dict[str, List[Dict[str, Any]]] = {}
+    by_task: dict[str, list[dict[str, Any]]] = {}
     for r in history:
         key = r["task_name"] if r["task_name"] is not None else "_unknown"
         by_task.setdefault(key, []).append(r)
     by_task_agg = {k: _aggregate(v) for k, v in by_task.items()}
 
     # -- by_source --
-    by_source: Dict[str, List[Dict[str, Any]]] = {}
+    by_source: dict[str, list[dict[str, Any]]] = {}
     for r in history:
         by_source.setdefault(r["source"], []).append(r)
     by_source_agg = {k: _aggregate(v) for k, v in by_source.items()}

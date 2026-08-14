@@ -2,15 +2,11 @@
 Specific evaluators for In-Domain_50 tasks (Part 2).
 """
 
-from typing import Any, Dict, List, Optional, Tuple
 
 import cv2
 import numpy as np
 
 from ..utils import (
-    color_distance,
-    compute_optical_flow,
-    detect_shapes,
     normalize_frame_size,
     safe_distance,
 )
@@ -30,7 +26,14 @@ class ChartExtremeEvaluator(BaseEvaluator):
 
     TASK_WEIGHTS = {"extreme_id": 0.40, "marking": 0.35, "visual": 0.15, "fidelity": 0.10}
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         """Evaluate chart extreme task."""
         scores = {}
 
@@ -67,7 +70,7 @@ class ChartExtremeEvaluator(BaseEvaluator):
         self._last_task_details = scores
         return sum(scores[k] * self.TASK_WEIGHTS[k] for k in self.TASK_WEIGHTS)
 
-    def _detect_red_rectangle(self, frame: np.ndarray) -> List[Dict]:
+    def _detect_red_rectangle(self, frame: np.ndarray) -> list[dict]:
         """Detect red rectangular borders in the frame."""
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
@@ -102,11 +105,21 @@ class ChartExtremeEvaluator(BaseEvaluator):
             else:
                 cx, cy = x + w // 2, y + h // 2
 
-            regions.append({"bbox": (x, y, w, h), "center": (cx, cy), "area": area, "contour": contour, "is_border": fill_ratio < 0.5})  # Border has low fill ratio
+            regions.append(
+                {
+                    "bbox": (x, y, w, h),
+                    "center": (cx, cy),
+                    "area": area,
+                    "contour": contour,
+                    "is_border": fill_ratio < 0.5,
+                }
+            )  # Border has low fill ratio
 
         return regions
 
-    def _evaluate_extreme_identification(self, gen_regions: List[Dict], gt_regions: List[Dict], gen_frame: np.ndarray, gt_frame: np.ndarray) -> float:
+    def _evaluate_extreme_identification(
+        self, gen_regions: list[dict], gt_regions: list[dict], gen_frame: np.ndarray, gt_frame: np.ndarray
+    ) -> float:
         """Check if the correct extreme element is marked."""
         if not gen_regions or not gt_regions:
             return 0.0  # STRICT: Must have marking in both
@@ -134,7 +147,7 @@ class ChartExtremeEvaluator(BaseEvaluator):
         else:
             return 0.0  # STRICT: Wrong position
 
-    def _evaluate_marking(self, gen_regions: List[Dict], gt_regions: List[Dict]) -> float:
+    def _evaluate_marking(self, gen_regions: list[dict], gt_regions: list[dict]) -> float:
         """Evaluate red rectangle marking accuracy."""
         if not gen_regions:
             return 0.0
@@ -163,7 +176,7 @@ class ChartExtremeEvaluator(BaseEvaluator):
 
         return iou
 
-    def _evaluate_visual_normality(self, frame: np.ndarray, red_regions: List[Dict]) -> float:
+    def _evaluate_visual_normality(self, frame: np.ndarray, red_regions: list[dict]) -> float:
         """Evaluate if the red border is complete and proper."""
         if not red_regions:
             return 0.0
@@ -183,7 +196,9 @@ class ChartExtremeEvaluator(BaseEvaluator):
         else:
             return 0.4
 
-    def _evaluate_chart_fidelity(self, gen_frame: np.ndarray, gt_frame: np.ndarray, gen_regions: List[Dict], gt_regions: List[Dict]) -> float:
+    def _evaluate_chart_fidelity(
+        self, gen_frame: np.ndarray, gt_frame: np.ndarray, gen_regions: list[dict], gt_regions: list[dict]
+    ) -> float:
         """Evaluate if chart elements are preserved."""
         # Mask out red regions and compare the rest
         gen_mask = np.ones(gen_frame.shape[:2], dtype=np.uint8) * 255
@@ -220,9 +235,13 @@ class DirectedGraphNavigationEvaluator(BaseEvaluator):
     3. All circle colors (green, red) must NOT change
     """
 
-    TASK_WEIGHTS = {"completion": 0.35, "circles_preserved": 0.50, "path_quality": 0.15}  # Agent reaches red endpoint  # Circle colors unchanged - MORE IMPORTANT  # Follows graph structure
+    TASK_WEIGHTS = {
+        "completion": 0.35,
+        "circles_preserved": 0.50,
+        "path_quality": 0.15,
+    }  # Agent reaches red endpoint  # Circle colors unchanged - MORE IMPORTANT  # Follows graph structure
 
-    def _count_circle_colors(self, frame: np.ndarray) -> Tuple[int, int]:
+    def _count_circle_colors(self, frame: np.ndarray) -> tuple[int, int]:
         """Count green and red pixels in frame."""
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
@@ -242,7 +261,14 @@ class DirectedGraphNavigationEvaluator(BaseEvaluator):
 
         return green_count, red_count
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         """Evaluate directed graph navigation task.
 
         CRITICAL RULES:
@@ -317,7 +343,7 @@ class DirectedGraphNavigationEvaluator(BaseEvaluator):
         self._last_task_details = scores
         return sum(scores[k] * self.TASK_WEIGHTS[k] for k in self.TASK_WEIGHTS)
 
-    def _detect_agent(self, frame: np.ndarray) -> Optional[Tuple[int, int]]:
+    def _detect_agent(self, frame: np.ndarray) -> tuple[int, int] | None:
         """Detect blue triangular agent position."""
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
@@ -344,7 +370,7 @@ class DirectedGraphNavigationEvaluator(BaseEvaluator):
 
         return None
 
-    def _track_agent(self, frames: List[np.ndarray]) -> List[Tuple[int, int]]:
+    def _track_agent(self, frames: list[np.ndarray]) -> list[tuple[int, int]]:
         """Track agent position across all frames."""
         positions = []
         for frame in frames:
@@ -353,7 +379,7 @@ class DirectedGraphNavigationEvaluator(BaseEvaluator):
                 positions.append(pos)
         return positions
 
-    def _detect_nodes(self, frame: np.ndarray) -> Dict:
+    def _detect_nodes(self, frame: np.ndarray) -> dict:
         """Detect graph nodes (green=start, red=end, white=intermediate)."""
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
@@ -389,7 +415,7 @@ class DirectedGraphNavigationEvaluator(BaseEvaluator):
 
         return nodes
 
-    def _evaluate_path_length(self, agent_positions: List[Tuple[int, int]], nodes: Dict) -> float:
+    def _evaluate_path_length(self, agent_positions: list[tuple[int, int]], nodes: dict) -> float:
         """Evaluate if agent took shortest path."""
         if not agent_positions or not nodes.get("end"):
             return 0.0
@@ -424,7 +450,7 @@ class DirectedGraphNavigationEvaluator(BaseEvaluator):
             # Didn't reach end
             return max(0.2, 1.0 - dist_to_end / 500)
 
-    def _evaluate_direction_compliance(self, agent_positions: List[Tuple[int, int]], nodes: Dict) -> float:
+    def _evaluate_direction_compliance(self, agent_positions: list[tuple[int, int]], nodes: dict) -> float:
         """Evaluate if agent follows arrow directions."""
         if len(agent_positions) < 2:
             return 0.5
@@ -443,14 +469,19 @@ class DirectedGraphNavigationEvaluator(BaseEvaluator):
                 # Generally forward progress (towards end)
                 if nodes.get("end") and nodes.get("start"):
                     # Check if moving towards end
-                    prev_dist = np.sqrt((agent_positions[i - 1][0] - nodes["end"][0]) ** 2 + (agent_positions[i - 1][1] - nodes["end"][1]) ** 2)
-                    curr_dist = np.sqrt((agent_positions[i][0] - nodes["end"][0]) ** 2 + (agent_positions[i][1] - nodes["end"][1]) ** 2)
+                    prev_dist = np.sqrt(
+                        (agent_positions[i - 1][0] - nodes["end"][0]) ** 2
+                        + (agent_positions[i - 1][1] - nodes["end"][1]) ** 2
+                    )
+                    curr_dist = np.sqrt(
+                        (agent_positions[i][0] - nodes["end"][0]) ** 2 + (agent_positions[i][1] - nodes["end"][1]) ** 2
+                    )
                     if curr_dist < prev_dist:
                         forward_moves += 1
 
         return forward_moves / max(1, total_moves)
 
-    def _evaluate_movement_legality(self, agent_positions: List[Tuple[int, int]], nodes: Dict) -> float:
+    def _evaluate_movement_legality(self, agent_positions: list[tuple[int, int]], nodes: dict) -> float:
         """Evaluate if agent moves along edges (not jumping)."""
         if len(agent_positions) < 2:
             return 0.5
@@ -460,7 +491,10 @@ class DirectedGraphNavigationEvaluator(BaseEvaluator):
         total_moves = 0
 
         for i in range(1, len(agent_positions)):
-            dist = np.sqrt((agent_positions[i][0] - agent_positions[i - 1][0]) ** 2 + (agent_positions[i][1] - agent_positions[i - 1][1]) ** 2)
+            dist = np.sqrt(
+                (agent_positions[i][0] - agent_positions[i - 1][0]) ** 2
+                + (agent_positions[i][1] - agent_positions[i - 1][1]) ** 2
+            )
 
             if dist > 5:  # Significant movement
                 total_moves += 1
@@ -497,7 +531,11 @@ class AttentionShiftEvaluator(BaseEvaluator):
     3. Final frame must have green box around the other object
     """
 
-    TASK_WEIGHTS = {"objects_preserved": 0.45, "green_box_shifted": 0.40, "box_fidelity": 0.15}  # Two objects unchanged  # Green box moved to other object  # Green box maintained throughout
+    TASK_WEIGHTS = {
+        "objects_preserved": 0.45,
+        "green_box_shifted": 0.40,
+        "box_fidelity": 0.15,
+    }  # Two objects unchanged  # Green box moved to other object  # Green box maintained throughout
 
     def _count_objects(self, frame: np.ndarray) -> int:
         """Count non-green colored objects."""
@@ -515,7 +553,14 @@ class AttentionShiftEvaluator(BaseEvaluator):
         contours, _ = cv2.findContours(obj_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         return sum(1 for cnt in contours if cv2.contourArea(cnt) > 500)
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         """Evaluate attention shift task.
 
         CRITICAL RULES:
@@ -593,7 +638,7 @@ class AttentionShiftEvaluator(BaseEvaluator):
         self._last_task_details = scores
         return sum(scores[k] * self.TASK_WEIGHTS[k] for k in self.TASK_WEIGHTS)
 
-    def _detect_green_box(self, frame: np.ndarray) -> Optional[Dict]:
+    def _detect_green_box(self, frame: np.ndarray) -> dict | None:
         """Detect green attention box."""
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
@@ -625,7 +670,7 @@ class AttentionShiftEvaluator(BaseEvaluator):
 
         return {"center": (cx, cy), "bbox": (x, y, w, h), "area": area, "contour": largest}
 
-    def _detect_objects_excluding_green(self, frame: np.ndarray) -> List[Dict]:
+    def _detect_objects_excluding_green(self, frame: np.ndarray) -> list[dict]:
         """Detect objects excluding green attention box."""
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
@@ -684,7 +729,7 @@ class AttentionShiftEvaluator(BaseEvaluator):
         else:
             return max(0.2, 1.0 - normalized_dist)
 
-    def _evaluate_stationarity(self, frames: List[np.ndarray]) -> float:
+    def _evaluate_stationarity(self, frames: list[np.ndarray]) -> float:
         """Evaluate if objects remain stationary throughout video."""
         if len(frames) < 2:
             return 0.5
@@ -723,7 +768,7 @@ class AttentionShiftEvaluator(BaseEvaluator):
         else:
             return max(0.2, 1.0 - normalized_movement * 2)
 
-    def _evaluate_box_fidelity(self, frames: List[np.ndarray]) -> float:
+    def _evaluate_box_fidelity(self, frames: list[np.ndarray]) -> float:
         """Evaluate if green attention box is maintained throughout."""
         box_present_count = 0
         single_box_count = 0
@@ -747,7 +792,7 @@ class AttentionShiftEvaluator(BaseEvaluator):
 
         return 0.6 * presence_ratio + 0.4 * single_ratio
 
-    def _evaluate_transfer_quality(self, frames: List[np.ndarray]) -> float:
+    def _evaluate_transfer_quality(self, frames: list[np.ndarray]) -> float:
         """Evaluate smoothness of attention transfer."""
         if len(frames) < 3:
             return 0.5
@@ -795,9 +840,13 @@ class GridHighestCostEvaluator(BaseEvaluator):
     4. Should follow high-cost path (follow GT route)
     """
 
-    TASK_WEIGHTS = {"completion": 0.45, "grid_preserved": 0.35, "movement": 0.20}  # Pacman reaches red goal  # Grid colors unchanged  # Step by step movement
+    TASK_WEIGHTS = {
+        "completion": 0.45,
+        "grid_preserved": 0.35,
+        "movement": 0.20,
+    }  # Pacman reaches red goal  # Grid colors unchanged  # Step by step movement
 
-    def _count_grid_colors(self, frame: np.ndarray) -> Tuple[int, int]:
+    def _count_grid_colors(self, frame: np.ndarray) -> tuple[int, int]:
         """Count green and red pixels in frame."""
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
@@ -817,7 +866,14 @@ class GridHighestCostEvaluator(BaseEvaluator):
 
         return green_count, red_count
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         """Evaluate grid highest cost task.
 
         CRITICAL RULES:
@@ -888,7 +944,7 @@ class GridHighestCostEvaluator(BaseEvaluator):
         self._last_task_details = scores
         return sum(scores[k] * self.TASK_WEIGHTS[k] for k in self.TASK_WEIGHTS)
 
-    def _detect_red_goal(self, frame: np.ndarray) -> Optional[Tuple[int, int]]:
+    def _detect_red_goal(self, frame: np.ndarray) -> tuple[int, int] | None:
         """Detect red goal cell."""
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
         lower_red1 = np.array([0, 100, 100])
@@ -905,7 +961,7 @@ class GridHighestCostEvaluator(BaseEvaluator):
             return None
         return (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
 
-    def _detect_pacman(self, frame: np.ndarray) -> Optional[Tuple[int, int]]:
+    def _detect_pacman(self, frame: np.ndarray) -> tuple[int, int] | None:
         """Detect yellow Pac-Man agent."""
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
@@ -930,7 +986,7 @@ class GridHighestCostEvaluator(BaseEvaluator):
 
         return None
 
-    def _track_pacman(self, frames: List[np.ndarray]) -> List[Tuple[int, int]]:
+    def _track_pacman(self, frames: list[np.ndarray]) -> list[tuple[int, int]]:
         """Track Pac-Man position across frames."""
         positions = []
         for frame in frames:
@@ -939,7 +995,7 @@ class GridHighestCostEvaluator(BaseEvaluator):
                 positions.append(pos)
         return positions
 
-    def _detect_grid(self, frame: np.ndarray) -> Dict:
+    def _detect_grid(self, frame: np.ndarray) -> dict:
         """Detect 4x4 grid structure."""
         h, w = frame.shape[:2]
 
@@ -949,13 +1005,13 @@ class GridHighestCostEvaluator(BaseEvaluator):
 
         return {"rows": 4, "cols": 4, "cell_width": cell_w, "cell_height": cell_h}
 
-    def _pos_to_cell(self, pos: Tuple[int, int], grid_info: Dict) -> Tuple[int, int]:
+    def _pos_to_cell(self, pos: tuple[int, int], grid_info: dict) -> tuple[int, int]:
         """Convert pixel position to grid cell."""
         col = pos[0] // grid_info["cell_width"]
         row = pos[1] // grid_info["cell_height"]
         return (min(row, grid_info["rows"] - 1), min(col, grid_info["cols"] - 1))
 
-    def _evaluate_path_cost(self, positions: List[Tuple[int, int]], grid_info: Dict, gt_frame: np.ndarray) -> float:
+    def _evaluate_path_cost(self, positions: list[tuple[int, int]], grid_info: dict, gt_frame: np.ndarray) -> float:
         """Evaluate if path has high cost."""
         if not positions:
             return 0.0
@@ -981,7 +1037,7 @@ class GridHighestCostEvaluator(BaseEvaluator):
         else:
             return max(0.3, coverage * 2)
 
-    def _evaluate_movement_legality(self, positions: List[Tuple[int, int]]) -> float:
+    def _evaluate_movement_legality(self, positions: list[tuple[int, int]]) -> float:
         """Evaluate if movements are orthogonal (no diagonal)."""
         if len(positions) < 2:
             return 0.5
@@ -1001,7 +1057,9 @@ class GridHighestCostEvaluator(BaseEvaluator):
 
         return legal_moves / max(1, total_moves)
 
-    def _evaluate_completeness(self, gen_frame: np.ndarray, gt_frame: np.ndarray, positions: List[Tuple[int, int]]) -> float:
+    def _evaluate_completeness(
+        self, gen_frame: np.ndarray, gt_frame: np.ndarray, positions: list[tuple[int, int]]
+    ) -> float:
         """Evaluate if agent reached destination (bottom-right)."""
         if not positions:
             return 0.0
@@ -1058,7 +1116,14 @@ class UnderstandSceneStructureEvaluator(BaseEvaluator):
 
     TASK_WEIGHTS = {"room_id": 0.50, "marking": 0.30, "visual": 0.15, "fidelity": 0.05}
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         """Evaluate scene structure task."""
         scores = {}
 
@@ -1095,7 +1160,7 @@ class UnderstandSceneStructureEvaluator(BaseEvaluator):
         self._last_task_details = scores
         return sum(scores[k] * self.TASK_WEIGHTS[k] for k in self.TASK_WEIGHTS)
 
-    def _detect_green_marking(self, frame: np.ndarray) -> Optional[Dict]:
+    def _detect_green_marking(self, frame: np.ndarray) -> dict | None:
         """Detect green rectangular marking."""
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
@@ -1126,7 +1191,9 @@ class UnderstandSceneStructureEvaluator(BaseEvaluator):
 
         return {"center": (cx, cy), "bbox": (x, y, w, h), "area": area, "contour": largest}
 
-    def _evaluate_room_identification(self, gen_green: Optional[Dict], gt_green: Optional[Dict], gen_frame: np.ndarray, gt_frame: np.ndarray) -> float:
+    def _evaluate_room_identification(
+        self, gen_green: dict | None, gt_green: dict | None, gen_frame: np.ndarray, gt_frame: np.ndarray
+    ) -> float:
         """Evaluate if correct room is identified."""
         if gen_green is None:
             return 0.0
@@ -1151,7 +1218,7 @@ class UnderstandSceneStructureEvaluator(BaseEvaluator):
         else:
             return 0.0  # STRICT: Wrong room marked
 
-    def _evaluate_marking_accuracy(self, gen_green: Optional[Dict], gt_green: Optional[Dict]) -> float:
+    def _evaluate_marking_accuracy(self, gen_green: dict | None, gt_green: dict | None) -> float:
         """Evaluate green marking accuracy using IoU."""
         if gen_green is None:
             return 0.0
@@ -1174,7 +1241,7 @@ class UnderstandSceneStructureEvaluator(BaseEvaluator):
 
         return intersection / union if union > 0 else 0
 
-    def _evaluate_visual_normality(self, gen_green: Optional[Dict]) -> float:
+    def _evaluate_visual_normality(self, gen_green: dict | None) -> float:
         """Evaluate if marking is a proper rectangle."""
         if gen_green is None:
             return 0.0
@@ -1190,7 +1257,9 @@ class UnderstandSceneStructureEvaluator(BaseEvaluator):
         else:
             return 0.4
 
-    def _evaluate_scene_fidelity(self, gen_frame: np.ndarray, gt_frame: np.ndarray, gen_green: Optional[Dict], gt_green: Optional[Dict]) -> float:
+    def _evaluate_scene_fidelity(
+        self, gen_frame: np.ndarray, gt_frame: np.ndarray, gen_green: dict | None, gt_green: dict | None
+    ) -> float:
         """Evaluate if floorplan is preserved."""
         # Mask out green regions and compare
         gen_mask = np.ones(gen_frame.shape[:2], dtype=np.uint8) * 255
@@ -1245,7 +1314,14 @@ class KeyDoorMatchingEvaluator(BaseEvaluator):
         "sequence": 0.10,
     }
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         """Evaluate key door matching task with strict movement tracking."""
         scores = {}
 
@@ -1259,7 +1335,14 @@ class KeyDoorMatchingEvaluator(BaseEvaluator):
         agent_positions = self._track_agent(video_frames)
 
         if len(agent_positions) < 2:
-            self._last_task_details = {"agent_movement": 0, "key_collected": 0, "door_reached": 0, "sequence": 0, "positions_found": len(agent_positions), "error": "not_enough_agent_positions"}
+            self._last_task_details = {
+                "agent_movement": 0,
+                "key_collected": 0,
+                "door_reached": 0,
+                "sequence": 0,
+                "positions_found": len(agent_positions),
+                "error": "not_enough_agent_positions",
+            }
             return 0.0
 
         # Detect keys and doors in first frame
@@ -1289,12 +1372,16 @@ class KeyDoorMatchingEvaluator(BaseEvaluator):
             return sum(scores.get(k, 0) * self.TASK_WEIGHTS[k] for k in self.TASK_WEIGHTS if k in scores)
 
         # 2. Key collection (35%): Agent must move TO key position AND key disappears
-        key_collected, collected_color, key_visit_score = self._check_key_collected_with_visit(first_keys, last_keys, agent_positions, video_frames)
+        key_collected, collected_color, key_visit_score = self._check_key_collected_with_visit(
+            first_keys, last_keys, agent_positions, video_frames
+        )
         scores["key_collected"] = key_visit_score
         scores["collected_key_color"] = collected_color
 
         # 3. Door reached (25%): Agent must move TO door position (after getting key)
-        door_reached, door_color, door_visit_score = self._check_door_reached_with_visit(first_doors, agent_positions, video_frames, key_collected)
+        door_reached, door_color, door_visit_score = self._check_door_reached_with_visit(
+            first_doors, agent_positions, video_frames, key_collected
+        )
 
         # Door only counts if key was collected first AND colors match
         if door_reached and key_collected:
@@ -1318,7 +1405,7 @@ class KeyDoorMatchingEvaluator(BaseEvaluator):
         self._last_task_details = scores
         return sum(scores.get(k, 0) * self.TASK_WEIGHTS[k] for k in self.TASK_WEIGHTS if k in scores)
 
-    def _evaluate_agent_movement(self, positions: List[Tuple[int, int]]) -> Tuple[float, float]:
+    def _evaluate_agent_movement(self, positions: list[tuple[int, int]]) -> tuple[float, float]:
         """
         STRICT evaluation: Agent MUST physically move away from starting position.
 
@@ -1365,7 +1452,9 @@ class KeyDoorMatchingEvaluator(BaseEvaluator):
         else:
             return 0.0, total_distance  # No real movement
 
-    def _check_key_collected_with_visit(self, first_keys: List[Dict], last_keys: List[Dict], positions: List[Tuple[int, int]], frames: List[np.ndarray]) -> Tuple[bool, Optional[str], float]:
+    def _check_key_collected_with_visit(
+        self, first_keys: list[dict], last_keys: list[dict], positions: list[tuple[int, int]], frames: list[np.ndarray]
+    ) -> tuple[bool, str | None, float]:
         """
         STRICT CHECK: Key is ONLY collected if:
         1. Agent PHYSICALLY reached the key's position (within threshold)
@@ -1438,7 +1527,9 @@ class KeyDoorMatchingEvaluator(BaseEvaluator):
         # No key collection detected
         return False, None, 0.0
 
-    def _check_door_reached_with_visit(self, doors: List[Dict], positions: List[Tuple[int, int]], frames: List[np.ndarray], key_collected: bool) -> Tuple[bool, Optional[str], float]:
+    def _check_door_reached_with_visit(
+        self, doors: list[dict], positions: list[tuple[int, int]], frames: list[np.ndarray], key_collected: bool
+    ) -> tuple[bool, str | None, float]:
         """
         STRICT CHECK: Door is ONLY considered reached if:
         1. Agent PHYSICALLY moved to the door's position (not just stayed at start)
@@ -1490,7 +1581,9 @@ class KeyDoorMatchingEvaluator(BaseEvaluator):
 
         return False, None, 0.0
 
-    def _evaluate_sequence_with_tracking(self, frames: List[np.ndarray], keys: List[Dict], doors: List[Dict], positions: List[Tuple[int, int]]) -> float:
+    def _evaluate_sequence_with_tracking(
+        self, frames: list[np.ndarray], keys: list[dict], doors: list[dict], positions: list[tuple[int, int]]
+    ) -> float:
         """
         Evaluate if key was visited BEFORE door was visited.
         Finds the closest key and door to the agent path and compares visit times.
@@ -1538,7 +1631,7 @@ class KeyDoorMatchingEvaluator(BaseEvaluator):
         else:
             return 0.5  # Same frame (unlikely but handle it)
 
-    def _detect_agent(self, frame: np.ndarray) -> Optional[Tuple[int, int]]:
+    def _detect_agent(self, frame: np.ndarray) -> tuple[int, int] | None:
         """Detect agent dot - GREEN circular dot (primary) or yellow (fallback)."""
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
@@ -1581,7 +1674,7 @@ class KeyDoorMatchingEvaluator(BaseEvaluator):
 
         return None
 
-    def _track_agent(self, frames: List[np.ndarray]) -> List[Tuple[int, int]]:
+    def _track_agent(self, frames: list[np.ndarray]) -> list[tuple[int, int]]:
         """Track agent position across frames."""
         positions = []
         for frame in frames:
@@ -1590,7 +1683,7 @@ class KeyDoorMatchingEvaluator(BaseEvaluator):
                 positions.append(pos)
         return positions
 
-    def _detect_keys(self, frame: np.ndarray) -> List[Dict]:
+    def _detect_keys(self, frame: np.ndarray) -> list[dict]:
         """
         Detect diamond-shaped keys of various colors.
         Keys are filled shapes (high fill ratio) with 4 vertices.
@@ -1641,7 +1734,7 @@ class KeyDoorMatchingEvaluator(BaseEvaluator):
 
         return keys
 
-    def _detect_doors(self, frame: np.ndarray) -> List[Dict]:
+    def _detect_doors(self, frame: np.ndarray) -> list[dict]:
         """
         Detect hollow rectangular doors.
         Doors are HOLLOW shapes (low fill ratio < 0.6) with 4 vertices.
@@ -1706,7 +1799,14 @@ class PredictNextColorEvaluator(BaseEvaluator):
 
     TASK_WEIGHTS = {"pattern": 0.50, "color": 0.30, "visual": 0.15, "understanding": 0.05}
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         """Evaluate predict next color task."""
         scores = {}
 
@@ -1743,7 +1843,7 @@ class PredictNextColorEvaluator(BaseEvaluator):
         self._last_task_details = scores
         return sum(scores[k] * self.TASK_WEIGHTS[k] for k in self.TASK_WEIGHTS)
 
-    def _detect_color_blocks(self, frame: np.ndarray) -> List[Dict]:
+    def _detect_color_blocks(self, frame: np.ndarray) -> list[dict]:
         """Detect colored blocks in the frame."""
         blocks = []
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
@@ -1787,7 +1887,7 @@ class PredictNextColorEvaluator(BaseEvaluator):
 
         return blocks
 
-    def _evaluate_pattern(self, gen_blocks: List[Dict], gt_blocks: List[Dict]) -> float:
+    def _evaluate_pattern(self, gen_blocks: list[dict], gt_blocks: list[dict]) -> float:
         """Evaluate if the pattern was correctly identified."""
         if len(gen_blocks) < 5 or len(gt_blocks) < 5:
             return 0.0
@@ -1804,7 +1904,7 @@ class PredictNextColorEvaluator(BaseEvaluator):
 
         return 0.0
 
-    def _evaluate_color_accuracy(self, gen_blocks: List[Dict], gt_blocks: List[Dict]) -> float:
+    def _evaluate_color_accuracy(self, gen_blocks: list[dict], gt_blocks: list[dict]) -> float:
         """Evaluate if the predicted color is correct."""
         if len(gen_blocks) < 5 or len(gt_blocks) < 5:
             return 0.0
@@ -1829,7 +1929,7 @@ class PredictNextColorEvaluator(BaseEvaluator):
         color_pair = tuple(sorted([gen_5th["color"], gt_5th["color"]]))
         return similar_colors.get(color_pair, 0.0)
 
-    def _evaluate_visual_presentation(self, gen_blocks: List[Dict]) -> float:
+    def _evaluate_visual_presentation(self, gen_blocks: list[dict]) -> float:
         """Evaluate visual consistency of blocks."""
         if len(gen_blocks) < 5:
             return 0.0
@@ -1845,7 +1945,7 @@ class PredictNextColorEvaluator(BaseEvaluator):
 
         return 0.5
 
-    def _evaluate_task_understanding(self, gen_blocks: List[Dict], gt_blocks: List[Dict]) -> float:
+    def _evaluate_task_understanding(self, gen_blocks: list[dict], gt_blocks: list[dict]) -> float:
         """Evaluate if only position 5 was filled."""
         # Check if first 4 blocks match GT (unchanged)
         if len(gen_blocks) < 4 or len(gt_blocks) < 4:
@@ -1872,7 +1972,14 @@ class SelectNextFigureIncreasingEvaluator(BaseEvaluator):
 
     TASK_WEIGHTS = {"pattern": 0.40, "shape_type": 0.30, "selection": 0.20, "annotation": 0.10}
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         """Evaluate select next figure increasing task."""
         scores = {}
 
@@ -1909,7 +2016,7 @@ class SelectNextFigureIncreasingEvaluator(BaseEvaluator):
         self._last_task_details = scores
         return sum(scores[k] * self.TASK_WEIGHTS[k] for k in self.TASK_WEIGHTS)
 
-    def _detect_red_circle(self, frame: np.ndarray) -> Optional[Dict]:
+    def _detect_red_circle(self, frame: np.ndarray) -> dict | None:
         """Detect red circle annotation."""
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
@@ -1948,7 +2055,9 @@ class SelectNextFigureIncreasingEvaluator(BaseEvaluator):
 
         return {"center": (cx, cy), "area": area, "circularity": circularity, "contour": largest}
 
-    def _evaluate_pattern_recognition(self, gen_red: Optional[Dict], gt_red: Optional[Dict], gen_frame: np.ndarray, gt_frame: np.ndarray) -> float:
+    def _evaluate_pattern_recognition(
+        self, gen_red: dict | None, gt_red: dict | None, gen_frame: np.ndarray, gt_frame: np.ndarray
+    ) -> float:
         """Evaluate if the increasing pattern was recognized."""
         if gen_red is None:
             return 0.0
@@ -1972,7 +2081,9 @@ class SelectNextFigureIncreasingEvaluator(BaseEvaluator):
         else:
             return max(0.2, 1.0 - normalized_dist)
 
-    def _evaluate_shape_type(self, gen_red: Optional[Dict], gt_red: Optional[Dict], gen_frame: np.ndarray, gt_frame: np.ndarray) -> float:
+    def _evaluate_shape_type(
+        self, gen_red: dict | None, gt_red: dict | None, gen_frame: np.ndarray, gt_frame: np.ndarray
+    ) -> float:
         """Evaluate if correct shape type was selected."""
         if gen_red is None or gt_red is None:
             return 0.0 if gen_red is None else 0.5
@@ -2001,7 +2112,7 @@ class SelectNextFigureIncreasingEvaluator(BaseEvaluator):
 
         return max(0, similarity)
 
-    def _extract_roi(self, frame: np.ndarray, center: Tuple[int, int], radius: int) -> Optional[np.ndarray]:
+    def _extract_roi(self, frame: np.ndarray, center: tuple[int, int], radius: int) -> np.ndarray | None:
         """Extract region of interest around center."""
         h, w = frame.shape[:2]
         x1 = max(0, center[0] - radius)
@@ -2014,7 +2125,7 @@ class SelectNextFigureIncreasingEvaluator(BaseEvaluator):
 
         return frame[y1:y2, x1:x2]
 
-    def _evaluate_selection_accuracy(self, gen_red: Optional[Dict], gt_red: Optional[Dict]) -> float:
+    def _evaluate_selection_accuracy(self, gen_red: dict | None, gt_red: dict | None) -> float:
         """Evaluate red circle position accuracy."""
         if gen_red is None:
             return 0.0
@@ -2035,7 +2146,7 @@ class SelectNextFigureIncreasingEvaluator(BaseEvaluator):
         else:
             return 0.2
 
-    def _evaluate_annotation_quality(self, gen_red: Optional[Dict]) -> float:
+    def _evaluate_annotation_quality(self, gen_red: dict | None) -> float:
         """Evaluate quality of red circle annotation."""
         if gen_red is None:
             return 0.0
@@ -2066,7 +2177,7 @@ class SelectNextFigureLargeSmallEvaluator(BaseEvaluator):
 
     TASK_WEIGHTS = {"pattern": 0.40, "shape_type": 0.30, "size": 0.20, "annotation": 0.10}
 
-    def _detect_shapes_with_size(self, frame: np.ndarray) -> List[Dict]:
+    def _detect_shapes_with_size(self, frame: np.ndarray) -> list[dict]:
         """Detect shapes and their sizes."""
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
@@ -2104,7 +2215,7 @@ class SelectNextFigureLargeSmallEvaluator(BaseEvaluator):
 
         return shapes
 
-    def _detect_red_circle_marking(self, frame: np.ndarray) -> Optional[Tuple[int, int]]:
+    def _detect_red_circle_marking(self, frame: np.ndarray) -> tuple[int, int] | None:
         """Detect red circle marking and return its center."""
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
@@ -2138,7 +2249,7 @@ class SelectNextFigureLargeSmallEvaluator(BaseEvaluator):
 
         return None
 
-    def _detect_marking_by_diff(self, first_frame: np.ndarray, final_frame: np.ndarray) -> Optional[Tuple[int, int]]:
+    def _detect_marking_by_diff(self, first_frame: np.ndarray, final_frame: np.ndarray) -> tuple[int, int] | None:
         """Detect marking by comparing first and final frames (for cases where shapes are red)."""
         # Compute difference
         diff = cv2.absdiff(first_frame, final_frame)
@@ -2161,7 +2272,14 @@ class SelectNextFigureLargeSmallEvaluator(BaseEvaluator):
 
         return None
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         """Evaluate select next figure large-small alternating task."""
         scores = {}
 
@@ -2208,7 +2326,9 @@ class SelectNextFigureLargeSmallEvaluator(BaseEvaluator):
             if gen_marking is not None:
                 min_dist = float("inf")
                 for shape in gen_shapes:
-                    dist = np.sqrt((shape["center"][0] - gen_marking[0]) ** 2 + (shape["center"][1] - gen_marking[1]) ** 2)
+                    dist = np.sqrt(
+                        (shape["center"][0] - gen_marking[0]) ** 2 + (shape["center"][1] - gen_marking[1]) ** 2
+                    )
                     if dist < min_dist:
                         min_dist = dist
                         gen_marked_shape = shape
@@ -2217,7 +2337,9 @@ class SelectNextFigureLargeSmallEvaluator(BaseEvaluator):
             if gt_marking is not None:
                 min_dist = float("inf")
                 for shape in gt_shapes:
-                    dist = np.sqrt((shape["center"][0] - gt_marking[0]) ** 2 + (shape["center"][1] - gt_marking[1]) ** 2)
+                    dist = np.sqrt(
+                        (shape["center"][0] - gt_marking[0]) ** 2 + (shape["center"][1] - gt_marking[1]) ** 2
+                    )
                     if dist < min_dist:
                         min_dist = dist
                         gt_marked_shape = shape
@@ -2295,7 +2417,7 @@ class SpotUniqueColorEvaluator(BaseEvaluator):
 
     TASK_WEIGHTS = {"uniqueness": 0.50, "localization": 0.30, "annotation": 0.15, "understanding": 0.05}
 
-    def _detect_colored_shapes(self, frame: np.ndarray) -> List[Dict]:
+    def _detect_colored_shapes(self, frame: np.ndarray) -> list[dict]:
         """Detect colored shapes and their colors."""
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
@@ -2339,7 +2461,9 @@ class SpotUniqueColorEvaluator(BaseEvaluator):
         for s in raw_shapes:
             is_dup = False
             for existing in shapes:
-                dist = np.sqrt((s["center"][0] - existing["center"][0]) ** 2 + (s["center"][1] - existing["center"][1]) ** 2)
+                dist = np.sqrt(
+                    (s["center"][0] - existing["center"][0]) ** 2 + (s["center"][1] - existing["center"][1]) ** 2
+                )
                 if dist < 50:  # Same shape detected twice
                     is_dup = True
                     break
@@ -2348,7 +2472,7 @@ class SpotUniqueColorEvaluator(BaseEvaluator):
 
         return shapes
 
-    def _detect_outline_marking(self, frame: np.ndarray) -> List[Tuple[int, int]]:
+    def _detect_outline_marking(self, frame: np.ndarray) -> list[tuple[int, int]]:
         """Detect black outline markings around shapes."""
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
@@ -2381,7 +2505,14 @@ class SpotUniqueColorEvaluator(BaseEvaluator):
 
         return centers
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         """Evaluate spot unique color task."""
         scores = {}
 

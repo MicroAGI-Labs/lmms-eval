@@ -1,20 +1,18 @@
 import logging
 from datetime import timedelta
-from typing import List, Optional, Tuple, Union
 
 import numpy as np
 import torch
 from accelerate import Accelerator, DistributedType, InitProcessGroupKwargs
 from accelerate.state import AcceleratorState
 from decord import VideoReader, cpu
-from PIL import Image
-from tqdm import tqdm
-
 from lmms_eval.api.instance import Instance
 from lmms_eval.api.model import lmms
 from lmms_eval.api.registry import register_model
 from lmms_eval.imports import require_package
 from lmms_eval.models.model_utils.load_video import read_video
+from PIL import Image
+from tqdm import tqdm
 
 eval_logger = logging.getLogger("lmms-eval")
 
@@ -44,10 +42,10 @@ class VILA(lmms):
     def __init__(
         self,
         pretrained: str = "Efficient-Large-Model/VILA1.5-40b",
-        max_frames_num: Optional[int] = 100,
-        truncation: Optional[bool] = True,
-        device: Optional[str] = "cuda:0",
-        batch_size: Optional[Union[int, str]] = 1,
+        max_frames_num: int | None = 100,
+        truncation: bool | None = True,
+        device: str | None = "cuda:0",
+        batch_size: int | str | None = 1,
         attn_implementation=(
             "sdpa" if torch.__version__ >= "2.1.2" else "eager"
         ),  # inference implementation for attention, can be "sdpa", "eager", "flash_attention_2". Seems FA2 is not effective during inference: https://discuss.huggingface.co/t/flash-attention-has-no-effect-on-inference/73453/5
@@ -118,8 +116,13 @@ class VILA(lmms):
                     "train_batch_size": self.batch_size_per_gpu * accelerator.num_processes,
                 }
                 AcceleratorState().deepspeed_plugin.deepspeed_config_process(must_match=True, **kwargs)
-                eval_logger.info("Detected that you are using DistributedType.DEEPSPEED. Make sure you run `accelerate config` and set zero stage to 0")
-            if accelerator.distributed_type == DistributedType.FSDP or accelerator.distributed_type == DistributedType.DEEPSPEED:
+                eval_logger.info(
+                    "Detected that you are using DistributedType.DEEPSPEED. Make sure you run `accelerate config` and set zero stage to 0"
+                )
+            if (
+                accelerator.distributed_type == DistributedType.FSDP
+                or accelerator.distributed_type == DistributedType.DEEPSPEED
+            ):
                 self._model = accelerator.prepare(self.model)
             else:
                 self._model = accelerator.prepare_model(self.model, evaluation_mode=True)
@@ -188,7 +191,7 @@ class VILA(lmms):
     def world_size(self):
         return self._world_size
 
-    def tok_encode(self, string: str, left_truncate_len=None, add_special_tokens=None) -> List[int]:
+    def tok_encode(self, string: str, left_truncate_len=None, add_special_tokens=None) -> list[int]:
         """ """
         add_special_tokens = False if add_special_tokens is None else add_special_tokens
         encoding = self.tokenizer.encode(string, add_special_tokens=add_special_tokens)
@@ -212,7 +215,7 @@ class VILA(lmms):
     def tok_decode(self, tokens):
         return self.tokenizer.decode(tokens)
 
-    def loglikelihood(self, requests: List[Instance]) -> List[Tuple[float, bool]]:
+    def loglikelihood(self, requests: list[Instance]) -> list[tuple[float, bool]]:
         res = []
         pbar = tqdm(total=len(requests), disable=(self.rank != 0), desc="Model Responding")
 
@@ -227,7 +230,9 @@ class VILA(lmms):
             videos = []
             for visual in visuals:
                 video = self.load_video(visual, self.max_frames_num)
-                video = self._image_processor.preprocess(video, return_tensors="pt")["pixel_values"].half().to(self._device)
+                video = (
+                    self._image_processor.preprocess(video, return_tensors="pt")["pixel_values"].half().to(self._device)
+                )
                 videos.append(video)
 
             qs = contexts
@@ -241,14 +246,22 @@ class VILA(lmms):
             conv.append_message(conv.roles[1], None)
             prompt = conv.get_prompt()
 
-            contxt_id = tokenizer_image_token(prompt, self.tokenizer, IMAGE_TOKEN_INDEX, return_tensors="pt").unsqueeze(0).to(self.device)
+            contxt_id = (
+                tokenizer_image_token(prompt, self.tokenizer, IMAGE_TOKEN_INDEX, return_tensors="pt")
+                .unsqueeze(0)
+                .to(self.device)
+            )
 
             conv = conv_templates[self.conv_template].copy()
             conv.append_message(conv.roles[0], qs)
             conv.append_message(conv.roles[1], continuation)
             prompt = conv.get_prompt()
 
-            input_ids = tokenizer_image_token(prompt, self.tokenizer, IMAGE_TOKEN_INDEX, return_tensors="pt").unsqueeze(0).to(self._device)
+            input_ids = (
+                tokenizer_image_token(prompt, self.tokenizer, IMAGE_TOKEN_INDEX, return_tensors="pt")
+                .unsqueeze(0)
+                .to(self._device)
+            )
             attention_masks = input_ids.ne(self.tokenizer.pad_token_id).long().to(self._device)
 
             labels = input_ids.clone()
@@ -282,7 +295,7 @@ class VILA(lmms):
                 new_list.append(j)
         return new_list
 
-    def generate_until(self, requests) -> List[str]:
+    def generate_until(self, requests) -> list[str]:
         res = []
         pbar = tqdm(total=len(requests), disable=(self.rank != 0), desc="Model Responding")
 
@@ -303,7 +316,9 @@ class VILA(lmms):
                         images = self.load_video(visual, num_video_frames)
                     elif self.video_decode_backend == "pyav":
                         images = read_video(visual, num_frm=num_video_frames)
-                    video = process_images(images, self.model.image_processor, self.model.config).half().to(self._device)
+                    video = (
+                        process_images(images, self.model.image_processor, self.model.config).half().to(self._device)
+                    )
                     videos.append(video)
 
             qs = f"<video>\n {contexts}"
@@ -323,8 +338,14 @@ class VILA(lmms):
             conv.append_message(conv.roles[1], None)
             prompt = conv.get_prompt()
 
-            input_ids = tokenizer_image_token(prompt, self.tokenizer, IMAGE_TOKEN_INDEX, return_tensors="pt").unsqueeze(0).to(self._device)
-            pad_token_ids = self.tokenizer.pad_token_id if self.tokenizer.pad_token_id is not None else self.tokenizer.eos_token_id
+            input_ids = (
+                tokenizer_image_token(prompt, self.tokenizer, IMAGE_TOKEN_INDEX, return_tensors="pt")
+                .unsqueeze(0)
+                .to(self._device)
+            )
+            pad_token_ids = (
+                self.tokenizer.pad_token_id if self.tokenizer.pad_token_id is not None else self.tokenizer.eos_token_id
+            )
             # if "llama_3" in self.conv_template:
             #     pad_token_ids = 0  # lmms-lab/llama3-llava-8b is trained on this pad token id. You may need to customize this for other models.
             attention_masks = input_ids.ne(pad_token_ids).long().to(self._device)
@@ -373,5 +394,5 @@ class VILA(lmms):
             pbar.update(1)
         return res
 
-    def generate_until_multi_round(self, requests) -> List[str]:
+    def generate_until_multi_round(self, requests) -> list[str]:
         raise NotImplementedError("TODO: Implement multi-round generation")

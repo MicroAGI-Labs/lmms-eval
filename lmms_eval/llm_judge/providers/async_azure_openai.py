@@ -1,6 +1,5 @@
 import asyncio
 import os
-from typing import Dict, List, Optional, Union
 
 import aiohttp
 from loguru import logger as eval_logger
@@ -15,7 +14,7 @@ from .openai import OpenAIProvider
 class AsyncAzureOpenAIProvider(AsyncServerInterface):
     """Async Azure OpenAI API implementation of the Judge interface"""
 
-    def __init__(self, config: Optional[ServerConfig] = None):
+    def __init__(self, config: ServerConfig | None = None):
         super().__init__(config)
         self.api_key = os.getenv("AZURE_API_KEY", "")
         self.api_endpoint = os.getenv("AZURE_ENDPOINT", "")
@@ -26,7 +25,9 @@ class AsyncAzureOpenAIProvider(AsyncServerInterface):
         try:
             from openai import AsyncAzureOpenAI
 
-            self.async_client = AsyncAzureOpenAI(api_key=self.api_key, azure_endpoint=self.api_endpoint, api_version=self.api_version)
+            self.async_client = AsyncAzureOpenAI(
+                api_key=self.api_key, azure_endpoint=self.api_endpoint, api_version=self.api_version
+            )
             self.use_async_client = True
         except ImportError:
             eval_logger.warning("AsyncAzureOpenAI client not available, using aiohttp")
@@ -97,7 +98,9 @@ class AsyncAzureOpenAIProvider(AsyncServerInterface):
                             source="judge",
                         )
 
-                    return Response(content=content.strip(), model_used=model_used, usage=usage, raw_response=raw_response)
+                    return Response(
+                        content=content.strip(), model_used=model_used, usage=usage, raw_response=raw_response
+                    )
 
                 except Exception as e:
                     eval_logger.warning(f"Attempt {attempt + 1}/{config.num_retries} failed: {str(e)}")
@@ -107,7 +110,7 @@ class AsyncAzureOpenAIProvider(AsyncServerInterface):
                         eval_logger.error(f"All {config.num_retries} attempts failed")
                         raise
 
-    async def _make_async_request(self, payload: Dict, timeout: int) -> Dict:
+    async def _make_async_request(self, payload: dict, timeout: int) -> dict:
         """Make async HTTP request to Azure OpenAI API"""
         headers = {
             "api-key": self.api_key,
@@ -116,14 +119,18 @@ class AsyncAzureOpenAIProvider(AsyncServerInterface):
 
         # Construct the full URL
         deployment_name = payload["model"]
-        url = f"{self.api_endpoint}/openai/deployments/{deployment_name}/chat/completions?api-version={self.api_version}"
+        url = (
+            f"{self.api_endpoint}/openai/deployments/{deployment_name}/chat/completions?api-version={self.api_version}"
+        )
 
         async with aiohttp.ClientSession() as session:
-            async with session.post(url, headers=headers, json=payload, timeout=aiohttp.ClientTimeout(total=timeout)) as response:
+            async with session.post(
+                url, headers=headers, json=payload, timeout=aiohttp.ClientTimeout(total=timeout)
+            ) as response:
                 response.raise_for_status()
                 return await response.json()
 
-    def _add_images_to_messages(self, messages: List[Dict], images: List[Union[str, bytes]]) -> List[Dict]:
+    def _add_images_to_messages(self, messages: list[dict], images: list[str | bytes]) -> list[dict]:
         """Add images to messages - reuse from base implementation"""
         return OpenAIProvider._add_images_to_messages(self, messages, images)
 

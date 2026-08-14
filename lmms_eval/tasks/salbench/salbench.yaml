@@ -1,0 +1,7 @@
+group: salbench
+task:
+  - p3
+  - p3_box
+  - p3_box_img
+  - o3
+  - o3_box

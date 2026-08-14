@@ -1,5 +1,4 @@
 import logging
-from typing import List, Tuple
 
 import decord
 import numpy as np
@@ -11,6 +10,9 @@ from easydict import EasyDict
 
 decord.bridge.set_bridge("torch")
 import torch.nn.functional as F
+from lmms_eval.api.instance import Instance
+from lmms_eval.api.model import lmms
+from lmms_eval.api.registry import register_model
 from PIL import Image
 from tqdm import tqdm
 from transformers import (
@@ -18,10 +20,6 @@ from transformers import (
     StoppingCriteria,
     StoppingCriteriaList,
 )
-
-from lmms_eval.api.instance import Instance
-from lmms_eval.api.model import lmms
-from lmms_eval.api.registry import register_model
 
 eval_logger = logging.getLogger("eval_logger")
 
@@ -45,7 +43,7 @@ class StoppingCriteriaSub(StoppingCriteria):
 
     def __call__(self, input_ids: torch.LongTensor, scores: torch.FloatTensor):
         for stop in self.stops:
-            if torch.all((stop == input_ids[0][-len(stop) :])).item():
+            if torch.all(stop == input_ids[0][-len(stop) :]).item():
                 return True
         return False
 
@@ -60,7 +58,9 @@ def get_index(max_frame, num_segments, fps, first_idx=0, bound=None):
     start_idx = max(first_idx, round(start * fps))
     end_idx = min(round(end * fps), max_frame)
     seg_size = float(end_idx - start_idx) / num_segments
-    frame_indices = np.array([int(start_idx + (seg_size / 2) + np.round(seg_size * idx)) for idx in range(num_segments)])
+    frame_indices = np.array(
+        [int(start_idx + (seg_size / 2) + np.round(seg_size * idx)) for idx in range(num_segments)]
+    )
     return frame_indices
 
 
@@ -82,7 +82,9 @@ def load_video(video_path, num_segments=16, return_msg=False, resolution=224, hd
     vr = VideoReader(video_path, ctx=cpu(0), num_threads=1)
     num_frames = len(vr) - 1
 
-    frame_indices = get_index(max_frame=num_frames, num_segments=num_segments, fps=float(vr.get_avg_fps()), first_idx=0, bound=None)
+    frame_indices = get_index(
+        max_frame=num_frames, num_segments=num_segments, fps=float(vr.get_avg_fps()), first_idx=0, bound=None
+    )
     mean = (0.485, 0.456, 0.406)
     std = (0.229, 0.224, 0.225)
 
@@ -117,7 +119,9 @@ def HD_transform_padding(frames, image_size=224, hd_num=6):
         left_padding = 0
         right_padding = 0
 
-        padded_frames = F.pad(frames, pad=[left_padding, right_padding, top_padding, bottom_padding], mode="constant", value=255)
+        padded_frames = F.pad(
+            frames, pad=[left_padding, right_padding, top_padding, bottom_padding], mode="constant", value=255
+        )
         return padded_frames
 
     _, _, H, W = frames.shape
@@ -169,14 +173,22 @@ def HD_transform_no_padding(frames, image_size=224, hd_num=6, fix_ratio=(2, 1)):
     aspect_ratio = orig_width / orig_height
 
     # calculate the existing video aspect ratio
-    target_ratios = set((i, j) for n in range(min_num, max_num + 1) for i in range(1, n + 1) for j in range(1, n + 1) if i * j <= max_num and i * j >= min_num)
+    target_ratios = set(
+        (i, j)
+        for n in range(min_num, max_num + 1)
+        for i in range(1, n + 1)
+        for j in range(1, n + 1)
+        if i * j <= max_num and i * j >= min_num
+    )
     target_ratios = sorted(target_ratios, key=lambda x: x[0] * x[1])
 
     # find the closest aspect ratio to the target
     if fix_ratio:
         target_aspect_ratio = fix_ratio
     else:
-        target_aspect_ratio = find_closest_aspect_ratio(aspect_ratio, target_ratios, orig_width, orig_height, image_size)
+        target_aspect_ratio = find_closest_aspect_ratio(
+            aspect_ratio, target_ratios, orig_width, orig_height, image_size
+        )
 
     # calculate the target width and height
     target_width = image_size * target_aspect_ratio[0]
@@ -237,7 +249,11 @@ class VideoChat2(lmms):
             self.device_map = f"cuda:{accelerator.local_process_index}"
 
         if accelerator.num_processes > 1:
-            assert accelerator.distributed_type in [DistributedType.FSDP, DistributedType.MULTI_GPU, DistributedType.DEEPSPEED], "Unsupported distributed type provided. Only DDP and FSDP are supported."
+            assert accelerator.distributed_type in [
+                DistributedType.FSDP,
+                DistributedType.MULTI_GPU,
+                DistributedType.DEEPSPEED,
+            ], "Unsupported distributed type provided. Only DDP and FSDP are supported."
             # If you want to use DistributedType.DEEPSPEED, you have to run accelerate config before using the model
             # Also, you have to select zero stage 0 (equivalent to DDP) in order to make the prepare model works
             # I tried to set different parameters in the kwargs to let default zero 2 stage works, but it didn't work.
@@ -247,9 +263,14 @@ class VideoChat2(lmms):
                     "train_batch_size": self.batch_size_per_gpu * accelerator.num_processes,
                 }
                 AcceleratorState().deepspeed_plugin.deepspeed_config_process(must_match=True, **kwargs)
-                eval_logger.info("Detected that you are using DistributedType.DEEPSPEED. Make sure you run `accelerate config` and set zero stage to 0")
+                eval_logger.info(
+                    "Detected that you are using DistributedType.DEEPSPEED. Make sure you run `accelerate config` and set zero stage to 0"
+                )
 
-            if accelerator.distributed_type == DistributedType.FSDP or accelerator.distributed_type == DistributedType.DEEPSPEED:
+            if (
+                accelerator.distributed_type == DistributedType.FSDP
+                or accelerator.distributed_type == DistributedType.DEEPSPEED
+            ):
                 self._model = accelerator.prepare(self.model)
             else:
                 self._model = accelerator.prepare_model(self.model, evaluation_mode=True)
@@ -340,7 +361,9 @@ class VideoChat2(lmms):
         assert len(prompt_segs) == len(img_list) + 1, "Unmatched numbers of image placeholders and images."
         with torch.no_grad():
             seg_tokens = [
-                self.model.mistral_tokenizer(seg, return_tensors="pt", add_special_tokens=i == 0).to(self._device).input_ids
+                self.model.mistral_tokenizer(seg, return_tensors="pt", add_special_tokens=i == 0)
+                .to(self._device)
+                .input_ids
                 # only add bos to the first seg
                 for i, seg in enumerate(prompt_segs)
             ]
@@ -349,7 +372,9 @@ class VideoChat2(lmms):
         mixed_embs = torch.cat(mixed_embs, dim=1)
         return mixed_embs
 
-    def get_sinusoid_encoding_table(self, n_position=784, d_hid=1024, cur_frame=8, ckpt_num_frame=4, pre_n_position=784):
+    def get_sinusoid_encoding_table(
+        self, n_position=784, d_hid=1024, cur_frame=8, ckpt_num_frame=4, pre_n_position=784
+    ):
         """Sinusoid position encoding table"""
 
         # TODO: make it with torch instead of numpy
@@ -375,7 +400,9 @@ class VideoChat2(lmms):
                 # print(f'Interpolate the position embedding')
                 sinusoid_table = sinusoid_table.reshape(-1, T, P, P, C)
                 sinusoid_table = sinusoid_table.reshape(-1, P, P, C).permute(0, 3, 1, 2)
-                sinusoid_table = torch.nn.functional.interpolate(sinusoid_table, size=(new_P, new_P), mode="bicubic", align_corners=False)
+                sinusoid_table = torch.nn.functional.interpolate(
+                    sinusoid_table, size=(new_P, new_P), mode="bicubic", align_corners=False
+                )
                 # BT, C, H, W -> BT, H, W, C ->  B, T, H, W, C
                 sinusoid_table = sinusoid_table.permute(0, 2, 3, 1).reshape(-1, T, new_P, new_P, C)
                 sinusoid_table = sinusoid_table.flatten(1, 3)  # B, THW, C
@@ -399,8 +426,25 @@ class VideoChat2(lmms):
     def ask(self, text, conv):
         conv.messages.append([conv.roles[0], text])
 
-    def answer(self, conv, img_list, do_sample=True, max_new_tokens=200, num_beams=1, min_length=1, top_p=0.9, repetition_penalty=1.0, length_penalty=1, temperature=1.0, answer_prompt=None, print_res=False):
-        stop_words_ids = [torch.tensor([2]).to(self._device), torch.tensor([29871, 2]).to(self._device)]  # '</s>' can be encoded in two different ways.
+    def answer(
+        self,
+        conv,
+        img_list,
+        do_sample=True,
+        max_new_tokens=200,
+        num_beams=1,
+        min_length=1,
+        top_p=0.9,
+        repetition_penalty=1.0,
+        length_penalty=1,
+        temperature=1.0,
+        answer_prompt=None,
+        print_res=False,
+    ):
+        stop_words_ids = [
+            torch.tensor([2]).to(self._device),
+            torch.tensor([29871, 2]).to(self._device),
+        ]  # '</s>' can be encoded in two different ways.
         stopping_criteria = StoppingCriteriaList([StoppingCriteriaSub(stops=stop_words_ids)])
 
         conv.messages.append([conv.roles[1], answer_prompt])
@@ -436,7 +480,7 @@ class VideoChat2(lmms):
                 new_list.append(j)
         return new_list
 
-    def generate_until(self, requests) -> List[str]:
+    def generate_until(self, requests) -> list[str]:
         res = []
         pbar = tqdm(total=len(requests), disable=(self.rank != 0), desc="Model Responding")
 
@@ -459,48 +503,64 @@ class VideoChat2(lmms):
             visuals = self.flatten(visuals)
             if self.modality == "image":
                 image_path = visuals[0]
-                new_pos_emb = self.get_sinusoid_encoding_table(n_position=(224 // 16) ** 2, cur_frame=1, ckpt_num_frame=1, pre_n_position=14 * 14)
+                new_pos_emb = self.get_sinusoid_encoding_table(
+                    n_position=(224 // 16) ** 2, cur_frame=1, ckpt_num_frame=1, pre_n_position=14 * 14
+                )
                 self.model.vision_encoder.encoder.img_pos_embed = new_pos_emb
                 pixel_values = load_image(image_path, resolution=224, hd_num=self.hd_num)
                 pixel_values = pixel_values.cuda()
                 question = self.instruction + contexts
                 with torch.no_grad():
                     img_list = []
-                    image_emb, _, _ = self.model.encode_img(pixel_values, self.instruction + "Observe the image and answer the question.")
+                    image_emb, _, _ = self.model.encode_img(
+                        pixel_values, self.instruction + "Observe the image and answer the question."
+                    )
                     img_list.append(image_emb[0])
                     chat = EasyDict({"system": "", "roles": ("[INST]", "[/INST]"), "messages": [], "sep": ""})
 
                     chat.messages.append([chat.roles[0], "<Image><ImageHere></Image> [/INST]"])
                     self.ask(question, chat)
-                    response = self.answer(conv=chat, do_sample=False, img_list=img_list, max_new_tokens=512, answer_prompt=answer_prompt)[0]
+                    response = self.answer(
+                        conv=chat, do_sample=False, img_list=img_list, max_new_tokens=512, answer_prompt=answer_prompt
+                    )[0]
             elif self.modality == "video":
-                assert len(visuals) == 1, f"Only one video is supported, but got {len(visuals)} videos. [META-INFO]{visuals}"
+                assert len(visuals) == 1, (
+                    f"Only one video is supported, but got {len(visuals)} videos. [META-INFO]{visuals}"
+                )
                 video_path = visuals[0]
                 if "mvbench" in task:
                     answer_prompt = "Best Option:("
                 else:
                     answer_prompt = None
-                new_pos_emb = self.get_sinusoid_encoding_table(n_position=(224 // 16) ** 2 * self.num_segments, cur_frame=self.num_segments)
+                new_pos_emb = self.get_sinusoid_encoding_table(
+                    n_position=(224 // 16) ** 2 * self.num_segments, cur_frame=self.num_segments
+                )
                 self.model.vision_encoder.encoder.pos_embed = new_pos_emb
-                pixel_values = load_video(video_path, num_segments=self.num_segments, return_msg=False, resolution=224, hd_num=self.hd_num)
+                pixel_values = load_video(
+                    video_path, num_segments=self.num_segments, return_msg=False, resolution=224, hd_num=self.hd_num
+                )
                 pixel_values = pixel_values.cuda()
                 question = self.instruction + contexts
                 with torch.no_grad():
                     img_list = []
-                    image_emb, _, _ = self.model.encode_img(pixel_values, self.instruction + "Watch the video and answer the question.")
+                    image_emb, _, _ = self.model.encode_img(
+                        pixel_values, self.instruction + "Watch the video and answer the question."
+                    )
                     img_list.append(image_emb[0])
                     chat = EasyDict({"system": "", "roles": ("[INST]", "[/INST]"), "messages": [], "sep": ""})
 
                     chat.messages.append([chat.roles[0], "<Video><VideoHere></Video> [/INST]"])
                     self.ask(question, chat)
-                    response = self.answer(conv=chat, do_sample=False, img_list=img_list, max_new_tokens=512, answer_prompt=answer_prompt)[0]
+                    response = self.answer(
+                        conv=chat, do_sample=False, img_list=img_list, max_new_tokens=512, answer_prompt=answer_prompt
+                    )[0]
             res.append(response)
             pbar.update(1)
         pbar.close()
         return res
 
-    def loglikelihood(self, requests: List[Instance]) -> List[Tuple[float, bool]]:
+    def loglikelihood(self, requests: list[Instance]) -> list[tuple[float, bool]]:
         assert False, "Not implemented yet."
 
-    def generate_until_multi_round(self, requests) -> List[str]:
+    def generate_until_multi_round(self, requests) -> list[str]:
         raise NotImplementedError("TODO: Implement multi-round generation for VideoChat2")

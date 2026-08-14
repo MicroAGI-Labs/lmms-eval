@@ -17,7 +17,6 @@ import os
 import re
 from collections import defaultdict
 from io import BytesIO
-from typing import Dict, Optional, Tuple
 
 import numpy as np
 from loguru import logger as eval_logger
@@ -35,7 +34,7 @@ IMGEDIT_MODEL_NAME = os.getenv("IMGEDIT_MODEL_NAME", "gpt-4o")
 _openai_client = None
 
 
-def _get_openai_client() -> Optional[OpenAI]:
+def _get_openai_client() -> OpenAI | None:
     """Get or create OpenAI client instance (singleton pattern)."""
     global _openai_client
     if _openai_client is not None:
@@ -67,7 +66,7 @@ IMGEDIT_EDIT_TYPES = [
 ]
 
 
-def image_to_base64(image) -> Optional[str]:
+def image_to_base64(image) -> str | None:
     """Convert PIL Image or image path to base64 string"""
     try:
         if isinstance(image, str):
@@ -90,7 +89,7 @@ def image_to_base64(image) -> Optional[str]:
         return None
 
 
-def parse_gpt_scores(response_text: str) -> Tuple[float, float, float]:
+def parse_gpt_scores(response_text: str) -> tuple[float, float, float]:
     """
     Parse GPT/Qwen response to extract three scores.
     Returns tuple of (score1, score2, score3)
@@ -124,7 +123,7 @@ def parse_gpt_scores(response_text: str) -> Tuple[float, float, float]:
         return (0.0, 0.0, 0.0)
 
 
-def calculate_average_score(scores: Tuple[float, float, float]) -> float:
+def calculate_average_score(scores: tuple[float, float, float]) -> float:
     """Calculate average of three scores"""
     return sum(scores) / 3.0
 
@@ -160,7 +159,7 @@ def _call_openai_for_evaluation(
     edited_image,
     edit_prompt: str,
     edit_type: str,
-) -> Optional[str]:
+) -> str | None:
     """
     Call OpenAI API for image editing evaluation.
 
@@ -290,7 +289,7 @@ def imgedit_process_results(doc, results, **kwargs):
     }
 
 
-def _create_zero_result(key: str, edit_type: str) -> Dict:
+def _create_zero_result(key: str, edit_type: str) -> dict:
     """Create a zero-score result dict"""
     return {
         "imgedit_score1": {

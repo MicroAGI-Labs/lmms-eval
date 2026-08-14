@@ -52,12 +52,20 @@ def repcount_doc_to_visual(doc):
     for key in ["video", "video_path", "media_path", "clip_path", "file", "path"]:
         value = doc.get(key)
         if value:
-            return [resolve_media_reference(value, media_type="video", cache_dir="repcount", env_vars=("REPCOUNT_VIDEO_DIR",))]
+            return [
+                resolve_media_reference(
+                    value, media_type="video", cache_dir="repcount", env_vars=("REPCOUNT_VIDEO_DIR",)
+                )
+            ]
 
     for key in ["clip_id", "video_id", "id"]:
         value = doc.get(key)
         if value:
-            return [resolve_media_reference(str(value), media_type="video", cache_dir="repcount", env_vars=("REPCOUNT_VIDEO_DIR",))]
+            return [
+                resolve_media_reference(
+                    str(value), media_type="video", cache_dir="repcount", env_vars=("REPCOUNT_VIDEO_DIR",)
+                )
+            ]
     return []
 
 

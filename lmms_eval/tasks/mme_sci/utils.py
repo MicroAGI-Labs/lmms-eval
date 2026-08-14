@@ -4,7 +4,7 @@ import os
 import re
 import sys
 from io import BytesIO
-from typing import Any, Dict, List
+from typing import Any
 
 from openai import OpenAI
 from PIL import Image
@@ -50,7 +50,7 @@ def pil_to_base64_url(img: Image.Image) -> str:
     return f"data:image/png;base64,{img_b64}"
 
 
-def doc_to_text(sample: Dict[str, Any], lmms_kwargs: Dict[str, Any] = None) -> str:
+def doc_to_text(sample: dict[str, Any], lmms_kwargs: dict[str, Any] = None) -> str:
     pre_prompt = lmms_kwargs.get("pre_prompt", "") if lmms_kwargs else ""
     post_prompt = lmms_kwargs.get("post_prompt", "") if lmms_kwargs else ""
     question = str(sample.get("question", "")).strip()
@@ -69,7 +69,7 @@ def doc_to_text(sample: Dict[str, Any], lmms_kwargs: Dict[str, Any] = None) -> s
     return f"{pre_prompt}\n{question}\n{options_text}\n{post_prompt}".strip()
 
 
-def doc_to_messages(sample: Dict[str, Any], lmms_kwargs: Dict[str, Any] = None) -> List[Dict[str, Any]]:
+def doc_to_messages(sample: dict[str, Any], lmms_kwargs: dict[str, Any] = None) -> list[dict[str, Any]]:
     text_content = doc_to_text(sample, lmms_kwargs)
     image_list = doc_to_visual(sample)
 
@@ -89,8 +89,7 @@ def process_results(sample, outputs, *args, **kwargs):
     return {"target": target, "sample_id": sample["id"]}
 
 
-def mmesci_agg(results: List[Dict[str, Any]]) -> Dict[str, float]:
-
+def mmesci_agg(results: list[dict[str, Any]]) -> dict[str, float]:
     HOST = os.getenv("HOST", "127.0.0.1")
     PORT = os.getenv("PORT", "8001")
     TIMEOUT = os.getenv("TIMEOUT", "600")
@@ -109,7 +108,7 @@ def mmesci_agg(results: List[Dict[str, Any]]) -> Dict[str, float]:
 
     judged_samples = []
 
-    with open(results, "r", encoding="utf-8") as f:
+    with open(results, encoding="utf-8") as f:
         lines = f.readlines()
 
     for line in tqdm(lines, desc="Judging samples"):
@@ -149,7 +148,9 @@ def mmesci_agg(results: List[Dict[str, Any]]) -> Dict[str, float]:
             print(f"[ERROR] sample_id={sample_id} failed: {e}")
             judge_result = "error"
 
-        judged_samples.append({"sample_id": sample_id, "judge": judge_result, "target": standard_answer, "filtered_resps": ai_respond})
+        judged_samples.append(
+            {"sample_id": sample_id, "judge": judge_result, "target": standard_answer, "filtered_resps": ai_respond}
+        )
 
     valid_samples = [x for x in judged_samples if x["judge"] in ["correct", "incorrect"]]
     total = len(valid_samples)

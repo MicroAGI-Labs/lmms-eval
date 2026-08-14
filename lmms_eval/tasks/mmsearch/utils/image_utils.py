@@ -29,7 +29,9 @@ def slim_image_and_save(image_path, save_path):
         shutil.copy(image_path, save_path)
 
 
-def adaptive_pixel_slimming(image_path, RESIZE_W=1024, RESIZE_H=5120, thresh_gradmap=200, thresh_gradsum=50, thresh_length=15):
+def adaptive_pixel_slimming(
+    image_path, RESIZE_W=1024, RESIZE_H=5120, thresh_gradmap=200, thresh_gradsum=50, thresh_length=15
+):
     # Read the source document image
     ori_website = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
 

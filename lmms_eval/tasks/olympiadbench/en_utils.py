@@ -2,10 +2,9 @@ import datetime
 import json
 import os
 
-from loguru import logger as eval_logger
-
 from lmms_eval.tasks._task_utils.file_utils import generate_submission_file
 from lmms_eval.tasks.olympiadbench.olympiadbench_evals import OlympiadBenchEvaluator
+from loguru import logger as eval_logger
 
 dir_name = os.path.dirname(os.path.abspath(__file__))
 
@@ -36,9 +35,7 @@ def olympiadbench_doc_to_text(doc):
         post_prompt += f"The answer of the question should be {ans_type}.\n"
     else:
         post_prompt += f"The question has multiple answers, each of them should be {ans_type}.\n"
-    post_prompt += (
-        "Please calculate the answer according to the given requirements and the information provided. Please use LaTeX format to represent the variables and formulas used in the solution process and results. Please end your solution with "
-    )
+    post_prompt += "Please calculate the answer according to the given requirements and the information provided. Please use LaTeX format to represent the variables and formulas used in the solution process and results. Please end your solution with "
     if not mul_ans:
         post_prompt += '"So the final answer is \\boxed{answer}."\n'
     else:

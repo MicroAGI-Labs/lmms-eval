@@ -11,10 +11,16 @@ def add_power_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Run power analysis to plan benchmark sample sizes",
         formatter_class=argparse.RawTextHelpFormatter,
     )
-    p.add_argument("--effect-size", type=float, default=0.03, help="Minimum effect size to detect (default: 0.03 = 3%%)")
+    p.add_argument(
+        "--effect-size", type=float, default=0.03, help="Minimum effect size to detect (default: 0.03 = 3%%)"
+    )
     p.add_argument("--alpha", type=float, default=0.05, help="Significance level (default: 0.05)")
-    p.add_argument("--power", type=float, default=0.80, dest="stat_power", help="Desired statistical power (default: 0.80)")
-    p.add_argument("--correlation", type=float, default=0.5, help="Expected correlation between paired samples (default: 0.5)")
+    p.add_argument(
+        "--power", type=float, default=0.80, dest="stat_power", help="Desired statistical power (default: 0.80)"
+    )
+    p.add_argument(
+        "--correlation", type=float, default=0.5, help="Expected correlation between paired samples (default: 0.5)"
+    )
     p.add_argument("--std-a", type=float, default=None, help="Std deviation of model A scores")
     p.add_argument("--std-b", type=float, default=None, help="Std deviation of model B scores")
     p.add_argument("--tasks", type=str, default=None, help="Comma-separated task names for per-task analysis")
@@ -41,21 +47,21 @@ def run_power(args: argparse.Namespace) -> None:
     print("\n" + "=" * 60)
     print("POWER ANALYSIS RESULTS")
     print("=" * 60)
-    print(f"\nParameters:")
+    print("\nParameters:")
     print(f"  Effect size (delta):     {args.effect_size:.1%}")
     print(f"  Std (model A):           {result['std_a']}")
     print(f"  Std (model B):           {result['std_b']}")
     print(f"  Significance level (a):  {args.alpha}")
     print(f"  Desired power (1-b):     {args.stat_power}")
     print(f"  Correlation (p):         {args.correlation}")
-    print(f"\nResult:")
+    print("\nResult:")
     print(f"  Minimum sample size:     n = {result['min_n']}")
-    print(f"\nInterpretation:")
+    print("\nInterpretation:")
     print(f"  To detect a {args.effect_size:.1%} difference with {args.stat_power:.0%} power,")
     print(f"  you need at least {result['min_n']} questions in your benchmark.")
 
     if task_sizes:
-        print(f"\n" + "-" * 60)
+        print("\n" + "-" * 60)
         print("TASK ANALYSIS")
         print("-" * 60)
         for task_name, n_samples in task_sizes.items():

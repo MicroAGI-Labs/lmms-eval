@@ -163,7 +163,7 @@ def _extract_trimmed_from_s3(uid: str, start: float, end: float, out_path: str) 
             if os.path.exists(out_path):
                 os.remove(out_path)
             eval_logger.warning(
-                "EgoTempo: trim produced empty output for {} (segment {:.1f}-{:.1f}s " "likely exceeds video duration)",
+                "EgoTempo: trim produced empty output for {} (segment {:.1f}-{:.1f}s likely exceeds video duration)",
                 uid,
                 start,
                 end,
@@ -270,7 +270,9 @@ def _resolve_video_path(clip_id: str) -> str | None:
     if clip_id == "":
         return None
 
-    resolved = resolve_media_reference(clip_id, media_type="video", cache_dir="egotempo", env_vars=("EGOTEMPO_VIDEO_DIR", "EGOTEMPO_CACHE_DIR"))
+    resolved = resolve_media_reference(
+        clip_id, media_type="video", cache_dir="egotempo", env_vars=("EGOTEMPO_VIDEO_DIR", "EGOTEMPO_CACHE_DIR")
+    )
     if isinstance(resolved, str) and os.path.exists(resolved):
         return resolved
 

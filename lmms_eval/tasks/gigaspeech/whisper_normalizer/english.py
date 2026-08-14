@@ -1,8 +1,9 @@
 import json
 import os
 import re
+from collections.abc import Iterator
 from fractions import Fraction
-from typing import Iterator, List, Match, Optional, Union
+from re import Match
 
 from more_itertools import windowed  # TODO: new package
 
@@ -59,7 +60,11 @@ class EnglishNumberNormalizer:
             "third": (3, "rd"),
             "fifth": (5, "th"),
             "twelfth": (12, "th"),
-            **{name + ("h" if name.endswith("t") else "th"): (value, "th") for name, value in self.ones.items() if value > 3 and value != 5 and value != 12},
+            **{
+                name + ("h" if name.endswith("t") else "th"): (value, "th")
+                for name, value in self.ones.items()
+                if value > 3 and value != 5 and value != 12
+            },
         }
         self.ones_suffixed = {**self.ones_plural, **self.ones_ordinal}
 
@@ -143,9 +148,9 @@ class EnglishNumberNormalizer:
         )
         self.literal_words = {"one", "ones"}
 
-    def process_words(self, words: List[str]) -> Iterator[str]:
-        prefix: Optional[str] = None
-        value: Optional[Union[str, int]] = None
+    def process_words(self, words: list[str]) -> Iterator[str]:
+        prefix: str | None = None
+        value: str | int | None = None
         skip = False
 
         def to_fraction(s: str):
@@ -154,7 +159,7 @@ class EnglishNumberNormalizer:
             except ValueError:
                 return None
 
-        def output(result: Union[str, int]):
+        def output(result: str | int):
             nonlocal prefix, value
             result = str(result)
             if prefix is not None:

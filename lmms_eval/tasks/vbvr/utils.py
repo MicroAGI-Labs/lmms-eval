@@ -26,9 +26,10 @@ import json
 import os
 import re
 from collections import defaultdict
+from collections.abc import Iterable, Sequence
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
+from typing import Any
 
 import numpy as np
 import yaml
@@ -51,8 +52,8 @@ _BASE64_PREFIX = re.compile(r"^data:image/[^;]+;base64,", re.IGNORECASE)
 
 
 @lru_cache(maxsize=1)
-def _task_config() -> Dict[str, Any]:
-    with open(Path(__file__).parent / "_default_template_yaml", "r", encoding="utf-8") as f:
+def _task_config() -> dict[str, Any]:
+    with open(Path(__file__).parent / "_default_template_yaml", encoding="utf-8") as f:
         safe_data = [line for line in f if "!function" not in line]
     return yaml.safe_load("".join(safe_data)) or {}
 
@@ -94,13 +95,19 @@ def _decode_base64_image(data: str) -> Image.Image:
     return Image.open(io.BytesIO(base64.b64decode(payload))).convert("RGB")
 
 
-def _parse_task_meta(doc: Dict[str, Any]) -> Tuple[str, str, str]:
+def _parse_task_meta(doc: dict[str, Any]) -> tuple[str, str, str]:
     """Return (file_split, task_name, video_idx) parsed from first_frame_path.
 
     Example path:
         In-Domain_50/G-131_select_next_figure_..._data-generator/00000/first_frame.png
     """
-    raw = doc.get("first_frame_path") or doc.get("final_frame_path") or doc.get("prompt_path") or doc.get("ground_truth_video_path") or ""
+    raw = (
+        doc.get("first_frame_path")
+        or doc.get("final_frame_path")
+        or doc.get("prompt_path")
+        or doc.get("ground_truth_video_path")
+        or ""
+    )
     parts = [p for p in str(raw).split("/") if p]
     if len(parts) < 3:
         raise ValueError(f"Cannot parse VBVR task meta from path: {raw!r}")
@@ -108,14 +115,14 @@ def _parse_task_meta(doc: Dict[str, Any]) -> Tuple[str, str, str]:
     return file_split, task_name, video_idx
 
 
-def vbvr_doc_to_visual(doc: Dict[str, Any]) -> List[Image.Image]:
+def vbvr_doc_to_visual(doc: dict[str, Any]) -> list[Image.Image]:
     first_image = doc.get("first_image")
     if not first_image:
         return []
     return [_decode_base64_image(first_image)]
 
 
-def vbvr_doc_to_text(doc: Dict[str, Any], lmms_eval_specific_kwargs: Optional[Dict[str, Any]] = None) -> str:
+def vbvr_doc_to_text(doc: dict[str, Any], lmms_eval_specific_kwargs: dict[str, Any] | None = None) -> str:
     prompt = str(doc.get("prompt") or "").strip()
     pre_prompt = ""
     post_prompt = ""
@@ -125,19 +132,21 @@ def vbvr_doc_to_text(doc: Dict[str, Any], lmms_eval_specific_kwargs: Optional[Di
     return f"{pre_prompt}{prompt}{post_prompt}"
 
 
-def vbvr_doc_to_target(doc: Dict[str, Any]) -> str:
+def vbvr_doc_to_target(doc: dict[str, Any]) -> str:
     return str(doc.get("prompt") or "")
 
 
-def vbvr_doc_to_messages(doc: Dict[str, Any], lmms_eval_specific_kwargs: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+def vbvr_doc_to_messages(
+    doc: dict[str, Any], lmms_eval_specific_kwargs: dict[str, Any] | None = None
+) -> list[dict[str, Any]]:
     visuals = vbvr_doc_to_visual(doc)
     text = vbvr_doc_to_text(doc, lmms_eval_specific_kwargs)
-    content: List[Dict[str, Any]] = [{"type": "image", "url": img} for img in visuals]
+    content: list[dict[str, Any]] = [{"type": "image", "url": img} for img in visuals]
     content.append({"type": "text", "text": text})
     return [{"role": "user", "content": content}]
 
 
-def _load_prediction(results: Sequence[Any]) -> Dict[str, Any]:
+def _load_prediction(results: Sequence[Any]) -> dict[str, Any]:
     pred = results[0] if results else "{}"
     if isinstance(pred, dict):
         return pred
@@ -148,7 +157,7 @@ def _load_prediction(results: Sequence[Any]) -> Dict[str, Any]:
         return {}
 
 
-def _video_from_prediction(pred: Dict[str, Any]) -> Optional[str]:
+def _video_from_prediction(pred: dict[str, Any]) -> str | None:
     videos = pred.get("videos", [])
     if not isinstance(videos, (list, tuple)) or not videos:
         return None
@@ -159,7 +168,9 @@ def _video_from_prediction(pred: Dict[str, Any]) -> Optional[str]:
     return os.path.abspath(path)
 
 
-def _build_eval_info(doc: Dict[str, Any], video_path: str, file_split: str, task_name: str, video_idx: str) -> Dict[str, Any]:
+def _build_eval_info(
+    doc: dict[str, Any], video_path: str, file_split: str, task_name: str, video_idx: str
+) -> dict[str, Any]:
     gt_root = _gt_root()
     gt_task_dir = os.path.join(gt_root, file_split, task_name, video_idx)
     return {
@@ -177,7 +188,7 @@ def _build_eval_info(doc: Dict[str, Any], video_path: str, file_split: str, task
     }
 
 
-def _empty_entry(doc: Dict[str, Any], status: str, video_path: Optional[str] = None) -> Dict[str, Any]:
+def _empty_entry(doc: dict[str, Any], status: str, video_path: str | None = None) -> dict[str, Any]:
     try:
         file_split, task_name, video_idx = _parse_task_meta(doc)
     except Exception:
@@ -196,7 +207,7 @@ def _empty_entry(doc: Dict[str, Any], status: str, video_path: Optional[str] = N
     }
 
 
-def _fanout_metrics(entry: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
+def _fanout_metrics(entry: dict[str, Any]) -> dict[str, dict[str, Any]]:
     """Emit the same entry to every metric so each aggregator can filter."""
     return {
         "vbvr_overall": entry,
@@ -211,7 +222,7 @@ def _fanout_metrics(entry: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
     }
 
 
-def vbvr_process_results(doc: Dict[str, Any], results: Sequence[Any], **kwargs) -> Dict[str, Any]:
+def vbvr_process_results(doc: dict[str, Any], results: Sequence[Any], **kwargs) -> dict[str, Any]:
     pred = _load_prediction(results)
     video_path = _video_from_prediction(pred)
 
@@ -236,7 +247,7 @@ def vbvr_process_results(doc: Dict[str, Any], results: Sequence[Any], **kwargs) 
         eval_logger.error(f"VBVR evaluator failed for {task_name}/{video_idx}: {str(e)[:300]}")
         score = 0.0
         dimensions = {}
-        status = f"evaluator_error"
+        status = "evaluator_error"
 
     entry = {
         "task_name": task_name,
@@ -253,7 +264,7 @@ def vbvr_process_results(doc: Dict[str, Any], results: Sequence[Any], **kwargs) 
     return _fanout_metrics(entry)
 
 
-def _entries(results: Iterable[Any]) -> List[Dict[str, Any]]:
+def _entries(results: Iterable[Any]) -> list[dict[str, Any]]:
     out = []
     for r in results:
         if isinstance(r, dict) and isinstance(r.get("score"), (int, float)):
@@ -276,22 +287,28 @@ def _agg_by(results, key: str, value: str, label: str) -> float:
     return mean
 
 
-def _summary(entries: Sequence[Dict[str, Any]]) -> Dict[str, Any]:
+def _summary(entries: Sequence[dict[str, Any]]) -> dict[str, Any]:
     scores = [float(e["score"]) for e in entries if isinstance(e.get("score"), (int, float))]
-    summary: Dict[str, Any] = {
+    summary: dict[str, Any] = {
         "overall": _mean(scores),
         "n": len(scores),
     }
     for split in SPLITS:
-        split_scores = [float(e["score"]) for e in entries if e.get("split") == split and isinstance(e.get("score"), (int, float))]
+        split_scores = [
+            float(e["score"]) for e in entries if e.get("split") == split and isinstance(e.get("score"), (int, float))
+        ]
         summary[split] = {"score": _mean(split_scores), "n": len(split_scores)}
     for category in CATEGORIES:
-        category_scores = [float(e["score"]) for e in entries if e.get("category") == category and isinstance(e.get("score"), (int, float))]
+        category_scores = [
+            float(e["score"])
+            for e in entries
+            if e.get("category") == category and isinstance(e.get("score"), (int, float))
+        ]
         summary[category.lower()] = {"score": _mean(category_scores), "n": len(category_scores)}
     return summary
 
 
-def _submission_file_name(entries: Sequence[Dict[str, Any]]) -> str:
+def _submission_file_name(entries: Sequence[dict[str, Any]]) -> str:
     splits = {e.get("split") for e in entries if e.get("split")}
     if splits == {"In_Domain"}:
         return "vbvr_in_domain_eval_results.json"
@@ -301,7 +318,10 @@ def _submission_file_name(entries: Sequence[Dict[str, Any]]) -> str:
 
 
 def vbvr_aggregate_submission(results, args) -> None:
-    entries = sorted(_entries(results), key=lambda e: (str(e.get("file_split", "")), str(e.get("task_name", "")), str(e.get("video_idx", ""))))
+    entries = sorted(
+        _entries(results),
+        key=lambda e: (str(e.get("file_split", "")), str(e.get("task_name", "")), str(e.get("video_idx", ""))),
+    )
     path = generate_submission_file(_submission_file_name(entries), args)
     payload = {
         "summary": _summary(entries),
@@ -323,9 +343,13 @@ def vbvr_aggregate_overall(results) -> float:
     if total == 0:
         return 0.0
     mean = (_mean(in_dom) * len(in_dom) + _mean(ood) * len(ood)) / total
-    eval_logger.info(f"[VBVR] Overall: {mean:.4f} " f"(In-Domain {_mean(in_dom):.4f} n={len(in_dom)}, " f"Out-of-Domain {_mean(ood):.4f} n={len(ood)})")
+    eval_logger.info(
+        f"[VBVR] Overall: {mean:.4f} "
+        f"(In-Domain {_mean(in_dom):.4f} n={len(in_dom)}, "
+        f"Out-of-Domain {_mean(ood):.4f} n={len(ood)})"
+    )
     # Per-category breakdown for the logs
-    cat_scores: Dict[str, List[float]] = defaultdict(list)
+    cat_scores: dict[str, list[float]] = defaultdict(list)
     for e in entries:
         cat_scores[e.get("category", "Unknown")].append(e["score"])
     for cat in CATEGORIES:
@@ -362,7 +386,7 @@ def vbvr_aggregate_transformation(results) -> float:
     return _agg_by(results, "category", "Transformation", "Transformation")
 
 
-def _is_in_domain_row(row: Dict[str, Any]) -> bool:
+def _is_in_domain_row(row: dict[str, Any]) -> bool:
     try:
         _, task_name, _ = _parse_task_meta(row)
     except Exception:
@@ -370,7 +394,7 @@ def _is_in_domain_row(row: Dict[str, Any]) -> bool:
     return get_split(task_name) == "In_Domain"
 
 
-def _is_out_of_domain_row(row: Dict[str, Any]) -> bool:
+def _is_out_of_domain_row(row: dict[str, Any]) -> bool:
     try:
         _, task_name, _ = _parse_task_meta(row)
     except Exception:

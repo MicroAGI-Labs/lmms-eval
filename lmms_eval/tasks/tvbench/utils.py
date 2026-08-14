@@ -47,7 +47,7 @@ def _extract_candidates(doc):
 def _resolve_cache_dir():
     hf_home = os.path.expanduser(os.getenv("HF_HOME", "~/.cache/huggingface"))
     template_path = Path(__file__).parent / "_default_template_yaml"
-    with open(template_path, "r", encoding="utf-8") as handle:
+    with open(template_path, encoding="utf-8") as handle:
         raw = [line for line in handle.readlines() if "!function" not in line]
     config = yaml.safe_load("".join(raw)) or {}
     cache_name = config.get("dataset_kwargs", {}).get("cache_dir", "")
@@ -60,7 +60,12 @@ def _candidate_video_paths(video_name):
     if not _CACHE_DIR:
         return [video_name]
 
-    relative_paths = [video_name, os.path.join("video", video_name), os.path.join("videos", video_name), os.path.join("data", video_name)]
+    relative_paths = [
+        video_name,
+        os.path.join("video", video_name),
+        os.path.join("videos", video_name),
+        os.path.join("data", video_name),
+    ]
     for dataset_name in _DATASET_NAMES:
         relative_paths.extend(
             [

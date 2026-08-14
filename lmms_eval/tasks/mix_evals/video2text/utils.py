@@ -7,13 +7,12 @@ import re
 import sys
 import time
 
-import openai
-from loguru import logger as eval_logger
-from PIL import Image
-
 import lmms_eval.tasks._task_utils.file_utils as file_utils
+import openai
 from lmms_eval.filters import Filter
 from lmms_eval.tasks._task_utils.default_template_yaml import load_default_template_yaml
+from loguru import logger as eval_logger
+from PIL import Image
 
 config = load_default_template_yaml(__file__)
 
@@ -93,7 +92,9 @@ def get_score_from_judge(judge_response):
 
 def get_eval(question, model_response: str, ground_truth: str, max_tokens: int, retries: int = 5):
     global client
-    messages = video2text_gpt_judge_for_closeended_freeform(prompt=question, gold_ans=ground_truth, response=model_response)
+    messages = video2text_gpt_judge_for_closeended_freeform(
+        prompt=question, gold_ans=ground_truth, response=model_response
+    )
 
     payload = {
         "model": MODEL_VERSION,
@@ -246,18 +247,41 @@ def mix_evals_video2text_doc_to_text_open_2nd_convs(doc, lmms_eval_specific_kwar
 
 def mix_evals_video2text_process_results_open_convs(doc, result):
     pred = result[0]
-    return {"submission": {"pred": pred, "question_idx": doc["question_index"], "first_turn_video_caption": doc["first_turn_video_caption"], "target": ""}}
+    return {
+        "submission": {
+            "pred": pred,
+            "question_idx": doc["question_index"],
+            "first_turn_video_caption": doc["first_turn_video_caption"],
+            "target": "",
+        }
+    }
 
 
 def mix_evals_video2text_process_results_freeform(doc, result):
     pred = result[0]
     ground_truth_str = ", ".join([f'"{gt}"' for gt in doc["reference_answer"]])
     ground_truth_str = f"[{ground_truth_str}]"
-    content = video2text_gpt_judge_for_closeended_freeform(response=pred, gold_ans=ground_truth_str, prompt=doc["query"])
-    eval_answer = get_eval(model_response=pred, ground_truth=ground_truth_str, max_tokens=MAX_NEW_TOKENS, question=doc["query"])
+    content = video2text_gpt_judge_for_closeended_freeform(
+        response=pred, gold_ans=ground_truth_str, prompt=doc["query"]
+    )
+    eval_answer = get_eval(
+        model_response=pred, ground_truth=ground_truth_str, max_tokens=MAX_NEW_TOKENS, question=doc["query"]
+    )
     return {
-        "submission": {"pred": pred, "question_idx": doc["id"], "target": doc["reference_answer"], "eval_answer": eval_answer, "gpt_prompt": content},
-        "gpt_eval": {"pred": pred, "question_idx": doc["id"], "target": doc["reference_answer"], "eval_answer": eval_answer, "gpt_prompt": content},
+        "submission": {
+            "pred": pred,
+            "question_idx": doc["id"],
+            "target": doc["reference_answer"],
+            "eval_answer": eval_answer,
+            "gpt_prompt": content,
+        },
+        "gpt_eval": {
+            "pred": pred,
+            "question_idx": doc["id"],
+            "target": doc["reference_answer"],
+            "eval_answer": eval_answer,
+            "gpt_prompt": content,
+        },
     }
 
 
@@ -363,7 +387,9 @@ class GPTMultiChoiceFilter(Filter):
         for response, doc in zip(resps, docs):
             query = doc["query"]
             options = "\n".join([f"{chr(ord('A') + idx)}. {option}" for idx, option in enumerate(doc["options"])])
-            message = video2text_gpt_judge_for_closeended_multiplechoice(prompt=query, options=options, response=response)
+            message = video2text_gpt_judge_for_closeended_multiplechoice(
+                prompt=query, options=options, response=response
+            )
             payload = {
                 "model": self.gpt_version,
                 "messages": message,

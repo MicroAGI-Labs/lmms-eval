@@ -1,9 +1,12 @@
-from typing import List, Optional, Tuple, Union
 
 import numpy as np
 import torch
 from accelerate import Accelerator, DistributedType
 from decord import VideoReader, cpu
+from lmms_eval import utils
+from lmms_eval.api.instance import Instance
+from lmms_eval.api.model import lmms
+from lmms_eval.api.registry import register_model
 from loguru import logger as eval_logger
 from PIL import Image
 from tqdm import tqdm
@@ -11,11 +14,6 @@ from transformers import (
     AutoModelForCausalLM,
     AutoProcessor,
 )
-
-from lmms_eval import utils
-from lmms_eval.api.instance import Instance
-from lmms_eval.api.model import lmms
-from lmms_eval.api.registry import register_model
 
 
 @register_model("videollama3")
@@ -49,10 +47,10 @@ class VideoLLaMA3(lmms):
     def __init__(
         self,
         pretrained: str = "DAMO-NLP-SG/VideoLLaMA3-7B",
-        device: Optional[str] = "cuda",
-        device_map: Optional[str] = "auto",
-        batch_size: Optional[Union[int, str]] = 1,
-        use_flash_attention_2: Optional[bool] = True,
+        device: str | None = "cuda",
+        device_map: str | None = "auto",
+        batch_size: int | str | None = 1,
+        use_flash_attention_2: bool | None = True,
         max_num_frames: int = 180,
         use_custom_video_loader=False,  # True for video-mmmu
         **kwargs,
@@ -140,7 +138,7 @@ class VideoLLaMA3(lmms):
     def world_size(self):
         return self._world_size
 
-    def loglikelihood(self, requests: List[Instance]) -> List[Tuple[float, bool]]:
+    def loglikelihood(self, requests: list[Instance]) -> list[tuple[float, bool]]:
         raise NotImplementedError("Loglikelihood is not implemented for VideoLLaMA3")
 
     def flatten(self, input):
@@ -150,7 +148,7 @@ class VideoLLaMA3(lmms):
                 new_list.append(j)
         return new_list
 
-    def generate_until(self, requests: List[Instance]) -> List[str]:
+    def generate_until(self, requests: list[Instance]) -> list[str]:
         res = []
 
         def _collate(x):
@@ -187,12 +185,47 @@ class VideoLLaMA3(lmms):
                     if isinstance(visual, str) and visual.endswith((".mp4", ".avi", ".mov")):  # Video file
                         if self.use_custom_video_loader:
                             frames, timestamps = read_video_custom(visual)
-                            message.append({"role": "user", "content": [{"type": "video", "video": frames, "timestamps": timestamps, "num_frames": len(timestamps)}, {"type": "text", "text": context}]})
+                            message.append(
+                                {
+                                    "role": "user",
+                                    "content": [
+                                        {
+                                            "type": "video",
+                                            "video": frames,
+                                            "timestamps": timestamps,
+                                            "num_frames": len(timestamps),
+                                        },
+                                        {"type": "text", "text": context},
+                                    ],
+                                }
+                            )
                         else:
-                            message.append({"role": "user", "content": [{"type": "video", "video": {"video_path": visual, "fps": 1, "max_frames": self.max_num_frames}}, {"type": "text", "text": context}]})
+                            message.append(
+                                {
+                                    "role": "user",
+                                    "content": [
+                                        {
+                                            "type": "video",
+                                            "video": {
+                                                "video_path": visual,
+                                                "fps": 1,
+                                                "max_frames": self.max_num_frames,
+                                            },
+                                        },
+                                        {"type": "text", "text": context},
+                                    ],
+                                }
+                            )
                     elif isinstance(visual, Image.Image):
-                        message.append({"role": "user", "content": [{"type": "image", "image": visual}, {"type": "text", "text": context}]})
-                    elif isinstance(visual, (list, tuple)) and all(isinstance(v, Image.Image) for v in visual):  # Multiple images
+                        message.append(
+                            {
+                                "role": "user",
+                                "content": [{"type": "image", "image": visual}, {"type": "text", "text": context}],
+                            }
+                        )
+                    elif isinstance(visual, (list, tuple)) and all(
+                        isinstance(v, Image.Image) for v in visual
+                    ):  # Multiple images
                         image_content = []
                         for v in visual:
                             image_content.append({"type": "image", "image": v})
@@ -238,7 +271,7 @@ class VideoLLaMA3(lmms):
         pbar.close()
         return res
 
-    def generate_until_multi_round(self, requests) -> List[str]:
+    def generate_until_multi_round(self, requests) -> list[str]:
         raise NotImplementedError("TODO: Implement multi-round generation")
 
 

@@ -1,16 +1,14 @@
-from typing import List, Optional, Tuple, Union
 
 import torch
 from accelerate import Accelerator, DistributedType
-from loguru import logger as eval_logger
-from tqdm import tqdm
-from transformers import AutoProcessor, WhisperForConditionalGeneration
-
 from lmms_eval import utils
 from lmms_eval.api.instance import Instance
 from lmms_eval.api.model import lmms
 from lmms_eval.api.registry import register_model
 from lmms_eval.models.model_utils.audio_processing import downsample_audio
+from loguru import logger as eval_logger
+from tqdm import tqdm
+from transformers import AutoProcessor, WhisperForConditionalGeneration
 
 
 @register_model("whisper")
@@ -22,9 +20,9 @@ class Whisper(lmms):
     def __init__(
         self,
         pretrained: str = "openai/whisper-tiny",
-        device: Optional[str] = "cuda",
-        device_map: Optional[str] = "cuda",
-        batch_size: Optional[Union[int, str]] = 1,
+        device: str | None = "cuda",
+        device_map: str | None = "cuda",
+        batch_size: int | str | None = 1,
         use_cache: bool = True,
         language: str = "en",
         task: str = "transcribe",
@@ -118,7 +116,7 @@ class Whisper(lmms):
     def world_size(self):
         return self._world_size
 
-    def loglikelihood(self, requests: List[Instance]) -> List[Tuple[float, bool]]:
+    def loglikelihood(self, requests: list[Instance]) -> list[tuple[float, bool]]:
         raise NotImplementedError("Loglikelihood is not implemented for Whisper")
 
     def flatten(self, input):
@@ -128,7 +126,7 @@ class Whisper(lmms):
                 new_list.append(j)
         return new_list
 
-    def generate_until(self, requests: List[Instance]) -> List[str]:
+    def generate_until(self, requests: list[Instance]) -> list[str]:
         res = []
 
         def _collate(x):
@@ -167,14 +165,18 @@ class Whisper(lmms):
                 if isinstance(until, str):
                     until = [until]
                 elif not isinstance(until, list):
-                    raise ValueError(f"Expected `gen_kwargs['until']` to be of type Union[str,list] but got {type(until)}")
+                    raise ValueError(
+                        f"Expected `gen_kwargs['until']` to be of type Union[str,list] but got {type(until)}"
+                    )
 
             if isinstance(contexts, tuple):
                 contexts = list(contexts)
 
             # process inputs
             sampling_rate = self.processor.feature_extractor.sampling_rate
-            audios = [downsample_audio(audio["array"], audio["sampling_rate"], sampling_rate) for audio in flattened_audios]
+            audios = [
+                downsample_audio(audio["array"], audio["sampling_rate"], sampling_rate) for audio in flattened_audios
+            ]
             inputs = self.processor(audio=audios, return_tensors="pt", sampling_rate=sampling_rate)
 
             # Convert inputs to the same dtype as the model
@@ -206,7 +208,9 @@ class Whisper(lmms):
                 )
 
                 transcriptions = self.processor.batch_decode(predicted_ids)
-                answers = [self.tokenizer.normalize(transcription) for transcription in transcriptions]  # whisper post processing
+                answers = [
+                    self.tokenizer.normalize(transcription) for transcription in transcriptions
+                ]  # whisper post processing
                 for i, ans in enumerate(answers):
                     for term in until:
                         if len(term) > 0:
@@ -228,5 +232,5 @@ class Whisper(lmms):
         pbar.close()
         return res
 
-    def generate_until_multi_round(self, requests) -> List[str]:
+    def generate_until_multi_round(self, requests) -> list[str]:
         raise NotImplementedError("TODO: Implement multi-round generation")

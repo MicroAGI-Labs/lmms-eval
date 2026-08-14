@@ -24,7 +24,7 @@ def remove_sp(
     return normalized
 
 
-class EvaluationTokenizer(object):
+class EvaluationTokenizer:
     SPACE = chr(32)
     SPACE_ESCAPE = chr(9601)
 

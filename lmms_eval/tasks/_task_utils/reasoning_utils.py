@@ -309,8 +309,8 @@ def parse_mcq(predict_str: str) -> str:
 
     # Pattern 12: Look for choices with numbers (e.g., "1. A", "2. B")
     for i, choice in enumerate(all_choices):
-        if f"{i+1}. {choice}" in response:
-            candidates.append((choice, response.rfind(f"{i+1}. {choice}"), "numbered"))
+        if f"{i + 1}. {choice}" in response:
+            candidates.append((choice, response.rfind(f"{i + 1}. {choice}"), "numbered"))
 
     # If no candidates found, try to extract from the entire response
     if not candidates:
@@ -322,7 +322,21 @@ def parse_mcq(predict_str: str) -> str:
     # Return the best candidate
     if candidates:
         # Sort by position (later in text) and priority of format
-        format_priority = {"start": 10, "end": 9, "numbered": 8, "phrase": 7, "parentheses": 6, "period": 5, "colon": 4, "right_paren": 3, "space": 2, "dash": 1, "underscore": 1, "equals": 1, "fallback": 0}
+        format_priority = {
+            "start": 10,
+            "end": 9,
+            "numbered": 8,
+            "phrase": 7,
+            "parentheses": 6,
+            "period": 5,
+            "colon": 4,
+            "right_paren": 3,
+            "space": 2,
+            "dash": 1,
+            "underscore": 1,
+            "equals": 1,
+            "fallback": 0,
+        }
 
         # Sort by format priority first, then by position
         candidates.sort(key=lambda x: (format_priority[x[2]], -x[1]), reverse=True)
@@ -357,7 +371,9 @@ def relax_exact_match(predict_str: str, ground_truth: str, relax_portion: float 
 
 def llm_as_judge_sync(predict_str, ground_truth, extra_info):
     if extra_info is not None and "question" in extra_info:
-        prompt = JUDGE_PROMPT_WITH_ANSWER.format(question=extra_info["question"], answer=ground_truth, prediction=predict_str)
+        prompt = JUDGE_PROMPT_WITH_ANSWER.format(
+            question=extra_info["question"], answer=ground_truth, prediction=predict_str
+        )
     else:
         prompt = JUDGE_PROMPT.format(answer=ground_truth, prediction=predict_str)
     payload = {
@@ -403,7 +419,13 @@ def acc_reward(predict_str, ground_truth, extra_info=None, format_reward_score=0
     if acc_score == 0.0 and USE_LLM_JUDGE == "True":
         acc_score = llm_as_judge_sync(predict_str, ground_truth, extra_info)
 
-    if acc_score == 0.0 and USE_LLM_JUDGE == "True" and format_reward_score == 0.0 and solution_str is not None and len(solution_str) < 500:
+    if (
+        acc_score == 0.0
+        and USE_LLM_JUDGE == "True"
+        and format_reward_score == 0.0
+        and solution_str is not None
+        and len(solution_str) < 500
+    ):
         acc_score = llm_as_judge_sync(solution_str, ground_truth, extra_info)
 
     return acc_score
@@ -478,7 +500,9 @@ def make_reasoning_process_results(data_source, doc_to_text_fn, gt_key="answer",
         acc_score = 0
         fmt_score = 0
         for pred in results:
-            score_dict = compute_score(data_source=data_source, solution_str=pred.strip(), ground_truth=ground_truth, extra_info=extra_info)
+            score_dict = compute_score(
+                data_source=data_source, solution_str=pred.strip(), ground_truth=ground_truth, extra_info=extra_info
+            )
             acc_score += score_dict["acc_score"]
             fmt_score += score_dict.get("format_reward_score", 0.0)
 

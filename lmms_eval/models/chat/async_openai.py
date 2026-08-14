@@ -5,14 +5,9 @@ import tempfile
 import time
 import uuid
 from multiprocessing import cpu_count
-from typing import List, Optional, Tuple
 
 from accelerate import Accelerator, DistributedType
 from dotenv import load_dotenv
-from loguru import logger as eval_logger
-from openai import AsyncOpenAI
-from tqdm import tqdm
-
 from lmms_eval.api.instance import GenerationResult, Instance, TokenCounts
 from lmms_eval.api.model import lmms
 from lmms_eval.api.registry import register_model
@@ -31,6 +26,9 @@ from lmms_eval.models.model_utils.usage_metrics import (
     log_usage,
 )
 from lmms_eval.protocol import ChatMessages
+from loguru import logger as eval_logger
+from openai import AsyncOpenAI
+from tqdm import tqdm
 
 VideoReader, _ = optional_import("decord", "VideoReader")
 cpu, _ = optional_import("decord", "cpu")
@@ -45,21 +43,21 @@ class AsyncOpenAIChat(lmms):
     def __init__(
         self,
         model_version: str = "grok-2-latest",
-        model: Optional[str] = None,
+        model: str | None = None,
         base_url: str = None,
         api_key: str = None,
         timeout: int = 600,
-        retry_backoff_s: Optional[float] = None,
+        retry_backoff_s: float | None = None,
         max_retries: int = 5,
         max_size_in_mb: int = 20,
         mcp_server_path: str = None,
         num_cpus: int = None,
         work_dir: str = None,
-        fps: Optional[int] = None,
-        nframes: Optional[int] = 64,
-        max_frames: Optional[int] = 768,
-        max_pixels: Optional[int] = 151200,
-        min_pixels: Optional[int] = 28 * 28,
+        fps: int | None = None,
+        nframes: int | None = 64,
+        max_frames: int | None = 768,
+        max_pixels: int | None = 151200,
+        min_pixels: int | None = 28 * 28,
         is_qwen3_vl: bool = False,
         adaptive_concurrency: bool = False,
         adaptive_min_concurrency: int = 1,
@@ -70,14 +68,17 @@ class AsyncOpenAIChat(lmms):
         adaptive_failure_threshold: float = 0.05,
         prefix_aware_queue: bool = True,
         prefix_hash_chars: int = 256,
-        system_prompt: Optional[str] = None,
+        system_prompt: str | None = None,
         **kwargs,
     ) -> None:
         super().__init__()
         if model is not None:
             model_version = model
         if kwargs:
-            eval_logger.warning(f"Unknown model_args ignored: {list(kwargs.keys())}. " f"Check the supported parameters for the 'async_openai' backend.")
+            eval_logger.warning(
+                f"Unknown model_args ignored: {list(kwargs.keys())}. "
+                f"Check the supported parameters for the 'async_openai' backend."
+            )
         self.model_version = model_version
         self.timeout = timeout
         self.retry_backoff_s = max(0.0, float(1.0 if retry_backoff_s is None else retry_backoff_s))
@@ -157,10 +158,10 @@ class AsyncOpenAIChat(lmms):
     def world_size(self):
         return self._world_size
 
-    def loglikelihood(self, requests: List[Instance]) -> List[Tuple[float, bool]]:
+    def loglikelihood(self, requests: list[Instance]) -> list[tuple[float, bool]]:
         assert False, "TODO, not implemented"
 
-    def generate_until_multi_round(self, requests) -> List[str]:
+    def generate_until_multi_round(self, requests) -> list[str]:
         raise NotImplementedError("TODO: Implement multi-round generation for LLaVAHF")
 
     async def maybe_forward_with_tool(self, request: Instance, idx: int):
@@ -274,7 +275,9 @@ class AsyncOpenAIChat(lmms):
                 for call in message.tool_calls:
                     eval_logger.debug(f"Calling {call.function.name}...")
                     result = await self.mcp_client.run_tool(call.function.name, eval(call.function.arguments))
-                    all_response += f"<tool_call>{call.function.name} {call.function.arguments}</tool_call></tool_response>"
+                    all_response += (
+                        f"<tool_call>{call.function.name} {call.function.arguments}</tool_call></tool_response>"
+                    )
                     tool_messages.append({"role": "tool", "name": call.function.name, "content": []})
                     for content in result.content:
                         tool_message = self.mcp_client.convert_result_to_openai_format(content)
@@ -319,13 +322,21 @@ class AsyncOpenAIChat(lmms):
                 all_response += last_response
             except Exception as e:
                 all_response += str(e)
-        return all_response, idx, TokenCounts(input_tokens=total_input_tokens, output_tokens=total_output_tokens, reasoning_tokens=total_reasoning_tokens)
+        return (
+            all_response,
+            idx,
+            TokenCounts(
+                input_tokens=total_input_tokens,
+                output_tokens=total_output_tokens,
+                reasoning_tokens=total_reasoning_tokens,
+            ),
+        )
 
-    def generate_until(self, requests) -> List[GenerationResult]:
+    def generate_until(self, requests) -> list[GenerationResult]:
         results = []
 
         async def run():
-            res: List[Tuple[GenerationResult, int]] = []
+            res: list[tuple[GenerationResult, int]] = []
             pbar = tqdm(total=len(requests), disable=(self.rank != 0), desc="Model Responding")
             current_concurrency = (
                 min(
@@ -364,7 +375,9 @@ class AsyncOpenAIChat(lmms):
                         error_msg = str(exc)
                         last_error_msg = error_msg
                         rate_limited = rate_limited or is_rate_limit_error(error_msg)
-                        eval_logger.info(f"Attempt {attempt + 1}/{self.max_retries} failed for request {idx} with error: {error_msg}")
+                        eval_logger.info(
+                            f"Attempt {attempt + 1}/{self.max_retries} failed for request {idx} with error: {error_msg}"
+                        )
                         if attempt == self.max_retries - 1:
                             eval_logger.error(f"All {self.max_retries} attempts failed. Last error: {error_msg}")
                         else:
@@ -377,7 +390,7 @@ class AsyncOpenAIChat(lmms):
 
             failed_requests = 0
             rate_limited_requests = 0
-            request_latencies: List[float] = []
+            request_latencies: list[float] = []
             completed_since_adapt = 0
             in_flight: dict[asyncio.Task, int] = {}
 

@@ -41,7 +41,11 @@ def mme_realworld_doc_to_text(doc, lmms_eval_specific_kwargs=None):
     question = doc["question"]
     option_prompt = "The choices are listed below:\n" + "\n".join(doc["multi-choice options"]) + "\n"
 
-    question += " " + option_prompt + "Select the best answer to the above multiple-choice question based on the image. Respond with only the letter (A, B, C, D, or E) of the correct option.\nThe best answer is: "
+    question += (
+        " "
+        + option_prompt
+        + "Select the best answer to the above multiple-choice question based on the image. Respond with only the letter (A, B, C, D, or E) of the correct option.\nThe best answer is: "
+    )
     return question
 
 
@@ -56,7 +60,11 @@ def mme_realworld_cn_doc_to_text(doc, lmms_eval_specific_kwargs=None):
     question = doc["question"]
     option_prompt = "选项如下所示:\n" + "\n".join(doc["multi-choice options"]) + "\n"
 
-    question += " " + option_prompt + "根据图像选择上述多项选择题的最佳答案。只需回答正确选项的字母（A, B, C, D 或 E）。\n最佳答案为： "
+    question += (
+        " "
+        + option_prompt
+        + "根据图像选择上述多项选择题的最佳答案。只需回答正确选项的字母（A, B, C, D 或 E）。\n最佳答案为： "
+    )
     return question
 
 
@@ -120,7 +128,14 @@ def mme_realworld_process_results(doc, results):
     category = "Perception" if "perception" in doc["category"].lower() else "Reasoning"
     sub_category = doc["category"].split("/")[-1]
     task_category = doc["l2-category"]
-    data_dict = {"question_id": doc["index"], "category": category, "sub_category": sub_category, "task_category": task_category, "pred_answer": pred_ans, "answer": doc["answer"]}
+    data_dict = {
+        "question_id": doc["index"],
+        "category": category,
+        "sub_category": sub_category,
+        "task_category": task_category,
+        "pred_answer": pred_ans,
+        "answer": doc["answer"],
+    }
 
     # return {f"mme_realworld_perception_score": data_dict for metric in matrices}
     return {"mme_realworld_score": data_dict}
@@ -128,10 +143,14 @@ def mme_realworld_process_results(doc, results):
 
 def get_correct_answer(sample):
     # 替换全角括号为半角括号
-    sample["multi-choice options"] = [option.replace("（", "(").replace("）", ")") for option in sample["multi-choice options"]]
+    sample["multi-choice options"] = [
+        option.replace("（", "(").replace("）", ")") for option in sample["multi-choice options"]
+    ]
 
     # 提取正确答案选项
-    correct_answer = next(option.split(") ")[1] for option in sample["multi-choice options"] if option.startswith(f"({sample['answer']})"))
+    correct_answer = next(
+        option.split(") ")[1] for option in sample["multi-choice options"] if option.startswith(f"({sample['answer']})")
+    )
     return correct_answer
 
 
@@ -150,7 +169,14 @@ def mme_realworld_exact_match(doc, results):
     category = "Perception" if "perception" in doc["category"].lower() else "Reasoning"
     sub_category = doc["category"].split("/")[-1]
     task_category = doc["l2-category"]
-    data_dict = {"question_id": doc["index"], "category": category, "sub_category": sub_category, "task_category": task_category, "pred_answer": pred_ans, "answer": answer}
+    data_dict = {
+        "question_id": doc["index"],
+        "category": category,
+        "sub_category": sub_category,
+        "task_category": task_category,
+        "pred_answer": pred_ans,
+        "answer": answer,
+    }
 
     return {"mme_realworld_exact_match": data_dict}
 
@@ -176,9 +202,16 @@ def mme_realworld_aggregate_results(results):
         Category = result["task_category"].lower()
         if "attribute" in Category.lower():
             Category = Category.split("/")[0] + "/attribute"
-        cnt = result["pred_answer"].lower() == result["answer"].lower() or result["answer"].lower() in result["pred_answer"].lower()
+        cnt = (
+            result["pred_answer"].lower() == result["answer"].lower()
+            or result["answer"].lower() in result["pred_answer"].lower()
+        )
         if Category not in metrics[Task][Subtask].keys():
-            metrics[Task][Subtask][f"{Category}"] = {"true": cnt, "false": 1 - cnt, "is_E": result["pred_answer"] == "E"}
+            metrics[Task][Subtask][f"{Category}"] = {
+                "true": cnt,
+                "false": 1 - cnt,
+                "is_E": result["pred_answer"] == "E",
+            }
         else:
             metrics[Task][Subtask][f"{Category}"]["true"] += cnt
             metrics[Task][Subtask][f"{Category}"]["false"] += 1 - cnt
@@ -196,14 +229,25 @@ def mme_realworld_aggregate_results(results):
                 sum_subtask += category_dict["false"] + category_dict["true"]
                 e_subtask += category_dict["is_E"]
                 acc = category_dict["true"] / (category_dict["false"] + category_dict["true"])
-                eval_logger.info("-" * 4 + "\t" + "Acc " + "{:.4f}".format(acc) + f"\t{category.capitalize()} ({category_dict['false'] + category_dict['true']} items)")
+                eval_logger.info(
+                    "-" * 4
+                    + "\t"
+                    + "Acc "
+                    + f"{acc:.4f}"
+                    + f"\t{category.capitalize()} ({category_dict['false'] + category_dict['true']} items)"
+                )
 
             if sum_subtask == 0:
                 acc_subtasks = 0
                 e_subtask = 0
             else:
                 acc_subtasks = cnt_subtask / sum_subtask
-            eval_logger.info("+" * 16 + "\t Acc " + "{:.4f}".format(acc_subtasks) + f"\t E choice {e_subtask} \t{substask} ({sum_subtask} items)")
+            eval_logger.info(
+                "+" * 16
+                + "\t Acc "
+                + f"{acc_subtasks:.4f}"
+                + f"\t E choice {e_subtask} \t{substask} ({sum_subtask} items)"
+            )
             cnt_task += cnt_subtask
             sum_task += sum_subtask
             cnt_E += e_subtask
@@ -214,6 +258,8 @@ def mme_realworld_aggregate_results(results):
             acc_task = cnt_task / sum_task
         succ_all += cnt_task
         sum_all += sum_task
-        eval_logger.info("*" * 32 + "Acc " + "{:.4f}".format(acc_task) + f"\t E choice {cnt_E} \t{task} ({sum_task} items)\n")
-    eval_logger.info("*" * 32 + "Overall Acc " + "{:.4f}".format(succ_all / sum_all))
+        eval_logger.info(
+            "*" * 32 + "Acc " + f"{acc_task:.4f}" + f"\t E choice {cnt_E} \t{task} ({sum_task} items)\n"
+        )
+    eval_logger.info("*" * 32 + "Overall Acc " + f"{succ_all / sum_all:.4f}")
     return succ_all / sum_all

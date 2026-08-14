@@ -1,19 +1,17 @@
 import os
 import warnings
-from typing import List, Optional, Tuple, Union
 
 import torch
 from accelerate import Accelerator, DistributedType
-from loguru import logger as eval_logger
-from PIL import Image
-from tqdm import tqdm
-from transformers import AutoProcessor, AutoTokenizer, Gemma3ForConditionalGeneration
-
 from lmms_eval import utils
 from lmms_eval.api.instance import Instance
 from lmms_eval.api.model import lmms
 from lmms_eval.api.registry import register_model
 from lmms_eval.models.model_utils.media_encoder import encode_image_to_data_url
+from loguru import logger as eval_logger
+from PIL import Image
+from tqdm import tqdm
+from transformers import AutoProcessor, AutoTokenizer, Gemma3ForConditionalGeneration
 
 warnings.simplefilter("ignore", category=DeprecationWarning)
 warnings.filterwarnings("ignore")
@@ -34,18 +32,18 @@ class Gemma3(lmms):
     def __init__(
         self,
         pretrained: str = "google/gemma-3-27b-it",
-        device: Optional[str] = "cuda",
-        device_map: Optional[str] = "auto",
-        batch_size: Optional[Union[int, str]] = 1,
-        trust_remote_code: Optional[bool] = True,
+        device: str | None = "cuda",
+        device_map: str | None = "auto",
+        batch_size: int | str | None = 1,
+        trust_remote_code: bool | None = True,
         use_cache=True,
-        attn_implementation: Optional[str] = None,
+        attn_implementation: str | None = None,
         min_pixels: int = DEFAULT_MIN_PIXELS,
         max_pixels: int = DEFAULT_MAX_PIXELS,
         max_num_frames: int = DEFAULT_MAX_FRAMES,
-        interleave_visuals: Optional[bool] = False,
-        system_prompt: Optional[str] = "You are a helpful assistant.",
-        reasoning_prompt: Optional[str] = None,
+        interleave_visuals: bool | None = False,
+        system_prompt: str | None = "You are a helpful assistant.",
+        reasoning_prompt: str | None = None,
         **kwargs,
     ) -> None:
         super().__init__()
@@ -72,7 +70,9 @@ class Gemma3(lmms):
 
         # Minimal, generation-capable loader: use the dedicated Gemma3 class
         self._model = Gemma3ForConditionalGeneration.from_pretrained(pretrained, **model_kwargs).eval()
-        self._tokenizer = AutoTokenizer.from_pretrained(pretrained, trust_remote_code=trust_remote_code, device_map=self.device_map)
+        self._tokenizer = AutoTokenizer.from_pretrained(
+            pretrained, trust_remote_code=trust_remote_code, device_map=self.device_map
+        )
         self.processor = AutoProcessor.from_pretrained(pretrained, max_pixels=max_pixels, min_pixels=min_pixels)
 
         self._config = self._model.config
@@ -155,10 +155,10 @@ class Gemma3(lmms):
     def world_size(self):
         return self._world_size
 
-    def loglikelihood(self, requests: List[Instance]) -> List[Tuple[float, bool]]:
+    def loglikelihood(self, requests: list[Instance]) -> list[tuple[float, bool]]:
         raise NotImplementedError("Not implemented for Gemma3.")
 
-    def flatten(self, input: List[List]) -> List:
+    def flatten(self, input: list[list]) -> list:
         """Flatten a nested list into a single list.
 
         Args:
@@ -182,7 +182,7 @@ class Gemma3(lmms):
             quality=85,
         )
 
-    def generate_until(self, requests: List[Instance]) -> List[str]:
+    def generate_until(self, requests: list[Instance]) -> list[str]:
         """Generate text completions for given requests.
 
         Args:
@@ -222,7 +222,9 @@ class Gemma3(lmms):
             if isinstance(until, str):
                 until = [until]
             elif not isinstance(until, list):
-                raise ValueError(f"Expected `gen_kwargs['until']` to be of type Union[str, list], but got {type(until)}")
+                raise ValueError(
+                    f"Expected `gen_kwargs['until']` to be of type Union[str, list], but got {type(until)}"
+                )
 
             # Avoid using '\n\n' as a stopper to prevent truncation, which can lead to incorrect results
             until = [item for item in until if item != "\n\n"]
@@ -252,9 +254,23 @@ class Gemma3(lmms):
                             if not os.path.exists(visual):
                                 eval_logger.warning(f"Video file not found: {visual}")
                                 continue
-                            processed_visuals.append({"type": "video", "video": visual, "max_pixels": self.max_pixels, "min_pixels": self.min_pixels})
+                            processed_visuals.append(
+                                {
+                                    "type": "video",
+                                    "video": visual,
+                                    "max_pixels": self.max_pixels,
+                                    "min_pixels": self.min_pixels,
+                                }
+                            )
                         elif isinstance(visual, Image.Image):  # Handle both single and multiple images
-                            processed_visuals.append({"type": "image", "image": self._encode_image_data_url(visual), "max_pixels": self.max_pixels, "min_pixels": self.min_pixels})
+                            processed_visuals.append(
+                                {
+                                    "type": "image",
+                                    "image": self._encode_image_data_url(visual),
+                                    "max_pixels": self.max_pixels,
+                                    "min_pixels": self.min_pixels,
+                                }
+                            )
                     except Exception as e:
                         eval_logger.error(f"Failed to process visual: {e}")
                         continue
@@ -268,9 +284,16 @@ class Gemma3(lmms):
 
                 batched_messages.append(message)
 
-            inputs = self.processor.apply_chat_template(batched_messages, add_generation_prompt=True, tokenize=True, return_dict=True, return_tensors="pt", padding="max_length", pad_to_multiple_of=8, max_length=self.max_length).to(
-                self.model.device, dtype=torch.bfloat16
-            )
+            inputs = self.processor.apply_chat_template(
+                batched_messages,
+                add_generation_prompt=True,
+                tokenize=True,
+                return_dict=True,
+                return_tensors="pt",
+                padding="max_length",
+                pad_to_multiple_of=8,
+                max_length=self.max_length,
+            ).to(self.model.device, dtype=torch.bfloat16)
 
             if self.device_map == "auto":
                 inputs = inputs.to("cuda")
@@ -305,7 +328,9 @@ class Gemma3(lmms):
             )
 
             generated_ids_trimmed = [out_ids[len(in_ids) :] for in_ids, out_ids in zip(inputs.input_ids, cont)]
-            answers = self.processor.batch_decode(generated_ids_trimmed, skip_special_tokens=True, clean_up_tokenization_spaces=False)
+            answers = self.processor.batch_decode(
+                generated_ids_trimmed, skip_special_tokens=True, clean_up_tokenization_spaces=False
+            )
             for i, ans in enumerate(answers):
                 # print(f"Raw answer {i}: {ans}")
                 for term in until:
@@ -323,7 +348,7 @@ class Gemma3(lmms):
         pbar.close()
         return res
 
-    def generate_until_multi_round(self, requests: List[Instance]) -> List[str]:
+    def generate_until_multi_round(self, requests: list[Instance]) -> list[str]:
         """Generate text in a multi-round conversation format.
 
         Args:

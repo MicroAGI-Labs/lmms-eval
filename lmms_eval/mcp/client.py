@@ -1,6 +1,5 @@
 import asyncio
 from datetime import timedelta
-from typing import List, Union
 
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
@@ -28,7 +27,16 @@ class MCPClient:
 
                 functions = []
                 for tool in tools:
-                    functions.append({"type": "function", "function": {"name": tool.name, "description": tool.description or "", "parameters": tool.inputSchema}})
+                    functions.append(
+                        {
+                            "type": "function",
+                            "function": {
+                                "name": tool.name,
+                                "description": tool.description or "",
+                                "parameters": tool.inputSchema,
+                            },
+                        }
+                    )
                 return functions
 
     async def run_tool(self, tool_name: str, tool_args: dict):
@@ -46,7 +54,10 @@ class MCPClient:
                 result = await session.call_tool(tool_name, tool_args)
                 return result
 
-    def convert_result_to_openai_format(self, result: Union[ImageContent, TextContent, AudioContent, List[Union[ImageContent, TextContent, AudioContent]]]) -> dict:
+    def convert_result_to_openai_format(
+        self,
+        result: ImageContent | TextContent | AudioContent | list[ImageContent | TextContent | AudioContent],
+    ) -> dict:
         """
         Convert the result from the MCP tool to OpenAI compatible format.
         :param result: Result from the MCP tool.

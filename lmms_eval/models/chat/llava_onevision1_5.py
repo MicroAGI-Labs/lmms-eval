@@ -1,11 +1,7 @@
 import time
-from typing import List
 
 import numpy as np
 import torch
-from loguru import logger as eval_logger
-from tqdm import tqdm
-
 from lmms_eval import utils
 from lmms_eval.api.instance import GenerationResult, Instance, TokenCounts
 from lmms_eval.api.registry import register_model
@@ -15,6 +11,8 @@ from lmms_eval.models.simple.llava_onevision1_5 import (
     Llava_OneVision1_5 as LlavaOneVisionSimple,
 )
 from lmms_eval.protocol import ChatMessages
+from loguru import logger as eval_logger
+from tqdm import tqdm
 
 process_vision_info, _ = optional_import("qwen_vl_utils", "process_vision_info")
 
@@ -24,8 +22,10 @@ class Llava_OneVision1_5(LlavaOneVisionSimple):
     is_simple = False
     fps = None
 
-    def generate_until(self, requests: List[Instance]) -> List[GenerationResult]:
-        assert process_vision_info is not None, "qwen_vl_utils is required. Please install it via `pip install qwen-vl-utils`"
+    def generate_until(self, requests: list[Instance]) -> list[GenerationResult]:
+        assert process_vision_info is not None, (
+            "qwen_vl_utils is required. Please install it via `pip install qwen-vl-utils`"
+        )
 
         res = []
 
@@ -39,7 +39,11 @@ class Llava_OneVision1_5(LlavaOneVisionSimple):
             grouping=True,
         )
         chunks = re_ords.get_batched(n=self.batch_size, batch_fn=None)
-        num_iters = len(requests) // self.batch_size if len(requests) % self.batch_size == 0 else len(requests) // self.batch_size + 1
+        num_iters = (
+            len(requests) // self.batch_size
+            if len(requests) % self.batch_size == 0
+            else len(requests) // self.batch_size + 1
+        )
         pbar = tqdm(total=num_iters, disable=(self.rank != 0), desc="Model Responding")
 
         total_elapsed_time = 0.0
@@ -54,7 +58,7 @@ class Llava_OneVision1_5(LlavaOneVisionSimple):
             split = split[0]
 
             raw_messages_list = [doc_to_messages[0](self.task_dict[task][split][ids]) for ids in doc_id]
-            chat_messages_list: List[ChatMessages] = [ChatMessages(**{"messages": m}) for m in raw_messages_list]
+            chat_messages_list: list[ChatMessages] = [ChatMessages(**{"messages": m}) for m in raw_messages_list]
 
             # Prepare video processing kwargs
             video_kwargs = {
@@ -70,7 +74,10 @@ class Llava_OneVision1_5(LlavaOneVisionSimple):
             # Build HF messages and apply chat template
             hf_messages_list = [cm.to_hf_messages(video_kwargs=video_kwargs) for cm in chat_messages_list]
 
-            texts = [self.processor.apply_chat_template(messages, tokenize=False, add_generation_prompt=True) for messages in hf_messages_list]
+            texts = [
+                self.processor.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+                for messages in hf_messages_list
+            ]
 
             if self.rank == 0 and doc_id[0] % 100 == 0:
                 eval_logger.debug(f"Prompt for doc ID {doc_id[0]}:\n\n{texts[0]}\n")
@@ -145,9 +152,15 @@ class Llava_OneVision1_5(LlavaOneVisionSimple):
                 eval_logger.error(f"Error {e} in generating")
                 cont = torch.zeros((1, 0), dtype=torch.long, device=self.device)
 
-            text_outputs = self.tokenizer.batch_decode(generated_ids_trimmed if generated_ids_trimmed is not None else cont, skip_special_tokens=True)
+            text_outputs = self.tokenizer.batch_decode(
+                generated_ids_trimmed if generated_ids_trimmed is not None else cont, skip_special_tokens=True
+            )
             for i, text_output in enumerate(text_outputs):
-                token_counts = TokenCounts(output_tokens=len(generated_ids_trimmed[i])) if generated_ids_trimmed is not None else None
+                token_counts = (
+                    TokenCounts(output_tokens=len(generated_ids_trimmed[i]))
+                    if generated_ids_trimmed is not None
+                    else None
+                )
                 res.append(GenerationResult(text=text_output, token_counts=token_counts))
                 self.cache_hook.add_partial("generate_until", (texts[0], gen_kwargs), text_output)
             pbar.update(1)
@@ -167,5 +180,5 @@ class Llava_OneVision1_5(LlavaOneVisionSimple):
         pbar.close()
         return res
 
-    def generate_until_multi_round(self, requests) -> List[str]:
+    def generate_until_multi_round(self, requests) -> list[str]:
         raise NotImplementedError("TODO: Implement multi-round generation")

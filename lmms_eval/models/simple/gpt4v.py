@@ -1,12 +1,8 @@
 import os
 import time
-from typing import List, Tuple, Union
 
 import numpy as np
 from accelerate import Accelerator, DistributedType
-from openai import AzureOpenAI, OpenAI
-from tqdm import tqdm
-
 from lmms_eval.api.instance import Instance
 from lmms_eval.api.model import lmms
 from lmms_eval.api.registry import register_model
@@ -15,6 +11,8 @@ from lmms_eval.models.model_utils.media_encoder import (
     encode_image_to_base64,
     encode_image_to_base64_with_size_limit,
 )
+from openai import AzureOpenAI, OpenAI
+from tqdm import tqdm
 
 VideoReader, _ = optional_import("decord", "VideoReader")
 cpu, _ = optional_import("decord", "cpu")
@@ -81,7 +79,7 @@ class GPT4V(lmms):
         self.device = self.accelerator.device
 
     # Function to encode the image
-    def encode_image(self, image: Union[Image.Image, str]):
+    def encode_image(self, image: Image.Image | str):
         if isinstance(image, str):
             with Image.open(image) as loaded_image:
                 return encode_image_to_base64_with_size_limit(
@@ -141,7 +139,7 @@ class GPT4V(lmms):
                 new_list.append(j)
         return new_list
 
-    def generate_until(self, requests) -> List[str]:
+    def generate_until(self, requests) -> list[str]:
         res = []
         pbar = tqdm(total=len(requests), disable=(self.rank != 0), desc="Model Responding")
 
@@ -154,10 +152,20 @@ class GPT4V(lmms):
                 visuals = self.flatten(visuals)
                 imgs = []  # multiple images or frames for video
                 for visual in visuals:
-                    if isinstance(visual, str) and (".mp4" in visual or ".avi" in visual or ".mov" in visual or ".flv" in visual or ".wmv" in visual):
+                    if isinstance(visual, str) and (
+                        ".mp4" in visual or ".avi" in visual or ".mov" in visual or ".flv" in visual or ".wmv" in visual
+                    ):
                         frames = self.encode_video(visual, self.max_frames_num)
                         imgs.extend(frames)
-                    elif isinstance(visual, str) and (".jpg" in visual or ".jpeg" in visual or ".png" in visual or ".gif" in visual or ".bmp" in visual or ".tiff" in visual or ".webp" in visual):
+                    elif isinstance(visual, str) and (
+                        ".jpg" in visual
+                        or ".jpeg" in visual
+                        or ".png" in visual
+                        or ".gif" in visual
+                        or ".bmp" in visual
+                        or ".tiff" in visual
+                        or ".webp" in visual
+                    ):
                         img = self.encode_image(visual)
                         imgs.append(img)
                     elif isinstance(visual, Image.Image):
@@ -215,9 +223,9 @@ class GPT4V(lmms):
         pbar.close()
         return res
 
-    def generate_until_multi_round(self, requests) -> List[str]:
+    def generate_until_multi_round(self, requests) -> list[str]:
         raise NotImplementedError("TODO: Implement multi-round generation for GPT4V")
 
-    def loglikelihood(self, requests: List[Instance]) -> List[Tuple[float, bool]]:
+    def loglikelihood(self, requests: list[Instance]) -> list[tuple[float, bool]]:
         # TODO
         assert False, "GPT4V not support"

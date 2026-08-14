@@ -18,7 +18,9 @@ def logicvista_doc_to_visual(doc):
     return [doc["image"].convert("RGB")]
 
 
-logicvista_doc_to_messages_cot = make_reasoning_doc_to_messages(logicvista_doc_to_visual, logicvista_doc_to_text_cot, system_prompt=SYSTEM_PROMPT)
+logicvista_doc_to_messages_cot = make_reasoning_doc_to_messages(
+    logicvista_doc_to_visual, logicvista_doc_to_text_cot, system_prompt=SYSTEM_PROMPT
+)
 
 
 logicvista_reasoning_process_results = make_reasoning_process_results("logicvista", logicvista_doc_to_text_cot)

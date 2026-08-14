@@ -1,5 +1,4 @@
 import time
-from typing import List
 
 from loguru import logger as eval_logger
 from tqdm import tqdm
@@ -26,7 +25,7 @@ if not _has_qwen_vl:
 class Qwen2_5_VL(Qwen2_5_VLSimple):
     is_simple = False
 
-    def generate_until(self, requests: List[Instance]) -> List[GenerationResult]:
+    def generate_until(self, requests: list[Instance]) -> list[GenerationResult]:
         res = []
 
         # A dummy collate here to sort by doc id
@@ -43,14 +42,21 @@ class Qwen2_5_VL(Qwen2_5_VLSimple):
             grouping=True,
         )
         chunks = re_ords.get_batched(n=self.batch_size, batch_fn=None)
-        num_iters = len(requests) // self.batch_size if len(requests) % self.batch_size == 0 else len(requests) // self.batch_size + 1
+        num_iters = (
+            len(requests) // self.batch_size
+            if len(requests) % self.batch_size == 0
+            else len(requests) // self.batch_size + 1
+        )
         pbar = tqdm(total=num_iters, disable=(self.rank != 0), desc="Model Responding")
         total_elapsed_time = 0
         total_tokens = 0
         for chunk in chunks:
             ctx, doc_to_messages, all_gen_kwargs, doc_id, task, split = zip(*chunk)
-            chat_messages = [doc_to_messages[idx](self.task_dict[task][split][ids]) for idx, (ids, task, split) in enumerate(zip(doc_id, task, split))]
-            chat_messages: List[ChatMessages] = [ChatMessages(**{"messages": message}) for message in chat_messages]
+            chat_messages = [
+                doc_to_messages[idx](self.task_dict[task][split][ids])
+                for idx, (ids, task, split) in enumerate(zip(doc_id, task, split))
+            ]
+            chat_messages: list[ChatMessages] = [ChatMessages(**{"messages": message}) for message in chat_messages]
             visuals = []
             videos = []
             for messages in chat_messages:
@@ -88,7 +94,9 @@ class Qwen2_5_VL(Qwen2_5_VLSimple):
                         video_kwargs["nframes"] = self.max_num_frames
                 else:
                     video_kwargs["nframes"] = self.max_num_frames
-            batched_messages = [chat_message.to_hf_messages(video_kwargs=video_kwargs) for chat_message in chat_messages]
+            batched_messages = [
+                chat_message.to_hf_messages(video_kwargs=video_kwargs) for chat_message in chat_messages
+            ]
             texts = self.processor.apply_chat_template(batched_messages, tokenize=False, add_generation_prompt=True)
             image_inputs, video_inputs, video_kwargs_qwen = process_vision_info(
                 batched_messages,
@@ -163,7 +171,9 @@ class Qwen2_5_VL(Qwen2_5_VLSimple):
             total_tokens += sum(len(ids) for ids in generated_ids_trimmed)
 
             for i, (ans, context) in enumerate(zip(answers, texts)):
-                res.append(GenerationResult(text=ans, token_counts=TokenCounts(output_tokens=len(generated_ids_trimmed[i]))))
+                res.append(
+                    GenerationResult(text=ans, token_counts=TokenCounts(output_tokens=len(generated_ids_trimmed[i])))
+                )
                 self.cache_hook.add_partial("generate_until", (context, gen_kwargs), ans)
 
                 eval_logger.debug(f"Question: {context}")

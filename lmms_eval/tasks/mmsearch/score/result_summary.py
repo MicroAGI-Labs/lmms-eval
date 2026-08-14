@@ -30,7 +30,9 @@ def get_result_summary(anno, result_list, summary_key):
     # add missing samples to zero
     for inst in anno:
         if inst["sample_id"] not in result_dict:
-            dummy_result = dict(sample_id=inst["sample_id"], area=inst["area"], subfield=inst["subfield"], **{k: 0 for k in summary_key})
+            dummy_result = dict(
+                sample_id=inst["sample_id"], area=inst["area"], subfield=inst["subfield"], **{k: 0 for k in summary_key}
+            )
             result_list.append(dummy_result)
             print(f"Missing sample: {inst['sample_id']}")
         all_subfield.append(inst["subfield"])
@@ -40,7 +42,9 @@ def get_result_summary(anno, result_list, summary_key):
     for key in summary_key:
         try:
             return_dict[key] = dict(
-                total_dict=dict(total_length=len(result_list), average=sum([inst[key] for inst in result_list]) / len(result_list)),
+                total_dict=dict(
+                    total_length=len(result_list), average=sum([inst[key] for inst in result_list]) / len(result_list)
+                ),
                 area_dict=get_area_score(result_list, key),
                 subfield_dict=get_subfield_score(result_list, key, all_subfield),
             )

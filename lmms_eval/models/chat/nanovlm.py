@@ -14,20 +14,18 @@ import queue
 import threading
 import time
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple, Union
 
 # Register NanoVLM with transformers Auto classes
 import lmms_engine.models.nanovlm  # noqa: F401
 import torch
-from loguru import logger as eval_logger
-from PIL import Image
-from tqdm import tqdm
-from transformers import AutoImageProcessor, AutoModelForImageTextToText, AutoTokenizer
-
 from lmms_eval.api.instance import Instance
 from lmms_eval.api.model import lmms
 from lmms_eval.api.registry import register_model
 from lmms_eval.protocol import ChatMessages
+from loguru import logger as eval_logger
+from PIL import Image
+from tqdm import tqdm
+from transformers import AutoImageProcessor, AutoModelForImageTextToText, AutoTokenizer
 
 
 @dataclass
@@ -47,19 +45,21 @@ class NanoVLM(lmms):
     def __init__(
         self,
         pretrained: str = "LMMs-Lab-Speedrun/NanoVLM_Init",
-        device: Optional[str] = "cuda",
-        batch_size: Optional[Union[int, str]] = 1,
-        attn_implementation: Optional[str] = None,
-        system_prompt: Optional[str] = "You are a helpful assistant.",
+        device: str | None = "cuda",
+        batch_size: int | str | None = 1,
+        attn_implementation: str | None = None,
+        system_prompt: str | None = "You are a helpful assistant.",
         use_cache: bool = False,
-        worker_gpus: Optional[str] = None,
-        worker_count: Optional[int] = None,
+        worker_gpus: str | None = None,
+        worker_count: int | None = None,
         **kwargs,
     ) -> None:
         super().__init__()
 
         if int(os.environ.get("WORLD_SIZE", "1")) > 1:
-            raise ValueError("NanoVLM manages multi-GPU dispatch internally. Please run without accelerate/torchrun multi-process launch.")
+            raise ValueError(
+                "NanoVLM manages multi-GPU dispatch internally. Please run without accelerate/torchrun multi-process launch."
+            )
 
         if kwargs:
             eval_logger.warning(f"Ignoring unsupported kwargs for nanovlm: {sorted(kwargs.keys())}")
@@ -70,7 +70,7 @@ class NanoVLM(lmms):
         self._attn_implementation = attn_implementation
 
         worker_devices = self._resolve_worker_devices(device=device, worker_gpus=worker_gpus, worker_count=worker_count)
-        self._workers: List[_NanoVLMWorker] = [self._load_worker(dev) for dev in worker_devices]
+        self._workers: list[_NanoVLMWorker] = [self._load_worker(dev) for dev in worker_devices]
 
         # Public attributes expected by the lmms-eval framework
         self.model = self._workers[0].model
@@ -81,13 +81,18 @@ class NanoVLM(lmms):
         self.max_length = 4096
         self.eot_token_id = self._workers[0].tokenizer.eos_token_id
 
-        eval_logger.info(f"NanoVLM loaded: {len(self._workers)} worker(s) on {worker_devices}, " f"image_token_count={self._workers[0].image_token_count}, use_cache={self.use_cache}")
+        eval_logger.info(
+            f"NanoVLM loaded: {len(self._workers)} worker(s) on {worker_devices}, "
+            f"image_token_count={self._workers[0].image_token_count}, use_cache={self.use_cache}"
+        )
 
     # ------------------------------------------------------------------
     # Initialization helpers
     # ------------------------------------------------------------------
 
-    def _resolve_worker_devices(self, device: Optional[str], worker_gpus: Optional[str], worker_count: Optional[int]) -> List[str]:
+    def _resolve_worker_devices(
+        self, device: str | None, worker_gpus: str | None, worker_count: int | None
+    ) -> list[str]:
         if device == "cpu":
             return ["cpu"]
         if worker_gpus:
@@ -101,7 +106,7 @@ class NanoVLM(lmms):
         return available[: min(worker_count, len(available))]
 
     def _load_worker(self, device_name: str) -> _NanoVLMWorker:
-        model_kwargs: Dict[str, object] = {"torch_dtype": torch.bfloat16, "device_map": device_name}
+        model_kwargs: dict[str, object] = {"torch_dtype": torch.bfloat16, "device_map": device_name}
         if self._attn_implementation:
             model_kwargs["attn_implementation"] = self._attn_implementation
 
@@ -127,7 +132,7 @@ class NanoVLM(lmms):
     # Inference internals
     # ------------------------------------------------------------------
 
-    def _expand_image_tokens(self, input_ids: List[int], image_token_id: int, image_token_count: int) -> List[int]:
+    def _expand_image_tokens(self, input_ids: list[int], image_token_id: int, image_token_count: int) -> list[int]:
         """Expand each single image_token_id to image_token_count copies."""
         expanded = []
         for token_id in input_ids:
@@ -137,7 +142,9 @@ class NanoVLM(lmms):
                 expanded.append(token_id)
         return expanded
 
-    def _process_single(self, worker: _NanoVLMWorker, hf_messages: List[dict], images: List) -> Tuple[torch.Tensor, dict]:
+    def _process_single(
+        self, worker: _NanoVLMWorker, hf_messages: list[dict], images: list
+    ) -> tuple[torch.Tensor, dict]:
         """Tokenize with chat template, expand image tokens, and process images."""
         token_ids = worker.tokenizer.apply_chat_template(hf_messages, tokenize=True, add_generation_prompt=True)
         token_ids = self._expand_image_tokens(token_ids, worker.image_token_id, worker.image_token_count)
@@ -159,7 +166,7 @@ class NanoVLM(lmms):
 
         return input_ids, image_inputs
 
-    def _run_single_request(self, worker: _NanoVLMWorker, request: Instance) -> Tuple[str, float, int]:
+    def _run_single_request(self, worker: _NanoVLMWorker, request: Instance) -> tuple[str, float, int]:
         """Run inference for a single request on a specific worker. Returns (answer, elapsed, n_tokens)."""
         context, doc_to_messages, gen_kwargs, doc_id, task, split = request.args
         chat_messages = doc_to_messages(self.task_dict[task][split][doc_id])
@@ -206,25 +213,25 @@ class NanoVLM(lmms):
     # lmms-eval interface (abstract method implementations)
     # ------------------------------------------------------------------
 
-    def loglikelihood(self, requests: List[Instance]) -> List[Tuple[float, bool]]:
+    def loglikelihood(self, requests: list[Instance]) -> list[tuple[float, bool]]:
         # Required by abc.abstractmethod in base class; NanoVLM is generate-only.
         raise NotImplementedError("NanoVLM does not support loglikelihood scoring")
 
-    def generate_until(self, requests: List[Instance]) -> List[str]:
+    def generate_until(self, requests: list[Instance]) -> list[str]:
         """Generate answers for all requests using async multi-GPU dispatch.
 
         Each worker (one per GPU) pulls jobs from a shared queue and runs
         inference independently.  With a single GPU this reduces to standard
         sequential processing.
         """
-        results: List[Optional[str]] = [None] * len(requests)
-        job_queue: "queue.Queue[Tuple[int, Instance]]" = queue.Queue()
+        results: list[str | None] = [None] * len(requests)
+        job_queue: queue.Queue[tuple[int, Instance]] = queue.Queue()
         for idx, request in enumerate(requests):
             job_queue.put((idx, request))
 
         pbar = tqdm(total=len(requests), disable=(self.rank != 0), desc="NanoVLM Responding")
         lock = threading.Lock()
-        errors: List[Exception] = []
+        errors: list[Exception] = []
         total_elapsed = 0.0
         total_tokens = 0
 
@@ -261,13 +268,17 @@ class NanoVLM(lmms):
             raise errors[0]
 
         if any(r is None for r in results):
-            raise RuntimeError(f"NanoVLM completed {sum(1 for r in results if r is not None)} / {len(requests)} requests")
+            raise RuntimeError(
+                f"NanoVLM completed {sum(1 for r in results if r is not None)} / {len(requests)} requests"
+            )
 
         if total_elapsed > 0:
-            eval_logger.info(f"NanoVLM inference: {total_tokens} tokens in {total_elapsed:.1f}s ({total_tokens / total_elapsed:.1f} tok/s)")
+            eval_logger.info(
+                f"NanoVLM inference: {total_tokens} tokens in {total_elapsed:.1f}s ({total_tokens / total_elapsed:.1f} tok/s)"
+            )
 
         return results
 
-    def generate_until_multi_round(self, requests) -> List[str]:
+    def generate_until_multi_round(self, requests) -> list[str]:
         # Required by abc.abstractmethod in base class; not needed for current benchmarks.
         raise NotImplementedError("NanoVLM does not support multi-round generation")

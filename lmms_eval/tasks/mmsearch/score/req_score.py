@@ -9,7 +9,9 @@ def get_requery_score(prediction, gt):
     smoothing_function = SmoothingFunction().method1  # * used to deal with non-overlap n-gram
 
     # calculate BLEU-1 score with smoothing function
-    bleu_score = sentence_bleu([gt.split()], prediction.split(), weights=(1, 0, 0, 0), smoothing_function=smoothing_function)
+    bleu_score = sentence_bleu(
+        [gt.split()], prediction.split(), weights=(1, 0, 0, 0), smoothing_function=smoothing_function
+    )
 
     # ROUGE
     rouge = Rouge()

@@ -1,17 +1,15 @@
-from typing import List, Optional, Tuple, Union
 
 import numpy as np
 import torch
 from accelerate import Accelerator, DistributedType
-from loguru import logger as eval_logger
-from PIL import Image
-from tqdm import tqdm
-
 from lmms_eval import utils
 from lmms_eval.api.instance import Instance
 from lmms_eval.api.model import lmms
 from lmms_eval.api.registry import register_model
 from lmms_eval.imports import optional_import
+from loguru import logger as eval_logger
+from PIL import Image
+from tqdm import tqdm
 
 PeftModel, _has_peft = optional_import("peft", "PeftModel")
 Qwen2_5_VLForConditionalGeneration, _ = optional_import("transformers", "Qwen2_5_VLForConditionalGeneration")
@@ -35,16 +33,16 @@ class VideoSALMONN2(lmms):
         self,
         pretrained: str = "tsinghua-ee/video-SALMONN-2_plus_7B",
         base_model: str = "Qwen/Qwen2.5-VL-7B-Instruct",
-        device: Optional[str] = "cuda",
-        device_map: Optional[str] = "auto",
-        batch_size: Optional[Union[int, str]] = 1,
+        device: str | None = "cuda",
+        device_map: str | None = "auto",
+        batch_size: int | str | None = 1,
         use_cache=True,
-        attn_implementation: Optional[str] = None,
+        attn_implementation: str | None = None,
         max_num_frames: int = 768,
         max_pixels: int = 1605632,
         min_pixels: int = 61250,
-        fps: Optional[float] = 2.0,
-        system_prompt: Optional[str] = "You are a helpful assistant.",
+        fps: float | None = 2.0,
+        system_prompt: str | None = "You are a helpful assistant.",
         **kwargs,
     ) -> None:
         super().__init__()
@@ -139,7 +137,7 @@ class VideoSALMONN2(lmms):
     def world_size(self):
         return self._world_size
 
-    def loglikelihood(self, requests: List[Instance]) -> List[Tuple[float, bool]]:
+    def loglikelihood(self, requests: list[Instance]) -> list[tuple[float, bool]]:
         raise NotImplementedError("Loglikelihood is not implemented for VideoSALMONN")
 
     def flatten(self, input):
@@ -149,7 +147,7 @@ class VideoSALMONN2(lmms):
                 new_list.append(j)
         return new_list
 
-    def generate_until(self, requests: List[Instance]) -> List[str]:
+    def generate_until(self, requests: list[Instance]) -> list[str]:
         res = []
 
         def _collate(x):
@@ -171,7 +169,9 @@ class VideoSALMONN2(lmms):
             if isinstance(until, str):
                 until = [until]
             elif not isinstance(until, list):
-                raise ValueError(f"Expected `gen_kwargs['until']` to be of type Union[str, list], but got {type(until)}")
+                raise ValueError(
+                    f"Expected `gen_kwargs['until']` to be of type Union[str, list], but got {type(until)}"
+                )
 
             until = [item for item in until if item != "\n\n"]
 
@@ -304,5 +304,5 @@ class VideoSALMONN2(lmms):
         pbar.close()
         return res
 
-    def generate_until_multi_round(self, requests) -> List[str]:
+    def generate_until_multi_round(self, requests) -> list[str]:
         raise NotImplementedError("TODO: Implement multi-round generation")

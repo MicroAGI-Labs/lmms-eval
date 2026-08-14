@@ -7,7 +7,7 @@ import requests
 import yaml
 from loguru import logger as eval_logger
 
-with open(Path(__file__).parent / "_default_template_yaml", "r") as f:
+with open(Path(__file__).parent / "_default_template_yaml") as f:
     raw_data = f.readlines()
     safe_data = []
     for i, line in enumerate(raw_data):
@@ -134,7 +134,13 @@ def mix_evals_audio2text_process_results_freeform(doc, result):
     content = eval_prompt.format(model_response=pred, ground_truth=ground_truth_str)
     eval_answer, model_name = get_eval(model_response=pred, ground_truth=ground_truth_str, max_tokens=1024)
     return {
-        "gpt_eval": {"pred": pred, "id": doc["id"], "target": ground_truth_str, "eval_answer": eval_answer, "gpt_prompt": content},
+        "gpt_eval": {
+            "pred": pred,
+            "id": doc["id"],
+            "target": ground_truth_str,
+            "eval_answer": eval_answer,
+            "gpt_prompt": content,
+        },
     }
 
 

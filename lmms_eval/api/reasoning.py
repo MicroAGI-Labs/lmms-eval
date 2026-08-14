@@ -1,8 +1,6 @@
-import re
-from typing import List, Optional, Union
 
 
-def strip_reasoning_tags(text: str, tag_pairs: List[List[str]]) -> str:
+def strip_reasoning_tags(text: str, tag_pairs: list[list[str]]) -> str:
     """Remove reasoning tag blocks from model output.
 
     Args:
@@ -31,7 +29,9 @@ def strip_reasoning_tags(text: str, tag_pairs: List[List[str]]) -> str:
     return result.strip()
 
 
-def parse_reasoning_tags_config(cli_value: Optional[str] = None, task_value: Optional[object] = None) -> Optional[List[List[str]]]:
+def parse_reasoning_tags_config(
+    cli_value: str | None = None, task_value: object | None = None
+) -> list[list[str]] | None:
     """Resolve reasoning_tags from CLI + task config.
 
     Priority: task_value > cli_value.

@@ -1,17 +1,15 @@
-from typing import List, Optional, Tuple, Union
 
 import torch
 from accelerate import Accelerator, DistributedType
-from loguru import logger as eval_logger
-from PIL import Image
-from tqdm import tqdm
-from transformers import AutoProcessor, AutoTokenizer
-
 from lmms_eval import utils
 from lmms_eval.api.instance import Instance
 from lmms_eval.api.model import lmms
 from lmms_eval.api.registry import register_model
 from lmms_eval.models.model_utils.media_encoder import encode_image_to_data_url
+from loguru import logger as eval_logger
+from PIL import Image
+from tqdm import tqdm
+from transformers import AutoProcessor, AutoTokenizer
 
 # Import both MoE and non-MoE model classes
 try:
@@ -25,7 +23,9 @@ except ImportError:
     Glm4vForConditionalGeneration = None
 
 if Glm4vMoeForConditionalGeneration is None and Glm4vForConditionalGeneration is None:
-    eval_logger.warning("Failed to import GLM4V model classes. " "Please install transformers>=5.0.0: pip install transformers>=5.0.0")
+    eval_logger.warning(
+        "Failed to import GLM4V model classes. Please install transformers>=5.0.0: pip install transformers>=5.0.0"
+    )
 
 
 @register_model("glm4v")
@@ -46,13 +46,13 @@ class GLM4V(lmms):
     def __init__(
         self,
         pretrained: str = "zai-org/GLM-4.6V-Flash",
-        device: Optional[str] = "cuda",
-        device_map: Optional[str] = "auto",
-        batch_size: Optional[Union[int, str]] = 1,
+        device: str | None = "cuda",
+        device_map: str | None = "auto",
+        batch_size: int | str | None = 1,
         use_cache: bool = True,
-        attn_implementation: Optional[str] = None,
+        attn_implementation: str | None = None,
         max_new_tokens: int = 8192,
-        system_prompt: Optional[str] = None,
+        system_prompt: str | None = None,
         **kwargs,
     ) -> None:
         super().__init__()
@@ -63,19 +63,27 @@ class GLM4V(lmms):
 
         if is_moe_model:
             if Glm4vMoeForConditionalGeneration is None:
-                raise ImportError("Glm4vMoeForConditionalGeneration not available. " "Please install transformers>=5.0.0: pip install transformers>=5.0.0")
+                raise ImportError(
+                    "Glm4vMoeForConditionalGeneration not available. "
+                    "Please install transformers>=5.0.0: pip install transformers>=5.0.0"
+                )
             model_class = Glm4vMoeForConditionalGeneration
             eval_logger.info(f"Loading GLM-4.6V MoE model from {pretrained}")
         else:
             if Glm4vForConditionalGeneration is None:
-                raise ImportError("Glm4vForConditionalGeneration not available. " "Please install transformers>=5.0.0: pip install transformers>=5.0.0")
+                raise ImportError(
+                    "Glm4vForConditionalGeneration not available. "
+                    "Please install transformers>=5.0.0: pip install transformers>=5.0.0"
+                )
             model_class = Glm4vForConditionalGeneration
             eval_logger.info(f"Loading GLM-4.6V Flash model from {pretrained}")
 
         # Validate attention implementation
         valid_attn_implementations = [None, "flash_attention_2", "sdpa", "eager"]
         if attn_implementation not in valid_attn_implementations:
-            raise ValueError(f"attn_implementation must be one of {valid_attn_implementations}, got {attn_implementation}")
+            raise ValueError(
+                f"attn_implementation must be one of {valid_attn_implementations}, got {attn_implementation}"
+            )
 
         accelerator = Accelerator()
         self.accelerator = accelerator
@@ -164,7 +172,7 @@ class GLM4V(lmms):
     def world_size(self):
         return self._world_size
 
-    def loglikelihood(self, requests: List[Instance]) -> List[Tuple[float, bool]]:
+    def loglikelihood(self, requests: list[Instance]) -> list[tuple[float, bool]]:
         raise NotImplementedError("Loglikelihood is not implemented for GLM4V")
 
     def flatten(self, input):
@@ -184,7 +192,7 @@ class GLM4V(lmms):
             quality=85,
         )
 
-    def generate_until(self, requests: List[Instance]) -> List[str]:
+    def generate_until(self, requests: list[Instance]) -> list[str]:
         res = []
 
         def _collate(x):
@@ -206,7 +214,9 @@ class GLM4V(lmms):
             if isinstance(until, str):
                 until = [until]
             elif not isinstance(until, list):
-                raise ValueError(f"Expected `gen_kwargs['until']` to be of type Union[str, list], but got {type(until)}")
+                raise ValueError(
+                    f"Expected `gen_kwargs['until']` to be of type Union[str, list], but got {type(until)}"
+                )
 
             if isinstance(contexts, tuple):
                 contexts = list(contexts)
@@ -317,5 +327,5 @@ class GLM4V(lmms):
         pbar.close()
         return res
 
-    def generate_until_multi_round(self, requests: List[Instance]) -> List[str]:
+    def generate_until_multi_round(self, requests: list[Instance]) -> list[str]:
         raise NotImplementedError("Multi-round generation is not implemented for GLM4V")

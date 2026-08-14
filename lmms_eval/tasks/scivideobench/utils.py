@@ -9,7 +9,7 @@ import yaml
 
 hf_home = os.getenv("HF_HOME", "~/.cache/huggingface/")
 base_cache_dir = os.path.expanduser(hf_home)
-with open(Path(__file__).parent / "scivideobench.yaml", "r") as f:
+with open(Path(__file__).parent / "scivideobench.yaml") as f:
     raw_data = f.readlines()
     safe_data = []
     for i, line in enumerate(raw_data):
@@ -109,7 +109,15 @@ def extract_answer_letter(s):
     """
     s = s.strip()
 
-    answer_prefixes = ["The answer is", "The correct answer is", "The best answer is", "Answer:", "Option:", "### Final Answer:\n$$\\boxed", "the final answer is"]
+    answer_prefixes = [
+        "The answer is",
+        "The correct answer is",
+        "The best answer is",
+        "Answer:",
+        "Option:",
+        "### Final Answer:\n$$\\boxed",
+        "the final answer is",
+    ]
     for prefix in answer_prefixes:
         s = s.replace(prefix, "")
 

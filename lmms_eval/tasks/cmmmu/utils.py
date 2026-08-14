@@ -3,9 +3,8 @@ import random
 import re
 from collections import Counter, defaultdict
 
-from loguru import logger as eval_logger
-
 from lmms_eval.tasks._task_utils.file_utils import generate_submission_file
+from loguru import logger as eval_logger
 
 PROMPT = {
     "task_instructions": [
@@ -72,7 +71,15 @@ def cmmmu_process_results(doc, results):
         parsed_pred = get_TF_prediction(pred)
     else:
         parsed_pred = get_fill_blank_prediction(pred, doc["answer"])
-    return {"cmmmu_acc": {"id": doc["id"], "subdomain": doc["subcategory"], "question_type": doc["type"], "answer": doc["answer"], "parsed_pred": parsed_pred}}
+    return {
+        "cmmmu_acc": {
+            "id": doc["id"],
+            "subdomain": doc["subcategory"],
+            "question_type": doc["type"],
+            "answer": doc["answer"],
+            "parsed_pred": parsed_pred,
+        }
+    }
 
 
 def cmmmu_aggregate_results(results):
@@ -195,7 +202,9 @@ def eval_cmmmu(entries):
                     return random.choice(["对", "错"])
 
             answer = entry["answer"]
-            parsed_pred = [word for word in parsed_pred if not any(ambiguous in word for ambiguous in ambiguous_keywords)]
+            parsed_pred = [
+                word for word in parsed_pred if not any(ambiguous in word for ambiguous in ambiguous_keywords)
+            ]
             result = judge_similarity(parsed_pred, positive_keywords, negative_keywords)
             if result == answer:
                 correct_cnt += 1
@@ -326,7 +335,9 @@ def get_fill_blank_prediction(response, answer):
             # if last one, accept it's an equation (the entire response can be just one sentence with equation)
             if index == len(sub_responses) - 1:
                 indicators_of_keys.extend(["="])
-            shortest_key_response = None  # the shortest response that may contain the answer (tail part of the response)
+            shortest_key_response = (
+                None  # the shortest response that may contain the answer (tail part of the response)
+            )
             for indicator in indicators_of_keys:
                 if indicator in resp:
                     if not shortest_key_response:
@@ -371,7 +382,9 @@ def get_TF_prediction(response):
         indicators_of_keys = ["是", "为", "所以", "判断", "陈述", "说法", "表达", "答案", "结果"]
         key_responses = []
         for index, resp in enumerate(sub_responses):
-            shortest_key_response = None  # the shortest response that may contain the answer (tail part of the response)
+            shortest_key_response = (
+                None  # the shortest response that may contain the answer (tail part of the response)
+            )
             for indicator in indicators_of_keys:
                 if indicator in resp:
                     if not shortest_key_response:

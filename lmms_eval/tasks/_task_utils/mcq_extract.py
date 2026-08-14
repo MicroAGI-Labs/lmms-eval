@@ -11,8 +11,6 @@ Usage::
     letter = extract_mcq_answer("The correct answer is (B).")  # -> "B"
 """
 
-import re
-from typing import List, Optional
 
 _DEFAULT_CHOICES = ["A", "B", "C", "D", "E", "F", "G", "H"]
 
@@ -63,7 +61,7 @@ _FORMAT_PRIORITY = {
 }
 
 
-def extract_mcq_answer(response: str, choices: Optional[List[str]] = None) -> str:
+def extract_mcq_answer(response: str, choices: list[str] | None = None) -> str:
     """Extract a multiple-choice answer letter from model output.
 
     Searches for choice letters in various common formats and returns the

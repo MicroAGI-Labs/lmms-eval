@@ -40,11 +40,10 @@ from __future__ import annotations
 import argparse
 import glob
 import json
-import os
 import os.path as osp
 import random
 import sys
-from typing import Iterator
+from collections.abc import Iterator
 
 
 def _secs_from_time_str(s: str) -> float:
@@ -82,14 +81,17 @@ def _build_choices(q: dict, rng: random.Random) -> tuple[list, int]:
         all_opts = incorrect[:insert_pos] + [correct] + incorrect[insert_pos:]
         return all_opts, insert_pos
 
-    raise KeyError(f"Question {q.get('question_id', '?')} has neither (choices, correct_idx) " f"nor (correct, incorrect) -- cannot build MCQ.")
+    raise KeyError(
+        f"Question {q.get('question_id', '?')} has neither (choices, correct_idx) "
+        f"nor (correct, incorrect) -- cannot build MCQ."
+    )
 
 
 def _iter_question_file(path: str, seed: int) -> Iterator[dict]:
     """Yield one record per question from a single JSON file."""
     task_type = osp.splitext(osp.basename(path))[0]
 
-    with open(path, "r") as f:
+    with open(path) as f:
         data = json.load(f)
 
     # Stable per-file RNG so shuffling is reproducible across runs.
@@ -174,7 +176,7 @@ def push_to_hub(jsonl_path: str, hub_dataset_id: str):
     except ImportError:
         print("ERROR: pip install datasets", file=sys.stderr)
         sys.exit(1)
-    print(f"Loading JSONL...")
+    print("Loading JSONL...")
     ds = Dataset.from_json(jsonl_path)
     print(f"Pushing {len(ds)} records to {hub_dataset_id}...")
     ds.push_to_hub(hub_dataset_id, split="test")
@@ -185,7 +187,11 @@ def main():
     p = argparse.ArgumentParser()
     p.add_argument("--questions-dir", required=True, help="Directory of per-prototype JSON files")
     p.add_argument("--output", default="hd_epic_questions.jsonl")
-    p.add_argument("--video-dir", default="", help="Base directory for video .mp4 files (overridable at runtime via $HD_EPIC_VIDEO_DIR)")
+    p.add_argument(
+        "--video-dir",
+        default="",
+        help="Base directory for video .mp4 files (overridable at runtime via $HD_EPIC_VIDEO_DIR)",
+    )
     p.add_argument("--seed", type=int, default=42, help="Random seed for choice shuffling (default: 42)")
     p.add_argument("--glob", default="*.json")
     p.add_argument("--push-to-hub", metavar="DATASET_ID", default=None)

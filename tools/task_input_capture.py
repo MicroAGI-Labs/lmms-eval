@@ -201,7 +201,9 @@ def _capture_instance_boundary(task_obj, instance, *, capture_mode: str) -> dict
                 {
                     "ctx": _normalize(ctx),
                     "generation_kwargs": _normalize(copy.deepcopy(gen_kwargs)),
-                    "doc_to_visual_callable": _callable_descriptor(doc_to_visual) if callable(doc_to_visual) else {"value": _normalize(doc_to_visual)},
+                    "doc_to_visual_callable": _callable_descriptor(doc_to_visual)
+                    if callable(doc_to_visual)
+                    else {"value": _normalize(doc_to_visual)},
                 }
             )
             if capture_visual and callable(doc_to_visual):
@@ -217,8 +219,12 @@ def _capture_instance_boundary(task_obj, instance, *, capture_mode: str) -> dict
                 {
                     "ctx": _normalize(ctx),
                     "generation_kwargs": _normalize(copy.deepcopy(gen_kwargs)),
-                    "doc_to_visual_callable": _callable_descriptor(doc_to_visual) if callable(doc_to_visual) else {"value": _normalize(doc_to_visual)},
-                    "doc_to_text_callable": _callable_descriptor(doc_to_text) if callable(doc_to_text) else {"value": _normalize(doc_to_text)},
+                    "doc_to_visual_callable": _callable_descriptor(doc_to_visual)
+                    if callable(doc_to_visual)
+                    else {"value": _normalize(doc_to_visual)},
+                    "doc_to_text_callable": _callable_descriptor(doc_to_text)
+                    if callable(doc_to_text)
+                    else {"value": _normalize(doc_to_text)},
                 }
             )
             if run_callables:
@@ -244,7 +250,9 @@ def _capture_instance_boundary(task_obj, instance, *, capture_mode: str) -> dict
                 {
                     "ctx": _normalize(ctx),
                     "continuation": _normalize(continuation_value),
-                    "doc_to_visual_callable": _callable_descriptor(doc_to_visual) if callable(doc_to_visual) else {"value": _normalize(doc_to_visual)},
+                    "doc_to_visual_callable": _callable_descriptor(doc_to_visual)
+                    if callable(doc_to_visual)
+                    else {"value": _normalize(doc_to_visual)},
                 }
             )
             if capture_visual and callable(doc_to_visual):
@@ -299,7 +307,9 @@ def capture_tasks(spec_path: Path, repo_root: Path) -> dict[str, Any]:
         )
 
         instances = sorted(task_obj.instances, key=_instance_sort_key)
-        captured = [_capture_instance_boundary(task_obj, inst, capture_mode=capture_mode) for inst in instances[:max_requests]]
+        captured = [
+            _capture_instance_boundary(task_obj, inst, capture_mode=capture_mode) for inst in instances[:max_requests]
+        ]
 
         output["tasks"].append(
             {

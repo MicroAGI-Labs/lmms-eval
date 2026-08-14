@@ -14,7 +14,9 @@ def VisualPuzzles_doc_to_text(doc, lmms_eval_specific_kwargs):
     question = "Question: " + doc["question"].strip()
     options = doc["options"]
     if options != None:
-        question += "\nOptions:\n(A) " + options[0] + "\n(B) " + options[1] + "\n(C) " + options[2] + "\n(D) " + options[3]
+        question += (
+            "\nOptions:\n(A) " + options[0] + "\n(B) " + options[1] + "\n(C) " + options[2] + "\n(D) " + options[3]
+        )
     else:
         question += "\nOptions: Choose from (A) (B) (C) (D) in the image."
     question += "\n" + PROMPTS[lmms_eval_specific_kwargs["prompt"]]

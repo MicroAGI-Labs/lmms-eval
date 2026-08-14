@@ -49,7 +49,9 @@ def calculate_score_forward(results):
             for j, test_info_ in enumerate(result["test_info"]):
                 if test_info_["response"] is None:
                     continue
-                if (test_info_["response"] == "N" and test_info_["type"] == 0) or (test_info_["response"] == "Y" and test_info_["type"] == 1):
+                if (test_info_["response"] == "N" and test_info_["type"] == 0) or (
+                    test_info_["response"] == "Y" and test_info_["type"] == 1
+                ):
                     scores["SSR"].append(1)
                     continue
                 gt = "No" if test_info_["type"] == 0 else "Yes"
@@ -59,7 +61,9 @@ def calculate_score_forward(results):
             for j, test_info_ in enumerate(result["test_info"]):
                 if test_info_["response"] is None:
                     continue
-                if (test_info_["response"] == "N" and test_info_["type"] == 0) or (test_info_["response"] == "Y" and test_info_["type"] == 1):
+                if (test_info_["response"] == "N" and test_info_["type"] == 0) or (
+                    test_info_["response"] == "Y" and test_info_["type"] == 1
+                ):
                     scores["CRR"].append(1)
                     continue
                 gt = "No" if test_info_["type"] == 0 else "Yes"

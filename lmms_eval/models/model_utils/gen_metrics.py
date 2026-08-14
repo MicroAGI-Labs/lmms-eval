@@ -1,10 +1,11 @@
 import time
+from collections.abc import Callable
 from numbers import Number
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any
 
 from loguru import logger as eval_logger
 
-_THROUGHPUT_METRICS_HISTORY: List[Dict[str, Any]] = []
+_THROUGHPUT_METRICS_HISTORY: list[dict[str, Any]] = []
 
 
 def reset_logged_metrics() -> None:
@@ -13,13 +14,13 @@ def reset_logged_metrics() -> None:
     _THROUGHPUT_METRICS_HISTORY.clear()
 
 
-def get_logged_metrics_history() -> List[Dict[str, Any]]:
+def get_logged_metrics_history() -> list[dict[str, Any]]:
     """Return captured throughput metrics in collection order."""
 
     return list(_THROUGHPUT_METRICS_HISTORY)
 
 
-def summarize_logged_metrics() -> Dict[str, Any]:
+def summarize_logged_metrics() -> dict[str, Any]:
     """Aggregate captured throughput metrics for final reporting."""
 
     if not _THROUGHPUT_METRICS_HISTORY:
@@ -28,8 +29,8 @@ def summarize_logged_metrics() -> Dict[str, Any]:
     total_gen_tokens = 0.0
     total_elapsed_time = 0.0
     total_requests = 0.0
-    avg_speed_vals: List[float] = []
-    additional_numeric: Dict[str, List[float]] = {}
+    avg_speed_vals: list[float] = []
+    additional_numeric: dict[str, list[float]] = {}
 
     for metric in _THROUGHPUT_METRICS_HISTORY:
         token_val = metric.get("total_gen_tokens")
@@ -51,15 +52,24 @@ def summarize_logged_metrics() -> Dict[str, Any]:
             total_requests += float(requests_val)
 
         for key, value in metric.items():
-            if key in {"total_gen_tokens", "total_elapsed_time", "avg_speed", "total_requests", "request_count", "num_requests"}:
+            if key in {
+                "total_gen_tokens",
+                "total_elapsed_time",
+                "avg_speed",
+                "total_requests",
+                "request_count",
+                "num_requests",
+            }:
                 continue
             if isinstance(value, Number):
                 additional_numeric.setdefault(key, []).append(float(value))
 
-    summary: Dict[str, Any] = {
+    summary: dict[str, Any] = {
         "total_gen_tokens": int(total_gen_tokens) if total_gen_tokens.is_integer() else total_gen_tokens,
         "total_elapsed_time": total_elapsed_time,
-        "avg_speed": (total_gen_tokens / total_elapsed_time) if total_elapsed_time > 0 else (sum(avg_speed_vals) / len(avg_speed_vals) if avg_speed_vals else 0.0),
+        "avg_speed": (total_gen_tokens / total_elapsed_time)
+        if total_elapsed_time > 0
+        else (sum(avg_speed_vals) / len(avg_speed_vals) if avg_speed_vals else 0.0),
     }
 
     if total_requests > 0:
@@ -76,9 +86,9 @@ def _record_metrics(
     total_elapsed_time: float,
     total_gen_tokens: int,
     avg_speed: float,
-    additional_metrics: Optional[Dict[str, Any]] = None,
+    additional_metrics: dict[str, Any] | None = None,
 ) -> None:
-    payload: Dict[str, Any] = {
+    payload: dict[str, Any] = {
         "total_elapsed_time": total_elapsed_time,
         "total_gen_tokens": total_gen_tokens,
         "avg_speed": avg_speed,
@@ -118,7 +128,7 @@ def log_metrics(
     total_elapsed_time: float,
     total_gen_tokens: int,
     avg_speed: float,
-    additional_metrics: Optional[Dict[str, Any]] = None,
+    additional_metrics: dict[str, Any] | None = None,
 ):
     """
     Log the metrics in a structured format.
@@ -132,7 +142,9 @@ def log_metrics(
     required_stats = f"Metric summary - Total elapsed time: {total_elapsed_time:.3f}s, Total gen tokens: {total_gen_tokens}, Avg speed: {avg_speed:.1f} tokens/s"
     if additional_metrics is not None:
         required_stats += ", Additional metrics: "
-        required_stats += ", ".join(f"{k}: {v:.4f}" if isinstance(v, float) else f"{k}: {v}" for k, v in additional_metrics.items())
+        required_stats += ", ".join(
+            f"{k}: {v:.4f}" if isinstance(v, float) else f"{k}: {v}" for k, v in additional_metrics.items()
+        )
     eval_logger.info(required_stats)
     _record_metrics(
         total_elapsed_time=total_elapsed_time,
@@ -161,7 +173,7 @@ class GenMetrics:
     def stop_timer(self):
         self.end_time = time.perf_counter()
 
-    def log_metric(self, content: List[Any], additional_metrics: Optional[Dict[str, Any]] = None):
+    def log_metric(self, content: list[Any], additional_metrics: dict[str, Any] | None = None):
         num_tokens = sum(self.tokenize_fn(item) for item in content)
         duration = self.end_time - self.start_time
         throughput = calculate_token_throughput(num_tokens, duration)

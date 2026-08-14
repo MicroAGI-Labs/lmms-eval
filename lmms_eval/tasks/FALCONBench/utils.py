@@ -26,10 +26,9 @@ import requests
 import torch
 import yaml
 from decord import VideoReader, cpu
+from lmms_eval.tasks._task_utils.file_utils import generate_submission_file
 from loguru import logger as eval_logger
 from PIL import Image
-
-from lmms_eval.tasks._task_utils.file_utils import generate_submission_file
 
 SOCCERNET_PWD = os.getenv("SOCCERNET_PWD", "s0cc3rn3t")
 
@@ -52,14 +51,17 @@ base_cache_dir = os.path.expanduser(hf_home)
 benchmark_cache_dir = os.path.join(base_cache_dir, "hub", "datasets--cplou99--FALCON-Bench", "snapshots")
 
 
-with open(Path(__file__).parent / "_default_template_yaml", "r") as f:
+with open(Path(__file__).parent / "_default_template_yaml") as f:
     raw_data = f.readlines()
     safe_data = []
     for i, line in enumerate(raw_data):
         # remove function definition since yaml load cannot handle it
         if "!function" not in line:
             safe_data.append(line)
-if "dataset_kwargs" in yaml.safe_load("".join(safe_data)) and "cache_dir" in yaml.safe_load("".join(safe_data))["dataset_kwargs"]:
+if (
+    "dataset_kwargs" in yaml.safe_load("".join(safe_data))
+    and "cache_dir" in yaml.safe_load("".join(safe_data))["dataset_kwargs"]
+):
     cache_name = yaml.safe_load("".join(safe_data))["dataset_kwargs"]["cache_dir"]
 else:
     cache_name = None
@@ -80,7 +82,20 @@ def download_and_organize_data(cache_dir):
     snapshots = sorted(os.listdir(benchmark_cache_dir))
     snapshot_benchmark_cache_dir = os.path.join(benchmark_cache_dir, snapshots[-1])
     script_path = os.path.join(snapshot_benchmark_cache_dir, "download_videos.py")
-    result = subprocess.run(["python", script_path, "--soccernet_password", SOCCERNET_PWD, "--hf_benchmark_dir", snapshot_benchmark_cache_dir, "--data_dir", cache_dir], stdout=None, stderr=None)
+    result = subprocess.run(
+        [
+            "python",
+            script_path,
+            "--soccernet_password",
+            SOCCERNET_PWD,
+            "--hf_benchmark_dir",
+            snapshot_benchmark_cache_dir,
+            "--data_dir",
+            cache_dir,
+        ],
+        stdout=None,
+        stderr=None,
+    )
 
 
 def move_key_first(d, key):
@@ -98,7 +113,6 @@ def timestamp_to_seconds(timestamp):
 
 
 def load_video(video_file, duration, max_num_frames=16):
-
     vr = VideoReader(video_file, ctx=cpu(0), num_threads=1)
     fps = vr.get_avg_fps()
     total_valid_frames = len(vr)
@@ -134,7 +148,11 @@ def FALCONbench_doc_to_target(doc):
 def FALCONbench_doc_to_text_mcq(doc, lmms_eval_specific_kwargs):
     candidates = []
 
-    question = doc["question"] + "\n" + "\n".join([". ".join([chr(ord("A") + i), candidate]) for i, candidate in enumerate(doc["options"])])
+    question = (
+        doc["question"]
+        + "\n"
+        + "\n".join([". ".join([chr(ord("A") + i), candidate]) for i, candidate in enumerate(doc["options"])])
+    )
     pre_prompt = lmms_eval_specific_kwargs["pre_prompt"]
     post_prompt = "Answer with the option's letter from the given choices directly"
 
@@ -144,7 +162,11 @@ def FALCONbench_doc_to_text_mcq(doc, lmms_eval_specific_kwargs):
 def FALCONbench_doc_to_text_mcq_temploc(doc, lmms_eval_specific_kwargs):
     candidates = []
 
-    question = doc["question"] + "\n" + "\n".join([". ".join([chr(ord("A") + i), candidate]) for i, candidate in enumerate(doc["options"])])
+    question = (
+        doc["question"]
+        + "\n"
+        + "\n".join([". ".join([chr(ord("A") + i), candidate]) for i, candidate in enumerate(doc["options"])])
+    )
     pre_prompt = lmms_eval_specific_kwargs["pre_prompt"]
     post_prompt = """\n **Output Format Instructions:**
     You must provide your final answer strictly as a JSON object enclosed in a markdown code block.
@@ -353,7 +375,12 @@ def calculate_ins_level_acc_score(results):
         scores.append(cat_results["score"])
     if ins_num == 0:
         return 0
-    return {"acc": acc / ins_num, "score": score / ins_num, "avg_acc": sum(accs) / len(accs), "avg_score": sum(scores) / len(scores)}
+    return {
+        "acc": acc / ins_num,
+        "score": score / ins_num,
+        "avg_acc": sum(accs) / len(accs),
+        "avg_score": sum(scores) / len(scores),
+    }
 
 
 def get_eval_generic(question, answer, pred, max_tokens: int, retries: int = 5):
@@ -412,7 +439,10 @@ def get_eval_generic(question, answer, pred, max_tokens: int, retries: int = 5):
         except Exception as e:
             eval_logger.error(f"Unexpected error on attempt {attempt + 1}: {e}")
 
-        if "Sorry! We've encountered an issue with repetitive patterns in your prompt. Please try again with a different prompt." in json.loads(response.content)["error"]["message"]:
+        if (
+            "Sorry! We've encountered an issue with repetitive patterns in your prompt. Please try again with a different prompt."
+            in json.loads(response.content)["error"]["message"]
+        ):
             eval_logger.error("Repetitive patterns in prompt. Drop this data.")
             return "", ""
 
@@ -524,7 +554,12 @@ def evaluate_temporal_localization(pred_interval, gt_interval):
     else:
         IoU = 0
 
-    temp_loc_dict = {"IoU": round(IoU, 5), "GToU": round(GToU, 5), "pred_interval_length": round(pred_length, 5), "gt_interval_length": round(gt_length, 5)}
+    temp_loc_dict = {
+        "IoU": round(IoU, 5),
+        "GToU": round(GToU, 5),
+        "pred_interval_length": round(pred_length, 5),
+        "gt_interval_length": round(gt_length, 5),
+    }
     return temp_loc_dict
 
 
@@ -538,7 +573,12 @@ def evaluate_FALCONbench_temporal_localization(results):
     if len(results) == 0:
         temp_loc_dict = {"mIoU": 0, "mGToU": 0, "mPredLength": 0, "mGTLength": 0}
     else:
-        temp_loc_dict = {"mIoU": round(mIoU / len(results), 5), "mGToU": round(mGToU / len(results), 5), "mPredLength": round(mPredLength / len(results), 5), "mGTLength": round(mGTLength / len(results), 5)}
+        temp_loc_dict = {
+            "mIoU": round(mIoU / len(results), 5),
+            "mGToU": round(mGToU / len(results), 5),
+            "mPredLength": round(mPredLength / len(results), 5),
+            "mGTLength": round(mGTLength / len(results), 5),
+        }
     return temp_loc_dict
 
 
@@ -674,7 +714,13 @@ def FALCONbench_process_results_mcq(doc, results):
     parsed_pred = parse_multi_choice_response(pred, all_choices, index2ans)
     id = doc["question_id"]
     gt_option = [chr(ord("A") + i) for i in range(len(doc["options"]))][doc["gt_option_idx"]]
-    acc = {"id": id, "dataset": doc["dataset"], "category": doc["category"], "answer": gt_option, "parsed_pred": parsed_pred}
+    acc = {
+        "id": id,
+        "dataset": doc["dataset"],
+        "category": doc["category"],
+        "answer": gt_option,
+        "parsed_pred": parsed_pred,
+    }
 
     return {
         "acc": acc,
@@ -690,7 +736,9 @@ def FALCONbench_process_results_mcq_temploc(doc, results):
     elif type(results[0]) == dict and "response" in results[0] and "temporal_window" in results[0]:
         pred_dict = results[0]
     else:
-        raise ValueError(f"Invalid prediction format for question_id {doc['question_id']}. The output must be a string or a dictionary with 'response' and 'temporal_window' keys.")
+        raise ValueError(
+            f"Invalid prediction format for question_id {doc['question_id']}. The output must be a string or a dictionary with 'response' and 'temporal_window' keys."
+        )
 
     pred = pred_dict["response"]
     all_choices = []
@@ -705,14 +753,22 @@ def FALCONbench_process_results_mcq_temploc(doc, results):
     parsed_pred = parse_multi_choice_response(pred, all_choices, index2ans)
     id = doc["question_id"]
     gt_option = [chr(ord("A") + i) for i in range(len(doc["options"]))][doc["gt_option_idx"]]
-    acc = {"id": id, "dataset": doc["dataset"], "category": doc["category"], "answer": gt_option, "parsed_pred": parsed_pred}
+    acc = {
+        "id": id,
+        "dataset": doc["dataset"],
+        "category": doc["category"],
+        "answer": gt_option,
+        "parsed_pred": parsed_pred,
+    }
 
     acc["pred_dict"] = pred_dict
     if "temporal_window" in pred_dict:
         temp_loc_dict = evaluate_temporal_localization(pred_dict["temporal_window"], doc["gt_time_interval"])
         acc["temp_loc"] = temp_loc_dict
     else:
-        raise ValueError(f"No temporal_window found in prediction for question_id {id}. The output must be a dictionary with 'response' and 'temporal_window' keys.")
+        raise ValueError(
+            f"No temporal_window found in prediction for question_id {id}. The output must be a dictionary with 'response' and 'temporal_window' keys."
+        )
     return {
         "acc": acc,
         "submission": {
@@ -749,7 +805,9 @@ def FALCONbench_process_results_oq_temploc(doc, result):
     elif type(result[0]) == dict and "response" in result[0] and "temporal_window" in result[0]:
         pred_dict = result[0]
     else:
-        raise ValueError(f"Invalid prediction format for question_id {doc['question_id']}. The output must be a string or a dictionary with 'response' and 'temporal_window' keys.")
+        raise ValueError(
+            f"Invalid prediction format for question_id {doc['question_id']}. The output must be a string or a dictionary with 'response' and 'temporal_window' keys."
+        )
 
     pred = pred_dict["response"]
     doc["pred"] = pred
@@ -771,14 +829,20 @@ def FALCONbench_process_results_oq_temploc(doc, result):
         temp_loc_dict = evaluate_temporal_localization(pred_dict["temporal_window"], doc["gt_time_interval"])
         result_dict["gpt_eval_score_acc"]["temp_loc"] = temp_loc_dict
     else:
-        raise ValueError(f"No temporal_window found in prediction for question_id {doc['question_id']}. The output must be a dictionary with 'response' and 'temporal_window' keys.")
+        raise ValueError(
+            f"No temporal_window found in prediction for question_id {doc['question_id']}. The output must be a dictionary with 'response' and 'temporal_window' keys."
+        )
 
     return result_dict
 
 
 def FALCONbench_aggregate_results_mcq(results):
     complete_evaluation_result = {"dataset": {}, "dataset_category": {}, "category": {}}
-    to_eval_samples = {"dataset": defaultdict(list), "dataset_category": defaultdict(list), "category": defaultdict(list)}
+    to_eval_samples = {
+        "dataset": defaultdict(list),
+        "dataset_category": defaultdict(list),
+        "category": defaultdict(list),
+    }
 
     temp_metrics = "temp_loc" in results[0]
 
@@ -823,7 +887,11 @@ def FALCONbench_aggregate_results_mcq(results):
 
 def FALCONbench_aggregate_results_oq(results):
     complete_evaluation_result = {"dataset": {}, "dataset_category": {}, "category": {}}
-    to_eval_samples = {"dataset": defaultdict(list), "dataset_category": defaultdict(list), "category": defaultdict(list)}
+    to_eval_samples = {
+        "dataset": defaultdict(list),
+        "dataset_category": defaultdict(list),
+        "category": defaultdict(list),
+    }
 
     temp_metrics = "temp_loc" in results[0]
 

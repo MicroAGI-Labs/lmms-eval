@@ -23,13 +23,13 @@ import os
 import re
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 
 import yaml
 from loguru import logger as eval_logger
 
 # Load cache_dir from the YAML config (same pattern as activitynetqa, videomme, etc.)
-with open(Path(__file__).parent / "_default_template_yaml", "r") as f:
+with open(Path(__file__).parent / "_default_template_yaml") as f:
     raw_data = f.readlines()
     safe_data = []
     for line in raw_data:
@@ -40,7 +40,7 @@ with open(Path(__file__).parent / "_default_template_yaml", "r") as f:
 HF_HOME = os.environ.get("HF_HOME", os.path.expanduser("~/.cache/huggingface"))
 cache_dir = os.path.join(HF_HOME, config["dataset_kwargs"]["cache_dir"])
 
-NUMBER_WORD_TO_NUMERAL: Dict[str, str] = {
+NUMBER_WORD_TO_NUMERAL: dict[str, str] = {
     "none": "0",
     "zero": "0",
     "one": "1",
@@ -69,7 +69,7 @@ NUMBER_WORD_TO_NUMERAL: Dict[str, str] = {
 }
 
 
-def _extract_count(text: Optional[Union[str, int, float]]) -> Optional[int]:
+def _extract_count(text: str | int | float | None) -> int | None:
     """Extract a count number from text.
 
     Handles thinking model outputs by stripping <think>...</think> blocks,
@@ -103,7 +103,7 @@ def _extract_count(text: Optional[Union[str, int, float]]) -> Optional[int]:
     return None
 
 
-def _get_gt_counts(doc: Dict[str, Any]) -> List[int]:
+def _get_gt_counts(doc: dict[str, Any]) -> list[int]:
     """Get ground truth count list from document.
 
     Returns list of acceptable integer counts.
@@ -127,7 +127,7 @@ def _get_gt_counts(doc: Dict[str, Any]) -> List[int]:
     return [parsed] if parsed is not None else []
 
 
-def pushupbench_doc_to_visual(doc: Dict[str, Any]) -> List[str]:
+def pushupbench_doc_to_visual(doc: dict[str, Any]) -> list[str]:
     """Return list containing the video path for this document.
 
     Videos are automatically downloaded by lmms-eval (via snapshot_download)
@@ -148,24 +148,27 @@ def pushupbench_doc_to_visual(doc: Dict[str, Any]) -> List[str]:
     sys.exit(f"Video path: {video_path} does not exist, please check")
 
 
-def pushupbench_doc_to_text(doc: Dict[str, Any], lmms_eval_specific_kwargs: Optional[Dict[str, Any]] = None) -> str:
+def pushupbench_doc_to_text(doc: dict[str, Any], lmms_eval_specific_kwargs: dict[str, Any] | None = None) -> str:
     """Format the counting prompt for this document."""
     kwargs = lmms_eval_specific_kwargs or {}
     pre_prompt = kwargs.get("pre_prompt", "")
     post_prompt = kwargs.get("post_prompt", "")
 
     action_name = str(doc.get("name", "the exercise")).replace("_", " ").strip()
-    question = f'Watch this video carefully and count the number of repetitions of "{action_name}". ' f"Provide the count as a single integer."
+    question = (
+        f'Watch this video carefully and count the number of repetitions of "{action_name}". '
+        f"Provide the count as a single integer."
+    )
     return f"{pre_prompt}{question}{post_prompt}"
 
 
-def pushupbench_doc_to_target(doc: Dict[str, Any]) -> str:
+def pushupbench_doc_to_target(doc: dict[str, Any]) -> str:
     """Return primary ground truth count as string."""
     counts = _get_gt_counts(doc)
     return str(counts[0]) if counts else ""
 
 
-def pushupbench_process_results(doc: Dict[str, Any], results: List[str]) -> Dict[str, Dict[str, Any]]:
+def pushupbench_process_results(doc: dict[str, Any], results: list[str]) -> dict[str, dict[str, Any]]:
     """Score a single prediction against ground truth.
 
     Returns dict with keys for each metric. Each value is a dict containing
@@ -177,7 +180,7 @@ def pushupbench_process_results(doc: Dict[str, Any], results: List[str]) -> Dict
 
     if not gt_counts:
         eval_logger.warning(f"No ground truth count for doc: {doc.get('video_path', 'unknown')}")
-        entry: Dict[str, Any] = {"score": 0.0, "pred": pred_count, "gt": [], "gt_primary": 0, "mae_value": 0.0}
+        entry: dict[str, Any] = {"score": 0.0, "pred": pred_count, "gt": [], "gt_primary": 0, "mae_value": 0.0}
         return {"exact_match": entry, "mae": entry, "obo": entry, "r_squared": entry}
 
     gt_primary = gt_counts[0]
@@ -195,7 +198,7 @@ def pushupbench_process_results(doc: Dict[str, Any], results: List[str]) -> Dict
     mae_value = float(abs(pred_count - gt_primary))
     obo = 1.0 if any(abs(pred_count - gt) <= 1 for gt in gt_counts) else 0.0
 
-    base: Dict[str, Any] = {"pred": pred_count, "gt": gt_counts, "gt_primary": gt_primary}
+    base: dict[str, Any] = {"pred": pred_count, "gt": gt_counts, "gt_primary": gt_primary}
     return {
         "exact_match": {**base, "score": exact},
         "mae": {**base, "score": mae_value, "mae_value": mae_value},
@@ -204,7 +207,7 @@ def pushupbench_process_results(doc: Dict[str, Any], results: List[str]) -> Dict
     }
 
 
-def pushupbench_aggregate_exact_match(results: List[Dict[str, Any]]) -> float:
+def pushupbench_aggregate_exact_match(results: list[dict[str, Any]]) -> float:
     """Aggregate exact match accuracy (percentage)."""
     if not results:
         return 0.0
@@ -215,7 +218,7 @@ def pushupbench_aggregate_exact_match(results: List[Dict[str, Any]]) -> float:
     return score
 
 
-def pushupbench_aggregate_mae(results: List[Dict[str, Any]]) -> float:
+def pushupbench_aggregate_mae(results: list[dict[str, Any]]) -> float:
     """Aggregate Mean Absolute Error."""
     if not results:
         return 0.0
@@ -224,7 +227,7 @@ def pushupbench_aggregate_mae(results: List[Dict[str, Any]]) -> float:
     return score
 
 
-def pushupbench_aggregate_obo(results: List[Dict[str, Any]]) -> float:
+def pushupbench_aggregate_obo(results: list[dict[str, Any]]) -> float:
     """Aggregate Off-By-One accuracy (percentage)."""
     if not results:
         return 0.0
@@ -235,7 +238,7 @@ def pushupbench_aggregate_obo(results: List[Dict[str, Any]]) -> float:
     return score
 
 
-def pushupbench_aggregate_r_squared(results: List[Dict[str, Any]]) -> float:
+def pushupbench_aggregate_r_squared(results: list[dict[str, Any]]) -> float:
     """Aggregate R² (coefficient of determination).
 
     R² = 1 - SS_res / SS_tot where:
@@ -250,8 +253,8 @@ def pushupbench_aggregate_r_squared(results: List[Dict[str, Any]]) -> float:
         return 0.0
 
     # Collect valid (pred, gt) pairs, excluding outliers
-    preds: List[float] = []
-    gts: List[float] = []
+    preds: list[float] = []
+    gts: list[float] = []
     n_outliers = 0
     for r in results:
         if r.get("pred") is not None and r.get("gt_primary") is not None:

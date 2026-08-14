@@ -6,11 +6,8 @@ doc_to_visual: !function utils.vsibench_doc_to_visual
 doc_to_text: !function utils.vsibench_doc_to_text
 doc_to_target: "ground_truth"
 generation_kwargs:
-  max_new_tokens: 16
-  temperature: 0
-  top_p: 1.0
+  max_new_tokens: 16000
   num_beams: 1
-  do_sample: false
 # The return value of process_results will be used by metrics
 process_results: !function utils.vsibench_process_results
 metric_list:

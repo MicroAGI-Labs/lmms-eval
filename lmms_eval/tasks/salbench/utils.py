@@ -1,19 +1,17 @@
-# Utils for processing p3o3 dataset
 P3_CATEGORIES = ["orientation", "color", "size"]
 O3_CATEGORIES = ["orientation", "color", "focus", "shape", "size", "location", "pattern"]
 
 
 def p3o3_doc_to_visual(doc):
-    # Assuming the 'doc' dictionary has a key 'image' with image data
-    if not doc.get("image"):
-        return None
+    image = doc["image"]
+    if image is None or isinstance(image, list) and not image:
+        raise ValueError("SALBench document has no image data")
     try:
-        if isinstance(doc["image"], list):
-            return [img.convert("RGB") for img in doc["image"]]
-        return [doc["image"].convert("RGB")]
+        if isinstance(image, list):
+            return [item.convert("RGB") for item in image]
+        return [image.convert("RGB")]
     except Exception as e:
-        print(f"Warning: Failed to convert image to RGB: {e}")
-        return None
+        raise ValueError("SALBench image conversion failed") from e
 
 
 def p3o3_doc_to_text(doc, prompt_kwargs=None):
@@ -31,12 +29,15 @@ def p3o3_doc_to_text(doc, prompt_kwargs=None):
 def process_results(doc, results, categories):
     pred = {x.strip() for x in results[0].lower().strip("[").strip("]").split(",")}
     gt_ans = {x.strip() for x in doc["answer"].lower().split(",")}
+    invalid_labels = gt_ans.difference(categories)
+    if invalid_labels:
+        raise ValueError(f"SALBench ground truth contains invalid labels: {sorted(invalid_labels)}")
 
     exact_match = int(pred == gt_ans)
     matches = pred.intersection(gt_ans)
-    precision = len(matches) / (len(pred) + 1e-8)
+    precision = len(matches) / len(pred) if pred else 0.0
     recall = len(matches) / len(gt_ans)
-    f1 = 2 * (precision * recall) / (precision + recall + 1e-8)
+    f1 = 2 * precision * recall / (precision + recall) if precision + recall else 0.0
 
     cat_preds = {}
     for cat in categories:
@@ -57,7 +58,6 @@ def process_results(doc, results, categories):
         "all_cat_f1": {"id": doc["image_id"], "pred": cat_preds},
     }
 
-    # Add per-category metrics
     for cat in categories:
         output[f"{cat}_precision"] = {"pred": cat_preds[cat]}
         output[f"{cat}_recall"] = {"pred": cat_preds[cat]}
@@ -77,7 +77,6 @@ def o3_process_results(doc, results):
 def process_results_multiple_choices(doc, results):
     assert len(results) == 1, "Not support batch size > 1"
     pred = results[0].lower().strip().strip(",").strip(")")
-    # Extract first character if available
     if not pred:
         pred = ""
     else:
@@ -108,9 +107,11 @@ def _aggregate_per_category(results):
         false_pos += result["pred"]["false_pos"]
         false_neg += result["pred"]["false_neg"]
 
-    precision = true_pos / (true_pos + false_pos + 1e-8)
-    recall = true_pos / (true_pos + false_neg + 1e-8)
-    f1 = 2 * (precision * recall) / (precision + recall + 1e-8)
+    precision_denominator = true_pos + false_pos
+    recall_denominator = true_pos + false_neg
+    precision = true_pos / precision_denominator if precision_denominator else 0.0
+    recall = true_pos / recall_denominator if recall_denominator else 0.0
+    f1 = 2 * precision * recall / (precision + recall) if precision + recall else 0.0
     return precision, recall, f1
 
 
@@ -141,9 +142,12 @@ def _aggregate_all_category(results, categories):
             false_pos += result["pred"][cat]["false_pos"]
             false_neg += result["pred"][cat]["false_neg"]
 
-        precisions[cat] = true_pos / (true_pos + false_pos + 1e-8)
-        recalls[cat] = true_pos / (true_pos + false_neg + 1e-8)
-        f1s[cat] = (2 * precisions[cat] * recalls[cat]) / (precisions[cat] + recalls[cat] + 1e-8)
+        precision_denominator = true_pos + false_pos
+        recall_denominator = true_pos + false_neg
+        precisions[cat] = true_pos / precision_denominator if precision_denominator else 0.0
+        recalls[cat] = true_pos / recall_denominator if recall_denominator else 0.0
+        precision_recall_sum = precisions[cat] + recalls[cat]
+        f1s[cat] = 2 * precisions[cat] * recalls[cat] / precision_recall_sum if precision_recall_sum else 0.0
 
     agg_precision = sum(list(precisions.values())) / len(categories)
     agg_recall = sum(list(recalls.values())) / len(categories)

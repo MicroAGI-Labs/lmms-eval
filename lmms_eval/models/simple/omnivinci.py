@@ -33,22 +33,20 @@ Example Usage:
 
 import os
 import tempfile
-from typing import List, Optional, Tuple, Union
 
 import librosa
 import numpy as np
 import soundfile as sf
 import torch
 from accelerate import Accelerator, DistributedType
-from loguru import logger as eval_logger
-from PIL import Image
-from tqdm import tqdm
-
 from lmms_eval import utils
 from lmms_eval.api.instance import Instance
 from lmms_eval.api.model import lmms
 from lmms_eval.api.registry import register_model
 from lmms_eval.models.model_utils.audio_processing import split_audio
+from loguru import logger as eval_logger
+from PIL import Image
+from tqdm import tqdm
 
 try:
     from transformers import AutoConfig, AutoModel, AutoProcessor
@@ -72,9 +70,9 @@ class OmniVinci(lmms):
     def __init__(
         self,
         pretrained: str = "nvidia/omnivinci",
-        device: Optional[str] = "cuda",
-        device_map: Optional[str] = "auto",
-        batch_size: Optional[Union[int, str]] = 1,
+        device: str | None = "cuda",
+        device_map: str | None = "auto",
+        batch_size: int | str | None = 1,
         use_cache: bool = True,
         num_video_frames: int = 128,
         load_audio_in_video: bool = True,
@@ -197,7 +195,7 @@ class OmniVinci(lmms):
     def world_size(self):
         return self._world_size
 
-    def loglikelihood(self, requests: List[Instance]) -> List[Tuple[float, bool]]:
+    def loglikelihood(self, requests: list[Instance]) -> list[tuple[float, bool]]:
         raise NotImplementedError("Loglikelihood is not implemented for OmniVinci")
 
     def flatten(self, input_list):
@@ -356,7 +354,7 @@ class OmniVinci(lmms):
 
         return message
 
-    def generate_until(self, requests: List[Instance]) -> List[str]:
+    def generate_until(self, requests: list[Instance]) -> list[str]:
         res = []
 
         def _collate(x):
@@ -386,7 +384,9 @@ class OmniVinci(lmms):
                 if isinstance(until, str):
                     until = [until]
                 elif not isinstance(until, list):
-                    raise ValueError(f"Expected `gen_kwargs['until']` to be of type " f"Union[str,list] but got {type(until)}")
+                    raise ValueError(
+                        f"Expected `gen_kwargs['until']` to be of type Union[str,list] but got {type(until)}"
+                    )
 
             for i, context in enumerate(contexts):
                 visual = visuals[i] if i < len(visuals) else None
@@ -402,7 +402,11 @@ class OmniVinci(lmms):
                         elif isinstance(visual, dict) or type(visual).__name__ in ("AudioDecoder", "AudioSamples"):
                             use_audio = True
                         elif isinstance(visual, (list, tuple)):
-                            use_audio = any(isinstance(v, (dict, np.ndarray)) or type(v).__name__ in ("AudioDecoder", "AudioSamples") for v in visual)
+                            use_audio = any(
+                                isinstance(v, (dict, np.ndarray))
+                                or type(v).__name__ in ("AudioDecoder", "AudioSamples")
+                                for v in visual
+                            )
 
                     # Build message
                     message = self._build_message(context, visual)
@@ -480,5 +484,5 @@ class OmniVinci(lmms):
         pbar.close()
         return res
 
-    def generate_until_multi_round(self, requests) -> List[str]:
+    def generate_until_multi_round(self, requests) -> list[str]:
         raise NotImplementedError("Multi-round generation is not implemented")

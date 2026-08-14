@@ -4,8 +4,6 @@ from pathlib import Path
 
 import pandas as pd
 import yaml
-from loguru import logger as eval_logger
-
 from lmms_eval.tasks._task_utils.file_utils import generate_submission_file
 from lmms_eval.tasks._task_utils.reasoning_utils import (
     extract_anwser_tag,
@@ -13,6 +11,7 @@ from lmms_eval.tasks._task_utils.reasoning_utils import (
     make_reasoning_process_results,
 )
 from lmms_eval.tasks.mmbench.mmbench_evals import MMBench_Evaluator
+from loguru import logger as eval_logger
 
 GPT_EVAL_MODEL_NAME = os.getenv("MODEL_VERSION", "gpt-4o-2024-11-20")
 API_TYPE = os.getenv("API_TYPE", "openai")
@@ -30,7 +29,7 @@ else:
 
 @lru_cache(maxsize=1)
 def _load_mmbench_sys_prompt():
-    with open(Path(__file__).parent.parent / "mmbench.yaml", "r") as f:
+    with open(Path(__file__).parent.parent / "mmbench.yaml") as f:
         raw_data = f.readlines()
     safe_data = [line for line in raw_data if "!function" not in line]
     config = yaml.safe_load("".join(safe_data))
@@ -39,21 +38,33 @@ def _load_mmbench_sys_prompt():
 
 def mmbench_cn_doc_to_text(doc, lmms_eval_specific_kwargs=None):
     sys_prompt = _load_mmbench_sys_prompt()
-    mmbench_evaluator = MMBench_Evaluator(sys_prompt=sys_prompt, API_KEY=API_KEY, API_URL=API_URL, model_version=GPT_EVAL_MODEL_NAME)
+    mmbench_evaluator = MMBench_Evaluator(
+        sys_prompt=sys_prompt, API_KEY=API_KEY, API_URL=API_URL, model_version=GPT_EVAL_MODEL_NAME
+    )
     option_candidate = ["A", "B", "C", "D", "E"]
     options_prompt, _ = mmbench_evaluator.create_options_prompt(doc, option_candidate)
 
-    query_prompt = f"{doc['hint']} {doc['question']} {options_prompt}" if str(doc["hint"]) != "nan" and doc["hint"] else f"{doc['question']} {options_prompt}"
+    query_prompt = (
+        f"{doc['hint']} {doc['question']} {options_prompt}"
+        if str(doc["hint"]) != "nan" and doc["hint"]
+        else f"{doc['question']} {options_prompt}"
+    )
 
     return query_prompt
 
 
 def mmbench_en_doc_to_text(doc, lmms_eval_specific_kwargs=None):
-    mmbench_evaluator = MMBench_Evaluator(sys_prompt="", API_KEY=API_KEY, API_URL=API_URL, model_version=GPT_EVAL_MODEL_NAME)
+    mmbench_evaluator = MMBench_Evaluator(
+        sys_prompt="", API_KEY=API_KEY, API_URL=API_URL, model_version=GPT_EVAL_MODEL_NAME
+    )
     option_candidate = ["A", "B", "C", "D", "E"]
     options_prompt, _ = mmbench_evaluator.create_options_prompt(doc, option_candidate)
 
-    query_prompt = f"{doc['hint']} {doc['question']} {options_prompt}" if str(doc["hint"]) != "nan" and doc["hint"] else f"{doc['question']} {options_prompt}"
+    query_prompt = (
+        f"{doc['hint']} {doc['question']} {options_prompt}"
+        if str(doc["hint"]) != "nan" and doc["hint"]
+        else f"{doc['question']} {options_prompt}"
+    )
 
     return query_prompt
 

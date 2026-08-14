@@ -7,16 +7,27 @@ from typing import Any
 
 
 def _parse_args():
-    parser = argparse.ArgumentParser(description="Benchmark MINERVA pipeline latency: local raw videos vs Lance storage")
+    parser = argparse.ArgumentParser(
+        description="Benchmark MINERVA pipeline latency: local raw videos vs Lance storage"
+    )
     parser.add_argument("--local-video-dir", type=Path, required=True, help="Local raw MINERVA video directory")
     parser.add_argument("--lance-uri", type=str, required=True, help="Lance dataset URI for MINERVA videos")
-    parser.add_argument("--lance-cache-dir", type=Path, default=None, help="Optional cache dir for Lance-resolved videos")
+    parser.add_argument(
+        "--lance-cache-dir", type=Path, default=None, help="Optional cache dir for Lance-resolved videos"
+    )
     parser.add_argument("--limit", type=int, default=100, help="Number of samples to run")
     parser.add_argument("--batch-size", type=int, default=1, help="lmms_eval batch size")
-    parser.add_argument("--decode-num-frames", type=int, default=8, help="Decode frame count in the fixed model pipeline path")
+    parser.add_argument(
+        "--decode-num-frames", type=int, default=8, help="Decode frame count in the fixed model pipeline path"
+    )
     parser.add_argument("--decode-fps", type=float, default=None, help="Optional fps for fixed decode path")
     parser.add_argument("--read-bytes", type=int, default=65536, help="Bytes to read when decode-num-frames=0")
-    parser.add_argument("--output-root", type=Path, default=Path("./logs/minerva_pipeline_latency"), help="Root directory for run artifacts")
+    parser.add_argument(
+        "--output-root",
+        type=Path,
+        default=Path("./logs/minerva_pipeline_latency"),
+        help="Root directory for run artifacts",
+    )
     parser.add_argument("--verbosity", type=str, default="INFO", help="lmms_eval verbosity")
     parser.add_argument("--skip-local", action="store_true", help="Skip local mode run")
     parser.add_argument("--skip-lance", action="store_true", help="Skip lance mode run")

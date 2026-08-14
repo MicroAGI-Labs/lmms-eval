@@ -330,7 +330,11 @@ def cogmapeval(response, answer, extra_info):
         "facing_similarity": float(result["facing_similarity"]),
         "best_rotation": result["best_rotation"]["name"] if result["best_rotation"] else None,
     }
-    score = 0.2 * float(result["answer_correct"]) + 0.6 * extra_result["overall_similarity"] + 0.2 * extra_result["rotation_invariant_isomorphic"]
+    score = (
+        0.2 * float(result["answer_correct"])
+        + 0.6 * extra_result["overall_similarity"]
+        + 0.2 * extra_result["rotation_invariant_isomorphic"]
+    )
     return {"score": score, "details": extra_result}
 
 
@@ -519,7 +523,6 @@ def aff_mask_metric(response: str, answer: str, extra_info: str = None):
     """
     import base64
     import re
-    from typing import Optional, Tuple
 
     try:
         import cv2  # type: ignore
@@ -544,11 +547,11 @@ def aff_mask_metric(response: str, answer: str, extra_info: str = None):
         img = cv2.imdecode(nparr, cv2.IMREAD_GRAYSCALE)
         return img
 
-    def extract_last_point(text: str) -> Optional[Tuple[float, float]]:
+    def extract_last_point(text: str) -> tuple[float, float] | None:
         if not isinstance(text, str):
             return None
         s = text.strip()
-        candidates: Tuple[int, float, float] | None = None
+        candidates: tuple[int, float, float] | None = None
 
         # Patterns to capture (x, y) in various forms; choose the one closest to the end
         patterns = [
@@ -663,7 +666,9 @@ def actions2cam_response(instructions, initial_pose, extra_info):
 
     for i, pred_key in enumerate(predicted_keys):
         if i >= len(action_keys):
-            print(f"Warning: Model produced more steps ({len(predicted_keys)}) than ground truth ({len(action_keys)}). Truncating.")
+            print(
+                f"Warning: Model produced more steps ({len(predicted_keys)}) than ground truth ({len(action_keys)}). Truncating."
+            )
             break
 
         gt_key = action_keys[i]
@@ -841,8 +846,12 @@ def manipulateeval(response, answer, extra_info):
     relevance_penalty = 1.0
 
     # --- Component 1: Movement Penalty ---
-    gt_movement_magnitude = np.linalg.norm(gt_final_pose[:3] - initial_pose[:3])  # Calculate ground truth movement magnitude
-    pred_movement_magnitude = np.linalg.norm(predicted_final_pose[:3] - initial_pose[:3])  # Calculate predicted movement magnitude
+    gt_movement_magnitude = np.linalg.norm(
+        gt_final_pose[:3] - initial_pose[:3]
+    )  # Calculate ground truth movement magnitude
+    pred_movement_magnitude = np.linalg.norm(
+        predicted_final_pose[:3] - initial_pose[:3]
+    )  # Calculate predicted movement magnitude
 
     # If ground truth required significant movement (>10cm) but model moved little (<5cm)
     if gt_movement_magnitude > 0.1 and pred_movement_magnitude < 0.03:
@@ -907,7 +916,11 @@ def manipulateeval(response, answer, extra_info):
     # For binary success, we still check against the original strict thresholds
     POS_SUCCESS_THRESHOLD = 0.2  # meters
     ROT_SUCCESS_THRESHOLD = 10  # degrees
-    is_successful_binary = (num_predicted_segments == num_total_segments) and (final_position_error < POS_SUCCESS_THRESHOLD) and (final_rotation_error_deg < ROT_SUCCESS_THRESHOLD)
+    is_successful_binary = (
+        (num_predicted_segments == num_total_segments)
+        and (final_position_error < POS_SUCCESS_THRESHOLD)
+        and (final_rotation_error_deg < ROT_SUCCESS_THRESHOLD)
+    )
 
     result = {
         "score": float(final_score),

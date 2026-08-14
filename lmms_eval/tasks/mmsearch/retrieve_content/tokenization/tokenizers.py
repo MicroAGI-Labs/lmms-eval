@@ -2,15 +2,14 @@ import logging
 import re
 import sys
 import unicodedata
-from typing import Any, List
+from typing import Any
 
 import nltk
+from lmms_eval.tasks.mmsearch.retrieve_content.tokenization.utils import PickleWriteable
 from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
 from nltk.stem.porter import PorterStemmer
 from nltk.tokenize import sent_tokenize as sent_tok
-
-from lmms_eval.tasks.mmsearch.retrieve_content.tokenization.utils import PickleWriteable
 
 QUOTES = re.compile("(\"|``|'')")
 
@@ -73,12 +72,12 @@ class LexicalAnalyzer(PickleWriteable):
         self.stemmer = PorterStemmer() if self.settings["do_stem"] else None
         self.lemmatizer = WordNetLemmatizer() if self.settings["do_lemma"] else None
 
-    def analyze_excerpts(self, text: str) -> List[List[Any]]:
+    def analyze_excerpts(self, text: str) -> list[list[Any]]:
         if self.settings["respect_sent_boundaries"]:
             return self._analyze_excerpts_with_sentence_boundaries(text)
         return self._analyze_excerpts_without_sentence_boundaries(text)
 
-    def _analyze_excerpts_with_sentence_boundaries(self, text: str) -> List[List[List[LexemeWithPositions]]]:
+    def _analyze_excerpts_with_sentence_boundaries(self, text: str) -> list[list[list[LexemeWithPositions]]]:
         analyzed_sentences = self.analyze_sentences(text)
         analyzed_sentences = self._split_long_sentences(analyzed_sentences)
 
@@ -91,13 +90,15 @@ class LexicalAnalyzer(PickleWriteable):
 
         return self._generate_overlapping_excerpts(nonoverlapping_excerpts)
 
-    def _analyze_excerpts_without_sentence_boundaries(self, text: str) -> List[List[LexemeWithPositions]]:
+    def _analyze_excerpts_without_sentence_boundaries(self, text: str) -> list[list[LexemeWithPositions]]:
         analyzed_lexemes = self.analyze(text)
         if self.settings["do_sliding_window_excerpts"]:
             return self._generate_sliding_window_excerpts(analyzed_lexemes)
         return _split_analyzed_text_to_nonoverlapping_excerpts(analyzed_lexemes, self.settings["excerpt_len"])
 
-    def _generate_nonoverlapping_excerpts(self, analyzed_sentences: List[List[LexemeWithPositions]]) -> List[List[List[LexemeWithPositions]]]:
+    def _generate_nonoverlapping_excerpts(
+        self, analyzed_sentences: list[list[LexemeWithPositions]]
+    ) -> list[list[list[LexemeWithPositions]]]:
         excerpts = []
         current_excerpt = []
         current_excerpt_len = 0
@@ -116,12 +117,17 @@ class LexicalAnalyzer(PickleWriteable):
                 current_excerpt_len = 0
         return excerpts
 
-    def _generate_overlapping_excerpts(self, nonoverlapping_excerpts: List[List[List[LexemeWithPositions]]]) -> List[List[List[LexemeWithPositions]]]:
+    def _generate_overlapping_excerpts(
+        self, nonoverlapping_excerpts: list[list[list[LexemeWithPositions]]]
+    ) -> list[list[list[LexemeWithPositions]]]:
         overlapping_excerpts = []
         for i in range(len(nonoverlapping_excerpts) - 1):
             left_excerpt_start_index = len(nonoverlapping_excerpts[i]) // 2
             right_excerpt_end_index = max(1, len(nonoverlapping_excerpts[i + 1]) // 2)
-            overlapping_excerpts.append(nonoverlapping_excerpts[i][left_excerpt_start_index:] + nonoverlapping_excerpts[i + 1][:right_excerpt_end_index])
+            overlapping_excerpts.append(
+                nonoverlapping_excerpts[i][left_excerpt_start_index:]
+                + nonoverlapping_excerpts[i + 1][:right_excerpt_end_index]
+            )
 
         excerpts = []
         for i in range(len(nonoverlapping_excerpts) - 1):
@@ -130,7 +136,9 @@ class LexicalAnalyzer(PickleWriteable):
         excerpts.append(nonoverlapping_excerpts[-1])
         return excerpts
 
-    def _generate_sliding_window_excerpts(self, analyzed_lexemes: List[LexemeWithPositions]) -> List[List[LexemeWithPositions]]:
+    def _generate_sliding_window_excerpts(
+        self, analyzed_lexemes: list[LexemeWithPositions]
+    ) -> list[list[LexemeWithPositions]]:
         excerpts = []
         for i in range(0, len(analyzed_lexemes), self.settings["excerpt_len"] // 2):
             excerpts.append(analyzed_lexemes[i : i + self.settings["excerpt_len"]])
@@ -138,7 +146,7 @@ class LexicalAnalyzer(PickleWriteable):
                 break
         return excerpts
 
-    def analyze_sentences(self, text: str) -> List[List[LexemeWithPositions]]:
+    def analyze_sentences(self, text: str) -> list[list[LexemeWithPositions]]:
         analyzed_sentences = []
         for sent_with_positions in self._analyze_text(text, sent_tok):
             sent_text = sent_with_positions.fetch_lexeme()
@@ -146,24 +154,28 @@ class LexicalAnalyzer(PickleWriteable):
             analyzed_sentences.append(self.analyze(sent_text, sent_start))
         return analyzed_sentences
 
-    def analyze(self, text: str, offset: int = 0) -> List[LexemeWithPositions]:
+    def analyze(self, text: str, offset: int = 0) -> list[LexemeWithPositions]:
         analyzed_lexemes = self._analyze_text(text, self.settings["lexeme_splitter"], offset)
         transformed_lexemes = self._filter_and_transform(analyzed_lexemes)
         if not self.settings["do_char_positions"]:
             return [lexeme_with_positions.fetch_lexeme() for lexeme_with_positions in transformed_lexemes]
         return transformed_lexemes
 
-    def _split_long_sentences(self, analyzed_sentences: List[List[LexemeWithPositions]]) -> List[List[LexemeWithPositions]]:
+    def _split_long_sentences(
+        self, analyzed_sentences: list[list[LexemeWithPositions]]
+    ) -> list[list[LexemeWithPositions]]:
         split_sentences = []
         for analyzed_sent in analyzed_sentences:
             if len(analyzed_sent) > self.settings["max_sent_len"]:
-                sent_excerpts = _split_analyzed_text_to_nonoverlapping_excerpts(analyzed_sent, self.settings["max_sent_len"])
+                sent_excerpts = _split_analyzed_text_to_nonoverlapping_excerpts(
+                    analyzed_sent, self.settings["max_sent_len"]
+                )
                 split_sentences.extend(sent_excerpts)
             else:
                 split_sentences.append(analyzed_sent)
         return split_sentences
 
-    def _analyze_text(self, text: str, analyzer: callable, offset: int = 0) -> List[LexemeWithPositions]:
+    def _analyze_text(self, text: str, analyzer: callable, offset: int = 0) -> list[LexemeWithPositions]:
         if not isinstance(text, str):
             raise ValueError(f"text type is invalid: {type(text)}")
 
@@ -197,13 +209,18 @@ class LexicalAnalyzer(PickleWriteable):
 
         return analyzed_segments
 
-    def _divide_long_lexemes(self, segments: List[str]) -> List[str]:
+    def _divide_long_lexemes(self, segments: list[str]) -> list[str]:
         divided_segments = []
         for seg in segments:
             if len(seg) <= self.settings["max_lexeme_len"]:
                 divided_segments.append(seg)
             else:
-                divided_segments.extend([seg[i : i + self.settings["max_lexeme_len"]] for i in range(0, len(seg), self.settings["max_lexeme_len"])])
+                divided_segments.extend(
+                    [
+                        seg[i : i + self.settings["max_lexeme_len"]]
+                        for i in range(0, len(seg), self.settings["max_lexeme_len"])
+                    ]
+                )
         return divided_segments
 
     def _omit_long_lexemes(self, text: str, reject_threshold: int) -> str:
@@ -222,7 +239,7 @@ class LexicalAnalyzer(PickleWriteable):
         logging.info(f"total omitted: {omitted_count}, total retained: {len(verified_sentence)}")
         return " ".join(verified_sentence)
 
-    def _filter_and_transform(self, lexemes_with_positions: List[LexemeWithPositions]) -> List[LexemeWithPositions]:
+    def _filter_and_transform(self, lexemes_with_positions: list[LexemeWithPositions]) -> list[LexemeWithPositions]:
         transformed_lexemes = []
 
         for lexeme_w_positions in lexemes_with_positions:
@@ -262,7 +279,9 @@ class LexicalAnalyzer(PickleWriteable):
         return lexeme
 
 
-def _split_analyzed_text_to_nonoverlapping_excerpts(analyzed_lexemes: List[LexemeWithPositions], excerpt_len: int) -> List[List[LexemeWithPositions]]:
+def _split_analyzed_text_to_nonoverlapping_excerpts(
+    analyzed_lexemes: list[LexemeWithPositions], excerpt_len: int
+) -> list[list[LexemeWithPositions]]:
     excerpts = []
     for i in range(0, len(analyzed_lexemes), excerpt_len):
         if len(analyzed_lexemes) - (i + excerpt_len) <= excerpt_len / 2:

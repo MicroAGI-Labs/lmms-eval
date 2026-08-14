@@ -4,10 +4,9 @@ Handles coordinate calculations and spatial relationships.
 """
 
 import math
-from typing import List, Tuple
 
 
-def calculate_position_similarity(pos1: List[float], pos2: List[float]) -> float:
+def calculate_position_similarity(pos1: list[float], pos2: list[float]) -> float:
     """Calculate similarity between two positions using Euclidean distance.
 
     Args:
@@ -31,7 +30,7 @@ def calculate_position_similarity(pos1: List[float], pos2: List[float]) -> float
     return similarity
 
 
-def normalize_coordinates(coordinates: List[List[float]], grid_size: Tuple[int, int] = (10, 10)) -> List[List[float]]:
+def normalize_coordinates(coordinates: list[list[float]], grid_size: tuple[int, int] = (10, 10)) -> list[list[float]]:
     """Normalize coordinates to fit within a specified grid.
 
     Args:
@@ -69,7 +68,7 @@ def normalize_coordinates(coordinates: List[List[float]], grid_size: Tuple[int, 
     return normalized
 
 
-def get_relative_position(pos1: List[float], pos2: List[float]) -> str:
+def get_relative_position(pos1: list[float], pos2: list[float]) -> str:
     """Get relative position of pos2 with respect to pos1.
 
     Args:
@@ -97,7 +96,7 @@ def get_relative_position(pos1: List[float], pos2: List[float]) -> str:
         return "down" if dy > 0 else "up"
 
 
-def calculate_center_of_mass(positions: List[List[float]]) -> List[float]:
+def calculate_center_of_mass(positions: list[list[float]]) -> list[float]:
     """Calculate the center of mass for a set of positions.
 
     Args:

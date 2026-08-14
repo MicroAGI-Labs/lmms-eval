@@ -101,10 +101,24 @@ def interleave_process_results(doc, results):
 
     if doc["question_type"] == "multi-choice":
         score = mcq_acc(doc["answer"], pred)
-        model_response = {"sample_id": sample_id, "sub_task": doc["sub_task"], "question_type": doc["question_type"], "answer": doc["answer"], "parsed_pred": pred, "score": score}
+        model_response = {
+            "sample_id": sample_id,
+            "sub_task": doc["sub_task"],
+            "question_type": doc["question_type"],
+            "answer": doc["answer"],
+            "parsed_pred": pred,
+            "score": score,
+        }
     elif doc["question_type"] == "open-ended":
         score = oe_rogue(doc["answer"], pred)
-        model_response = {"sample_id": sample_id, "sub_task": doc["sub_task"], "question_type": doc["question_type"], "answer": doc["answer"], "parsed_pred": pred, "score": score}
+        model_response = {
+            "sample_id": sample_id,
+            "sub_task": doc["sub_task"],
+            "question_type": doc["question_type"],
+            "answer": doc["answer"],
+            "parsed_pred": pred,
+            "score": score,
+        }
     else:
         raise ValueError(f"Unknown question type: {doc['question_type']}")
 

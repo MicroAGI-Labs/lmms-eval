@@ -97,7 +97,9 @@ def _build_agent_prompt(doc, state, tool_result=None):
     )
 
 
-def vending_doc_to_text(doc, lmms_eval_specific_kwargs=None, previous_output=None, round_idx=None, previous_round_info=None):
+def vending_doc_to_text(
+    doc, lmms_eval_specific_kwargs=None, previous_output=None, round_idx=None, previous_round_info=None
+):
     if round_idx is None:
         init_state = copy.deepcopy(doc["initial_state"])
         return _build_agent_prompt(doc, init_state)
@@ -128,7 +130,9 @@ def vending_doc_to_text(doc, lmms_eval_specific_kwargs=None, previous_output=Non
     submit_payloads = _extract_tag_payload(SUBMIT_PATTERN, model_response)
     if submit_payloads:
         target = doc["target_state"]
-        success = state.get("cash", 0) >= target["min_cash"] and state.get("days_elapsed", 0) >= target["min_days_elapsed"]
+        success = (
+            state.get("cash", 0) >= target["min_cash"] and state.get("days_elapsed", 0) >= target["min_days_elapsed"]
+        )
         final_payload = {
             "success": success,
             "tool_calls": state_info["tool_calls"],

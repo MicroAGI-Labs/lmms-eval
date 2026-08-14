@@ -2,24 +2,18 @@ import abc
 import ast
 import copy
 import inspect
-import itertools
 import json
 import os
 import random
 import re
 import shutil
 import subprocess
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from dataclasses import asdict, dataclass
 from functools import lru_cache, partial
 from glob import glob
 from typing import (
     Any,
-    Iterator,
-    List,
-    Optional,
-    Tuple,
-    Union,
 )
 
 import datasets
@@ -95,7 +89,11 @@ def _resolve_hf_datasets_cache_dir() -> str:
 
     local_cache_dir = os.path.join(local_scratch, "lmms_eval_hf_datasets", os.getenv("USER", "unknown"))
     os.makedirs(local_cache_dir, exist_ok=True)
-    eval_logger.info("HF datasets cache '{}' is on a remote filesystem; using node-local cache '{}'.", target_cache_dir, local_cache_dir)
+    eval_logger.info(
+        "HF datasets cache '{}' is on a remote filesystem; using node-local cache '{}'.",
+        target_cache_dir,
+        local_cache_dir,
+    )
     return local_cache_dir
 
 
@@ -105,8 +103,8 @@ class TaskConfig(dict):
     task: str = None
     task_alias: str = None
     tag: str = None
-    group: Union[str, list] = None
-    group_alias: Union[str, list] = None
+    group: str | list = None
+    group_alias: str | list = None
     # HF dataset options.
     # which dataset to use,
     # and what splits for what purpose
@@ -116,18 +114,20 @@ class TaskConfig(dict):
     training_split: str = None
     validation_split: str = None
     test_split: str = None
-    fewshot_split: str = None  # TODO: assert that this not None if num_fewshot > 0. (?) assert if this is same split as one evaling (?)
+    fewshot_split: str = (
+        None  # TODO: assert that this not None if num_fewshot > 0. (?) assert if this is same split as one evaling (?)
+    )
     full_docs: bool = False
     # formatting / prompting options.
     # see docs/advanced_task_guide.md for more info
     process_results_use_image: bool = False
     process_docs: Callable = None
-    doc_to_visual: Union[Callable, str] = None
-    doc_to_text: Union[Callable, str] = None
-    doc_to_target: Union[Callable, str] = None
-    doc_to_choice: Union[Callable, str, dict, list] = None
+    doc_to_visual: Callable | str = None
+    doc_to_text: Callable | str = None
+    doc_to_target: Callable | str = None
+    doc_to_choice: Callable | str | dict | list = None
     doc_to_messages: Callable = None
-    process_results: Union[Callable, str] = None
+    process_results: Callable | str = None
     use_prompt: str = None
     description: str = ""
     target_delimiter: str = " "
@@ -140,7 +140,7 @@ class TaskConfig(dict):
     output_type: str = "generate_until"
     generation_kwargs: dict = None
     repeats: int = 1
-    filter_list: Union[str, list] = None
+    filter_list: str | list = None
     should_decontaminate: bool = False
     doc_to_decontamination_query: str = None
 
@@ -148,12 +148,14 @@ class TaskConfig(dict):
     cluster_key: str = None  # Field name in process_results dict for clustering (e.g., "videoID")
     score_key: str = "score"  # Field name in process_results dict for 0/1 score (default: "score")
 
-    metadata: Union[str, list] = None  # by default, not used in the code. allows for users to pass arbitrary info to tasks
+    metadata: str | list = (
+        None  # by default, not used in the code. allows for users to pass arbitrary info to tasks
+    )
 
     lmms_eval_specific_kwargs: dict = None
     model_specific_generation_kwargs: dict = None
     model_specific_target_kwargs: dict = None
-    reasoning_tags: Union[str, list] = None
+    reasoning_tags: str | list = None
 
     def __post_init__(self) -> None:
         if self.dataset_path and os.path.exists(os.path.dirname(self.dataset_path)):
@@ -169,11 +171,15 @@ class TaskConfig(dict):
             if self.tag is None:
                 self.tag = self.group
             else:
-                raise ValueError("Got both a `group` and `tag` entry within a TaskConfig. Please use one or the other--`group` values will be deprecated in v0.4.4.")
+                raise ValueError(
+                    "Got both a `group` and `tag` entry within a TaskConfig. Please use one or the other--`group` values will be deprecated in v0.4.4."
+                )
 
         if self.generation_kwargs is not None:
             if "generate_until" not in self.output_type:
-                eval_logger.warning(f"[{self.task}] passed `generation_kwargs`, but not using `output_type: generate_until`!")
+                eval_logger.warning(
+                    f"[{self.task}] passed `generation_kwargs`, but not using `output_type: generate_until`!"
+                )
                 assert "generate_until" not in self.output_type
 
             if "temperature" in self.generation_kwargs:
@@ -380,7 +386,10 @@ class Task(abc.ABC):
             return self.validation_docs()
         else:
             if self.config.num_fewshot is not None:
-                eval_logger.warning("has_training_docs and has_validation_docs are False" ", using test_docs as fewshot_docs but this is not recommended.")
+                eval_logger.warning(
+                    "has_training_docs and has_validation_docs are False"
+                    ", using test_docs as fewshot_docs but this is not recommended."
+                )
             return self.test_docs()
 
     def _process_doc(self, doc):
@@ -423,16 +432,16 @@ class Task(abc.ABC):
     def build_all_requests(
         self,
         *,
-        limit: Union[int, None] = None,
+        limit: int | None = None,
         offset: int = 0,
         rank: int = 0,
         world_size: int = 1,
         cache_requests: bool = False,
         rewrite_requests_cache: bool = False,
-        system_instruction: Optional[str] = None,
+        system_instruction: str | None = None,
         apply_chat_template: bool = False,
         fewshot_as_multiturn: bool = False,
-        chat_template: Optional[Callable] = None,
+        chat_template: Callable | None = None,
         tokenizer_name: str = "",
     ) -> None:
         """Build a set of Instances for a task, and store them in task.instances"""
@@ -443,7 +452,9 @@ class Task(abc.ABC):
             docs = self.validation_docs()
             split = self.config.validation_split
         else:
-            assert False, f"Task dataset (path={self.DATASET_PATH}, name={self.DATASET_NAME}) must have valid or test docs!"
+            assert False, (
+                f"Task dataset (path={self.DATASET_PATH}, name={self.DATASET_NAME}) must have valid or test docs!"
+            )
 
         # used with caching
         og_limit = limit
@@ -453,7 +464,9 @@ class Task(abc.ABC):
             cache_key += f"-offset{offset}"
         cache_key += "-chat_template" if apply_chat_template else ""
         cache_key += "-fewshot_as_multiturn" if fewshot_as_multiturn else ""
-        cache_key += f"-system_prompt_hash{utils.hash_string(system_instruction)}" if system_instruction is not None else ""
+        cache_key += (
+            f"-system_prompt_hash{utils.hash_string(system_instruction)}" if system_instruction is not None else ""
+        )
         cache_key += f"-tokenizer{tokenizer_name}"
 
         cached_instances = load_from_cache(file_name=cache_key)
@@ -516,8 +529,15 @@ class Task(abc.ABC):
             )
 
             # TODO: we should override self.config.repeats if doing greedy gen so users don't waste time+compute
-            per_task_metadata = {"task": self.config["task"], "doc_id": doc_id, "repeats": self.config.repeats, "split": split}
-            if self.config.metadata and type(self.config.metadata) == dict:  # TODO: temporary fix for metadata loading, ignore the list of dict type.
+            per_task_metadata = {
+                "task": self.config["task"],
+                "doc_id": doc_id,
+                "repeats": self.config.repeats,
+                "split": split,
+            }
+            if (
+                self.config.metadata and type(self.config.metadata) == dict
+            ):  # TODO: temporary fix for metadata loading, ignore the list of dict type.
                 per_task_metadata.update(self.config.metadata)
 
             inst = self.construct_requests(doc_id=doc_id, ctx=fewshot_ctx, metadata=per_task_metadata)
@@ -537,7 +557,9 @@ class Task(abc.ABC):
 
         if len(self._instances) == 0:
             if world_size > 1:
-                eval_logger.warning(f"task.build_requests() found no docs on rank {rank}/{world_size - 1}; injecting one padding request for distributed synchronization.")
+                eval_logger.warning(
+                    f"task.build_requests() found no docs on rank {rank}/{world_size - 1}; injecting one padding request for distributed synchronization."
+                )
                 if len(self.eval_docs_no_media) > 0:
                     pad_doc_id = 0
                     pad_doc = self.eval_docs_no_media[pad_doc_id]
@@ -549,16 +571,26 @@ class Task(abc.ABC):
                         fewshot_as_multiturn,
                         chat_template,
                     )
-                    pad_metadata = {"task": self.config["task"], "doc_id": pad_doc_id, "repeats": self.config.repeats, "split": split, "__padding_only__": True}
+                    pad_metadata = {
+                        "task": self.config["task"],
+                        "doc_id": pad_doc_id,
+                        "repeats": self.config.repeats,
+                        "split": split,
+                        "__padding_only__": True,
+                    }
                     if self.config.metadata and type(self.config.metadata) == dict:
                         pad_metadata.update(self.config.metadata)
                     pad_inst = self.construct_requests(doc_id=pad_doc_id, ctx=pad_ctx, metadata=pad_metadata)
                     if not isinstance(pad_inst, list):
                         pad_inst = [pad_inst]
                     self._instances = pad_inst
-                    eval_logger.warning(f"task.build_requests() injected {len(self._instances)} padding request(s) on rank {rank}/{world_size - 1}.")
+                    eval_logger.warning(
+                        f"task.build_requests() injected {len(self._instances)} padding request(s) on rank {rank}/{world_size - 1}."
+                    )
                 else:
-                    eval_logger.warning(f"task.build_requests() could not inject padding request on rank {rank}/{world_size - 1} because dataset has no docs.")
+                    eval_logger.warning(
+                        f"task.build_requests() could not inject padding request on rank {rank}/{world_size - 1} because dataset has no docs."
+                    )
             else:
                 raise ValueError("task.build_requests() did not find any docs!")
 
@@ -668,19 +700,23 @@ class Task(abc.ABC):
                 fewshotex = self.fewshot_examples(k=num_fewshot, rnd=rnd)
             else:
                 if self._fewshot_docs is None:
-                    self._fewshot_docs = list(self.validation_docs() if self.has_validation_docs() else self.test_docs())
+                    self._fewshot_docs = list(
+                        self.validation_docs() if self.has_validation_docs() else self.test_docs()
+                    )
 
                 fewshotex = rnd.sample(self._fewshot_docs, num_fewshot + 1)
 
                 # get rid of the doc that's the one we're evaluating, if it's in the fewshot
                 fewshotex = [x for x in fewshotex if x != doc][:num_fewshot]
 
-            labeled_examples = "\n\n".join([self.doc_to_text(doc) + self.doc_to_target(doc) for doc in fewshotex]) + "\n\n"
+            labeled_examples = (
+                "\n\n".join([self.doc_to_text(doc) + self.doc_to_target(doc) for doc in fewshotex]) + "\n\n"
+            )
 
         example = self.doc_to_text(doc)
         return description + labeled_examples + example
 
-    def apply_filters(self) -> Optional[List[Instance]]:
+    def apply_filters(self) -> list[Instance] | None:
         """Iterates over FilterEnsembles and applies them to instances"""
         if hasattr(self, "_filters"):
             for f in self._filters:
@@ -735,21 +771,25 @@ class Task(abc.ABC):
         setattr(self._config, "metric_list", [{"metric": metric_name}])
         setattr(self._config, "process_results", None)
 
-    def set_fewshot_seed(self, seed: Optional[int] = None) -> None:
+    def set_fewshot_seed(self, seed: int | None = None) -> None:
         self.fewshot_rnd = random.Random(seed)
         if hasattr(self, "sampler"):
             self.sampler.rnd = self.fewshot_rnd
 
     @property
-    def eval_docs(self) -> Union[datasets.Dataset, List[dict]]:
+    def eval_docs(self) -> datasets.Dataset | list[dict]:
         if self.has_test_docs():
             return self.test_docs()
         elif self.has_validation_docs():
             return self.validation_docs()
         else:
-            raise ValueError(f"Task dataset (path={self.DATASET_PATH}, name={self.DATASET_NAME}) must have valid or test docs!")
+            raise ValueError(
+                f"Task dataset (path={self.DATASET_PATH}, name={self.DATASET_NAME}) must have valid or test docs!"
+            )
 
-    def doc_iterator(self, *, rank: int = 0, limit: Union[int, None] = None, world_size: int = 1, offset: int = 0) -> Iterator[Tuple[int, Any]]:
+    def doc_iterator(
+        self, *, rank: int = 0, limit: int | None = None, world_size: int = 1, offset: int = 0
+    ) -> Iterator[tuple[int, Any]]:
         limit = int(limit) if limit else None
         doc_iterator = utils.create_iterator(
             enumerate(self.eval_docs),
@@ -771,8 +811,8 @@ class ConfigurableTask(Task):
         data_dir=None,
         cache_dir=None,
         download_mode=None,
-        config: Optional[dict] = None,
-        model_name: Optional[str] = None,
+        config: dict | None = None,
+        model_name: str | None = None,
     ) -> None:  # TODO no super() call here
         # Get pre-configured attributes
         self._config = self.CONFIG
@@ -797,7 +837,9 @@ class ConfigurableTask(Task):
 
         if self.config.output_type is not None:
             if self.config.output_type not in ALL_OUTPUT_TYPES:
-                raise ValueError(f"Got invalid output_type '{self.config.output_type}', must be in '{','.join(ALL_OUTPUT_TYPES)}'")
+                raise ValueError(
+                    f"Got invalid output_type '{self.config.output_type}', must be in '{','.join(ALL_OUTPUT_TYPES)}'"
+                )
             self.OUTPUT_TYPE = self.config.output_type
 
         if self.config.dataset_path is not None:
@@ -827,14 +869,18 @@ class ConfigurableTask(Task):
         else:
             self._filters = [build_filter_ensemble("none", [["take_first", None]])]
         if self.config.fewshot_config is not None:
-            self.sampler = samplers.get_sampler(self.config.fewshot_config.get("sampler", "default") if self.config.fewshot_config else "default")(list(self.fewshot_docs()), self, rnd=random.Random(1234))
+            self.sampler = samplers.get_sampler(
+                self.config.fewshot_config.get("sampler", "default") if self.config.fewshot_config else "default"
+            )(list(self.fewshot_docs()), self, rnd=random.Random(1234))
 
         if self.has_test_docs():
             self.task_docs = self.test_docs()
         elif self.has_validation_docs():
             self.task_docs = self.validation_docs()
         else:
-            assert False, f"Task dataset (path={self.DATASET_PATH}, name={self.DATASET_NAME}) must have valid or test docs!"
+            assert False, (
+                f"Task dataset (path={self.DATASET_PATH}, name={self.DATASET_NAME}) must have valid or test docs!"
+            )
 
         # Test One Doc
         self.features = list(self.task_docs.features.keys())
@@ -871,12 +917,16 @@ class ConfigurableTask(Task):
         if self.config.doc_to_choice is not None:
             for choice in check_choices:
                 choice_has_whitespace = True if choice[0].isspace() else False
-                delimiter_has_whitespace = True if self.config.target_delimiter.rstrip() != self.config.target_delimiter else False
+                delimiter_has_whitespace = (
+                    True if self.config.target_delimiter.rstrip() != self.config.target_delimiter else False
+                )
 
                 if delimiter_has_whitespace and choice_has_whitespace:
                     eval_logger.warning(f'Both target_delimiter and target choice: "{choice}" have whitespace')
                 elif (not delimiter_has_whitespace) and (not choice_has_whitespace):
-                    eval_logger.warning(f'Both target_delimiter "{self.config.target_delimiter}" and target choice: "{choice}" do not have whitespace, ignore if the language you are evaluating on does not require/use whitespace')
+                    eval_logger.warning(
+                        f'Both target_delimiter "{self.config.target_delimiter}" and target choice: "{choice}" do not have whitespace, ignore if the language you are evaluating on does not require/use whitespace'
+                    )
 
     def _prepare_model_specific_config(self):
         self.lmms_eval_specific_kwargs = self.config.lmms_eval_specific_kwargs
@@ -922,7 +972,11 @@ class ConfigurableTask(Task):
             for metric_config in self.config.metric_list:
                 assert "metric" in metric_config
                 metric_name = metric_config["metric"]
-                kwargs = {key: metric_config[key] for key in metric_config if key not in ["metric", "aggregation", "higher_is_better"]}
+                kwargs = {
+                    key: metric_config[key]
+                    for key in metric_config
+                    if key not in ["metric", "aggregation", "higher_is_better"]
+                }
 
                 if self.config.process_results is not None:
                     self._metric_fn_list[metric_name] = None
@@ -945,13 +999,21 @@ class ConfigurableTask(Task):
                 else:
                     INV_AGG_REGISTRY = {v: k for k, v in AGGREGATION_REGISTRY.items()}
                     metric_agg = get_metric_aggregation(metric_name)
-                    eval_logger.warning(f"[Task: {self._config.task}] metric {metric_name} is defined, but aggregation is not. " f"using default " f"aggregation={INV_AGG_REGISTRY[metric_agg]}")
+                    eval_logger.warning(
+                        f"[Task: {self._config.task}] metric {metric_name} is defined, but aggregation is not. "
+                        f"using default "
+                        f"aggregation={INV_AGG_REGISTRY[metric_agg]}"
+                    )
                     self._aggregation_list[metric_name] = metric_agg
 
                 if "higher_is_better" in metric_config:
                     self._higher_is_better[metric_name] = metric_config["higher_is_better"]
                 else:
-                    eval_logger.warning(f"[Task: {self._config.task}] metric {metric_name} is defined, but higher_is_better is not. " f"using default " f"higher_is_better={is_higher_better(metric_name)}")
+                    eval_logger.warning(
+                        f"[Task: {self._config.task}] metric {metric_name} is defined, but higher_is_better is not. "
+                        f"using default "
+                        f"higher_is_better={is_higher_better(metric_name)}"
+                    )
                     self._higher_is_better[metric_name] = is_higher_better(metric_name)
 
     @retry(stop=(stop_after_attempt(5) | stop_after_delay(60)), wait=wait_fixed(2))
@@ -961,7 +1023,9 @@ class ConfigurableTask(Task):
         download_config = DownloadConfig()
         download_config.max_retries = dataset_kwargs.get("max_retries", 10) if dataset_kwargs is not None else 10
         download_config.num_proc = dataset_kwargs.get("num_proc", 1) if dataset_kwargs is not None else 1
-        download_config.local_files_only = dataset_kwargs.get("local_files_only", False) if dataset_kwargs is not None else False
+        download_config.local_files_only = (
+            dataset_kwargs.get("local_files_only", False) if dataset_kwargs is not None else False
+        )
         resolved_dataset_cache_dir = _resolve_hf_datasets_cache_dir()
         if dataset_kwargs is not None:
             if "From_YouTube" in dataset_kwargs:
@@ -971,7 +1035,9 @@ class ConfigurableTask(Task):
                         for video in tqdm(self.all_dataset[split]):
                             video_id = video["videoID"]
                             target_path = os.path.join(path, f"{video_id}.mp4")
-                            assert shutil.which("yt-dlp") is not None, "yt-dlp must be installed and available in the system's PATH"
+                            assert shutil.which("yt-dlp") is not None, (
+                                "yt-dlp must be installed and available in the system's PATH"
+                            )
                             command = f"yt-dlp -o {target_path} -f mp4 https://www.youtube.com/watch?v={video_id}"
                             subprocess.run(command, shell=True)
                         with open(os.path.join(cache_path, f"{task}_download_status.json"), "w") as f:
@@ -985,7 +1051,9 @@ class ConfigurableTask(Task):
                 accelerator = Accelerator()
                 if accelerator.is_main_process:
                     dataset_kwargs.pop("From_YouTube")
-                    assert "load_from_disk" not in dataset_kwargs, "load_from_disk must not be True when From_YouTube is True"
+                    assert "load_from_disk" not in dataset_kwargs, (
+                        "load_from_disk must not be True when From_YouTube is True"
+                    )
                     youtube_dataset_kwargs = dict(dataset_kwargs)
                     youtube_cache_dir = youtube_dataset_kwargs.pop("cache_dir", resolved_dataset_cache_dir)
                     self.all_dataset = datasets.load_dataset(
@@ -1002,7 +1070,7 @@ class ConfigurableTask(Task):
 
                     video_path = os.path.join(hf_home, task)
                     if os.path.exists(os.path.join(cache_path, f"{task}_download_status.json")):
-                        download_status = json.load(open(os.path.join(cache_path, f"{task}_download_status.json"), "r"))
+                        download_status = json.load(open(os.path.join(cache_path, f"{task}_download_status.json")))
                         if download_status[task] == "downloaded":
                             eval_logger.info(f"Data for {task} already download!")
                         else:
@@ -1018,9 +1086,13 @@ class ConfigurableTask(Task):
                     self.DATASET_PATH = os.path.join(cache_path, builder_script)
                     dataset_kwargs.pop("builder_script")
 
-                downloaded_video_ids = [i.split(".mp4")[0] for i in os.listdir(os.path.expanduser(video_path)) if i.endswith(".mp4")]
+                downloaded_video_ids = [
+                    i.split(".mp4")[0] for i in os.listdir(os.path.expanduser(video_path)) if i.endswith(".mp4")
+                ]
                 # Filtered the existing dataset with the downloaded video ids
-                self.dataset = datasets.DatasetDict({split: self.all_dataset[split].filter(lambda x: x["videoID"] in downloaded_video_ids)})
+                self.dataset = datasets.DatasetDict(
+                    {split: self.all_dataset[split].filter(lambda x: x["videoID"] in downloaded_video_ids)}
+                )
 
                 self.dataset_no_image = self.dataset
                 dataset_kwargs.pop("From_YouTube")
@@ -1041,7 +1113,13 @@ class ConfigurableTask(Task):
                     # Tasks that set create_link need the snapshot path even when the
                     # cache dir already exists as a symlink from a previous run.
                     if not os.path.exists(cache_dir) or (create_link and os.path.islink(cache_dir)):
-                        cache_path = snapshot_download(repo_id=self.DATASET_PATH, revision=revision, repo_type="dataset", force_download=force_download, etag_timeout=60)
+                        cache_path = snapshot_download(
+                            repo_id=self.DATASET_PATH,
+                            revision=revision,
+                            repo_type="dataset",
+                            force_download=force_download,
+                            etag_timeout=60,
+                        )
                         zip_files = glob(os.path.join(cache_path, "**/*.zip"), recursive=True)
                         tar_files = glob(os.path.join(cache_path, "**/*.tar*"), recursive=True)
                     else:
@@ -1158,7 +1236,12 @@ class ConfigurableTask(Task):
 
         if self.config.process_docs is not None:
             for split in self.dataset:
-                if split in [self.config.training_split, self.config.validation_split, self.config.test_split, self.config.fewshot_split]:
+                if split in [
+                    self.config.training_split,
+                    self.config.validation_split,
+                    self.config.test_split,
+                    self.config.fewshot_split,
+                ]:
                     self.dataset[split] = self.config.process_docs(self.dataset[split])
 
         # copy dataset, remove image features (unless process_results needs them)
@@ -1219,20 +1302,24 @@ class ConfigurableTask(Task):
             return self.dataset_no_image[self.config.test_split]
 
     @property
-    def eval_docs_no_media(self) -> Union[datasets.Dataset, List[dict]]:
+    def eval_docs_no_media(self) -> datasets.Dataset | list[dict]:
         if self.has_test_docs():
             return self.test_docs_no_media()
         elif self.has_validation_docs():
             return self.validation_docs_no_media()
         else:
-            raise ValueError(f"Task dataset (path={self.DATASET_PATH}, name={self.DATASET_NAME}) must have valid or test docs!")
+            raise ValueError(
+                f"Task dataset (path={self.DATASET_PATH}, name={self.DATASET_NAME}) must have valid or test docs!"
+            )
 
     def fewshot_docs(self):
         if self.config.fewshot_split is not None:
             return self.dataset[self.config.fewshot_split]
         else:
             if (self.config.num_fewshot is not None) and (self.config.num_fewshot > 0):
-                eval_logger.warning(f"Task '{self.config.task}': " "num_fewshot > 0 but fewshot_split is None. " "using preconfigured rule.")
+                eval_logger.warning(
+                    f"Task '{self.config.task}': num_fewshot > 0 but fewshot_split is None. using preconfigured rule."
+                )
             return super().fewshot_docs()
 
     @utils.positional_deprecated
@@ -1240,10 +1327,10 @@ class ConfigurableTask(Task):
         self,
         doc: str,
         num_fewshot: int,
-        system_instruction: Optional[str] = None,
+        system_instruction: str | None = None,
         apply_chat_template: bool = False,
         fewshot_as_multiturn: bool = False,
-        chat_template: Optional[Callable] = None,
+        chat_template: Callable | None = None,
         is_multimodal: bool = False,
     ) -> str:
         """Returns a fewshot context string that is made up of a prepended description
@@ -1300,10 +1387,14 @@ class ConfigurableTask(Task):
                     labeled_examples += self.sampler.get_context(doc, num_fewshot)
             else:
                 if apply_chat_template:
-                    labeled_examples_text, labeled_examples_multimodal = self.sampler.get_multimodal_chat_context(doc, num_fewshot, fewshot_as_multiturn)
+                    labeled_examples_text, labeled_examples_multimodal = self.sampler.get_multimodal_chat_context(
+                        doc, num_fewshot, fewshot_as_multiturn
+                    )
                     labeled_examples.extend(labeled_examples_text)
                 else:
-                    labeled_examples_text, labeled_examples_multimodal = self.sampler.get_multimodal_context(doc, num_fewshot)
+                    labeled_examples_text, labeled_examples_multimodal = self.sampler.get_multimodal_context(
+                        doc, num_fewshot
+                    )
                     labeled_examples += labeled_examples_text
 
         example = self.doc_to_text(doc)
@@ -1363,7 +1454,7 @@ class ConfigurableTask(Task):
                 #     else:
                 #         return labeled_examples + str(example), labeled_examples_multimodal
 
-    def apply_filters(self) -> Optional[List[Instance]]:
+    def apply_filters(self) -> list[Instance] | None:
         """Iterates over FilterEnsembles and applies them to instances"""
         if hasattr(self, "_filters"):
             for f in self._filters:
@@ -1436,7 +1527,7 @@ class ConfigurableTask(Task):
             print(type(doc_to_text))
             raise TypeError
 
-    def doc_to_target(self, doc: dict) -> Union[int, str, list]:
+    def doc_to_target(self, doc: dict) -> int | str | list:
         doc_to_target = self.config.doc_to_target
 
         if type(doc_to_target) == int:
@@ -1461,7 +1552,11 @@ class ConfigurableTask(Task):
         elif type(doc_to_target) == list:
             return doc_to_target
         elif callable(doc_to_target):
-            return doc_to_target(doc, self.model_specific_target_kwargs) if self.model_specific_target_kwargs is not None else doc_to_target(doc)
+            return (
+                doc_to_target(doc, self.model_specific_target_kwargs)
+                if self.model_specific_target_kwargs is not None
+                else doc_to_target(doc)
+            )
         # Used when applying a Promptsource template
         elif hasattr(doc_to_target, "apply"):
             applied_prompt = doc_to_target.apply(doc)
@@ -1473,7 +1568,7 @@ class ConfigurableTask(Task):
         else:
             raise TypeError
 
-    def doc_to_visual(self, doc: dict) -> Union[int, str, list]:
+    def doc_to_visual(self, doc: dict) -> int | str | list:
         self.config.doc_to_visual
         if type(self.config.doc_to_visual) == str:
             assert self.config.doc_to_visual in self.features
@@ -1482,7 +1577,8 @@ class ConfigurableTask(Task):
         elif callable(self.config.doc_to_visual):
             return (
                 self.config.doc_to_visual(doc, self.lmms_eval_specific_kwargs)
-                if self.lmms_eval_specific_kwargs is not None and len(inspect.signature(self.config.doc_to_visual).parameters) == 2
+                if self.lmms_eval_specific_kwargs is not None
+                and len(inspect.signature(self.config.doc_to_visual).parameters) == 2
                 else self.config.doc_to_visual(
                     doc,
                 )
@@ -1491,7 +1587,7 @@ class ConfigurableTask(Task):
             # eval_logger.warning("Note that doc_to_visual was called but not set in config. Please check if this is a text-only task.")
             return self.config.doc_to_visual
 
-    def doc_to_choice(self, doc: Any) -> List[str]:
+    def doc_to_choice(self, doc: Any) -> list[str]:
         if self.config.doc_to_choice is None:
             eval_logger.error("Note that doc_to_choice was called but not set in config.")
         else:
@@ -1513,7 +1609,7 @@ class ConfigurableTask(Task):
         else:
             raise TypeError
 
-    def construct_requests(self, doc_id: int, ctx: str, **kwargs) -> Union[List[Instance], Instance]:
+    def construct_requests(self, doc_id: int, ctx: str, **kwargs) -> list[Instance] | Instance:
         split = kwargs.get("metadata").get("split")
         # kwargs.pop("split")
         if self.OUTPUT_TYPE == "loglikelihood":
@@ -1525,10 +1621,16 @@ class ConfigurableTask(Task):
             if self.multiple_input:
                 # If there are multiple inputs, choices are placed in the ctx
                 cont = self.doc_to_target(doc)
-                arguments = [(ctx, f"{target_delimiter}{cont}", self.doc_to_visual, doc_id, self.config.task, split) for ctx in choices]
+                arguments = [
+                    (ctx, f"{target_delimiter}{cont}", self.doc_to_visual, doc_id, self.config.task, split)
+                    for ctx in choices
+                ]
             else:
                 # Otherwise they are placed in the continuation
-                arguments = [(ctx, f"{target_delimiter}{cont}", self.doc_to_visual, doc_id, self.config.task, split) for cont in choices]
+                arguments = [
+                    (ctx, f"{target_delimiter}{cont}", self.doc_to_visual, doc_id, self.config.task, split)
+                    for cont in choices
+                ]
             request_list = [
                 Instance(
                     request_type="loglikelihood",
@@ -1554,7 +1656,7 @@ class ConfigurableTask(Task):
                         Instance(
                             request_type="loglikelihood",
                             # doc=doc,
-                            arguments=("", "{}".format(choice)),
+                            arguments=("", f"{choice}"),
                             idx=i,
                             task_name=self.config.task,
                             doc_id=doc_id,
@@ -1566,13 +1668,43 @@ class ConfigurableTask(Task):
             return request_list
 
         elif self.OUTPUT_TYPE == "generate_until":
-            arguments = (ctx, copy.deepcopy(self.config.generation_kwargs), self.doc_to_visual, doc_id, self.config.task, split)
+            arguments = (
+                ctx,
+                copy.deepcopy(self.config.generation_kwargs),
+                self.doc_to_visual,
+                doc_id,
+                self.config.task,
+                split,
+            )
         elif self.OUTPUT_TYPE == "generate_visual_cot":
-            arguments = (ctx, copy.deepcopy(self.config.generation_kwargs), self.doc_to_visual, doc_id, self.config.task, split)
+            arguments = (
+                ctx,
+                copy.deepcopy(self.config.generation_kwargs),
+                self.doc_to_visual,
+                doc_id,
+                self.config.task,
+                split,
+            )
         elif self.OUTPUT_TYPE == "generate_until_multi_round":
-            arguments = (ctx, copy.deepcopy(self.config.generation_kwargs), self.doc_to_visual, partial(self.config.doc_to_text, lmms_eval_specific_kwargs=self.lmms_eval_specific_kwargs), doc_id, self.config.task, split)
+            arguments = (
+                ctx,
+                copy.deepcopy(self.config.generation_kwargs),
+                self.doc_to_visual,
+                partial(self.config.doc_to_text, lmms_eval_specific_kwargs=self.lmms_eval_specific_kwargs),
+                doc_id,
+                self.config.task,
+                split,
+            )
         elif self.OUTPUT_TYPE == "generate_until_agentic":
-            arguments = (ctx, copy.deepcopy(self.config.generation_kwargs), self.doc_to_visual, partial(self.config.doc_to_text, lmms_eval_specific_kwargs=self.lmms_eval_specific_kwargs), doc_id, self.config.task, split)
+            arguments = (
+                ctx,
+                copy.deepcopy(self.config.generation_kwargs),
+                self.doc_to_visual,
+                partial(self.config.doc_to_text, lmms_eval_specific_kwargs=self.lmms_eval_specific_kwargs),
+                doc_id,
+                self.config.task,
+                split,
+            )
         return Instance(request_type=self.OUTPUT_TYPE, arguments=arguments, idx=0, **kwargs)
 
     # TODO: we add a full_docs interface here for some evaluations that needs to access the full datasets during process_results function. we may have better ways to handle this.
@@ -1640,7 +1772,7 @@ class ConfigurableTask(Task):
                     gold_index_error = True
 
             if gold_index_error:
-                eval_logger.warning(f"Label index was not in within range of available choices," f"Sample:\n\n{doc}\n\n")
+                eval_logger.warning(f"Label index was not in within range of available choices,Sample:\n\n{doc}\n\n")
 
             if self.multiple_target:
                 acc = 1.0 if pred in gold else 0.0
@@ -1744,23 +1876,31 @@ class ConfigurableTask(Task):
         return getattr(self.config, "task", None)
 
     def __repr__(self):
-        return f"ConfigurableTask(task_name={getattr(self.config, 'task', None)}," f"output_type={self.OUTPUT_TYPE}," f"num_fewshot={getattr(self.config, 'num_fewshot', None)}," f"repeats={getattr(self.config, 'repeats', None)})"
+        return (
+            f"ConfigurableTask(task_name={getattr(self.config, 'task', None)},"
+            f"output_type={self.OUTPUT_TYPE},"
+            f"num_fewshot={getattr(self.config, 'num_fewshot', None)},"
+            f"repeats={getattr(self.config, 'repeats', None)})"
+        )
 
 
 class ConfigurableMessagesTask(ConfigurableTask):
     def __init__(self, data_dir=None, cache_dir=None, download_mode=None, config=None, model_name=None):
         super().__init__(data_dir, cache_dir, download_mode, config, model_name)
 
-    def doc_to_messages(self, doc: dict) -> Union[int, str, list]:
+    def doc_to_messages(self, doc: dict) -> int | str | list:
         if callable(self.config.doc_to_messages):
             return (
                 self.config.doc_to_messages(doc, self.lmms_eval_specific_kwargs)
-                if self.lmms_eval_specific_kwargs is not None and len(inspect.signature(self.config.doc_to_messages).parameters) == 2
+                if self.lmms_eval_specific_kwargs is not None
+                and len(inspect.signature(self.config.doc_to_messages).parameters) == 2
                 else self.config.doc_to_messages(
                     doc,
                 )
             )
-        elif self.config.doc_to_messages is None and (self.config.doc_to_visual is not None or self.config.doc_to_text is not None):
+        elif self.config.doc_to_messages is None and (
+            self.config.doc_to_visual is not None or self.config.doc_to_text is not None
+        ):
             # An auto doc to messages function
             def auto_doc_to_messages(doc):
                 visuals = self.doc_to_visual(doc)
@@ -1803,10 +1943,12 @@ class ConfigurableMessagesTask(ConfigurableTask):
             # eval_logger.warning("Note that doc_to_visual was called but not set in config. Please check if this is a text-only task.")
             return self.config.doc_to_messages
 
-    def construct_requests(self, doc_id: int, ctx: str, **kwargs) -> Union[List[Instance], Instance]:
+    def construct_requests(self, doc_id: int, ctx: str, **kwargs) -> list[Instance] | Instance:
         split = kwargs.get("metadata").get("split")
         # kwargs.pop("split")
-        assert self.OUTPUT_TYPE in ["generate_until", "generate_until_agentic"], "Currently messages is used for generation only"
+        assert self.OUTPUT_TYPE in ["generate_until", "generate_until_agentic"], (
+            "Currently messages is used for generation only"
+        )
 
         if self.OUTPUT_TYPE == "generate_until_agentic":
             arguments = (
@@ -1819,8 +1961,27 @@ class ConfigurableMessagesTask(ConfigurableTask):
                 split,
             )
         else:
-            arguments = (ctx, self.doc_to_messages, copy.deepcopy(self.config.generation_kwargs), doc_id, self.config.task, split)
-        return Instance(request_type=self.OUTPUT_TYPE, arguments=arguments, idx=0, task_name=self.config.task, doc_id=doc_id, **kwargs)
+            arguments = (
+                ctx,
+                self.doc_to_messages,
+                copy.deepcopy(self.config.generation_kwargs),
+                doc_id,
+                self.config.task,
+                split,
+            )
+        return Instance(
+            request_type=self.OUTPUT_TYPE,
+            arguments=arguments,
+            idx=0,
+            task_name=self.config.task,
+            doc_id=doc_id,
+            **kwargs,
+        )
 
     def __repr__(self):
-        return f"ConfigurableMessagesTask(task_name={getattr(self.config, 'task', None)}," f"output_type={self.OUTPUT_TYPE}," f"num_fewshot={getattr(self.config, 'num_fewshot', None)}," f"repeats={getattr(self.config, 'repeats', None)})"
+        return (
+            f"ConfigurableMessagesTask(task_name={getattr(self.config, 'task', None)},"
+            f"output_type={self.OUTPUT_TYPE},"
+            f"num_fewshot={getattr(self.config, 'num_fewshot', None)},"
+            f"repeats={getattr(self.config, 'repeats', None)})"
+        )

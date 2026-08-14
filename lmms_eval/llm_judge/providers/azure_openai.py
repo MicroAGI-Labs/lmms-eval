@@ -1,6 +1,5 @@
 import os
 import time
-from typing import Dict, Optional
 
 import requests
 from loguru import logger as eval_logger
@@ -14,7 +13,7 @@ from .openai import OpenAIProvider  # Import OpenAIJudge for shared methods
 class AzureOpenAIProvider(OpenAIProvider):
     """Azure OpenAI implementation of the Judge interface"""
 
-    def __init__(self, config: Optional[ServerConfig] = None):
+    def __init__(self, config: ServerConfig | None = None):
         super().__init__(config)
         self.api_key = os.getenv("AZURE_API_KEY", "")
         self.api_endpoint = os.getenv("AZURE_ENDPOINT", "")
@@ -24,7 +23,9 @@ class AzureOpenAIProvider(OpenAIProvider):
         try:
             from openai import AzureOpenAI
 
-            self.client = AzureOpenAI(api_key=self.api_key, azure_endpoint=self.api_endpoint, api_version=self.api_version)
+            self.client = AzureOpenAI(
+                api_key=self.api_key, azure_endpoint=self.api_endpoint, api_version=self.api_version
+            )
             self.use_client = True
         except ImportError:
             eval_logger.warning("Azure OpenAI client not available, falling back to requests")
@@ -105,7 +106,7 @@ class AzureOpenAIProvider(OpenAIProvider):
                     eval_logger.error(f"All {config.num_retries} attempts failed")
                     raise
 
-    def _make_request(self, payload: Dict, timeout: int) -> Dict:
+    def _make_request(self, payload: dict, timeout: int) -> dict:
         """Make HTTP request to Azure OpenAI API"""
         headers = {
             "api-key": self.api_key,
@@ -114,7 +115,9 @@ class AzureOpenAIProvider(OpenAIProvider):
 
         # Construct the full URL
         deployment_name = payload["model"]
-        url = f"{self.api_endpoint}/openai/deployments/{deployment_name}/chat/completions?api-version={self.api_version}"
+        url = (
+            f"{self.api_endpoint}/openai/deployments/{deployment_name}/chat/completions?api-version={self.api_version}"
+        )
 
         response = requests.post(url, headers=headers, json=payload, timeout=timeout)
         response.raise_for_status()

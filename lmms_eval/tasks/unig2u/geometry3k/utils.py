@@ -6,7 +6,6 @@ Evaluation for plane geometry problems from the Geometry3K dataset.
 import json
 import os
 import time
-from typing import Any, Dict, List, Optional
 
 from azure.identity import (
     AzureCliCredential,
@@ -14,11 +13,10 @@ from azure.identity import (
     ManagedIdentityCredential,
     get_bearer_token_provider,
 )
-from openai import AzureOpenAI, OpenAI
-from PIL import Image
-
 from lmms_eval.azure_openai_compat import build_client as build_azure_compat_client
 from lmms_eval.azure_openai_compat import has_endpoint_support
+from openai import AzureOpenAI, OpenAI
+from PIL import Image
 
 # ============================================================================
 # LLM Judge Client (Azure TRAPI or OpenAI)
@@ -94,7 +92,7 @@ def _get_judge_client() -> AzureJudgeClient | AzureEndpointJudgeClient | OpenAIJ
     return _JUDGE_CLIENT
 
 
-def _find_first_json_substring(text: str) -> Optional[str]:
+def _find_first_json_substring(text: str) -> str | None:
     """Extract first JSON object from text"""
     if not text:
         return None
@@ -118,7 +116,7 @@ def _find_first_json_substring(text: str) -> Optional[str]:
     return None
 
 
-def geometry3k_doc_to_visual(doc: Dict) -> List[Image.Image]:
+def geometry3k_doc_to_visual(doc: dict) -> list[Image.Image]:
     """Get visual input for geometry3k task"""
     images = doc.get("images", [])
     if images:
@@ -130,7 +128,7 @@ def geometry3k_doc_to_visual(doc: Dict) -> List[Image.Image]:
     return []
 
 
-def geometry3k_doc_to_text(doc: Dict, lmms_eval_specific_kwargs: Optional[Dict] = None) -> str:
+def geometry3k_doc_to_text(doc: dict, lmms_eval_specific_kwargs: dict | None = None) -> str:
     """Get text prompt for geometry3k task"""
     problem = doc.get("problem", "")
 
@@ -147,12 +145,12 @@ Instructions:
 Please solve this problem step by step."""
 
 
-def geometry3k_doc_to_target(doc: Dict) -> str:
+def geometry3k_doc_to_target(doc: dict) -> str:
     """Get target answer for geometry3k task"""
     return doc.get("answer", "")
 
 
-def geometry3k_doc_to_text_visual_cot(doc: Dict, lmms_eval_specific_kwargs: Optional[Dict] = None) -> str:
+def geometry3k_doc_to_text_visual_cot(doc: dict, lmms_eval_specific_kwargs: dict | None = None) -> str:
     """
     Get two-stage Visual Chain-of-Thought prompt for geometry3k task.
 
@@ -197,7 +195,7 @@ Solve this problem step by step."""
     return f"[GEN_PROMPT]{generation_prompt}[/GEN_PROMPT]\n[QUESTION]{question_prompt}[/QUESTION]"
 
 
-def geometry3k_process_results(doc: Dict, results: List[str]) -> Dict[str, float]:
+def geometry3k_process_results(doc: dict, results: list[str]) -> dict[str, float]:
     """
     Process geometry3k results with LLM Judge evaluation using Azure TRAPI.
 
@@ -285,7 +283,7 @@ Evaluate if the candidate's final answer matches the ground truth. Output JSON o
     }
 
 
-def geometry3k_aggregate(results: List[Optional[float]]) -> float:
+def geometry3k_aggregate(results: list[float | None]) -> float:
     """Aggregate results"""
     vals = [v for v in results if v is not None]
     if not vals:

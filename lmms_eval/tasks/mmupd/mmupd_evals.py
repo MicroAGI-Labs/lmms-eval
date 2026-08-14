@@ -53,7 +53,7 @@ def load(f):
         return pickle.load(open(pth, "rb"))
 
     def load_json(pth):
-        return json.load(open(pth, "r", encoding="utf-8"))
+        return json.load(open(pth, encoding="utf-8"))
 
     def load_jsonl(f):
         lines = open(f, encoding="utf-8").readlines()
@@ -81,7 +81,9 @@ def load(f):
 
 
 class MMUPD_Evaluator:
-    def __init__(self, sys_prompt="There are several options:", API_KEY="", API_URL="", model_version="gpt-3.5-turbo-0613"):
+    def __init__(
+        self, sys_prompt="There are several options:", API_KEY="", API_URL="", model_version="gpt-3.5-turbo-0613"
+    ):
         self.sys_prompt = sys_prompt
         self.model_version = model_version
         self.API_KEY = API_KEY
@@ -344,44 +346,65 @@ class MMUPD_Evaluator:
             characters = ["B", "C", "D", "E", "F", "G"]
             combinations = [char + punct for char in characters for punct in punctuations]
             start_patterns = ["A)", "A.", "A,", "(A)"]
-            if answer == "A" or (any(answer.startswith(pattern) for pattern in start_patterns) and all(x not in answer for x in combinations)):
+            if answer == "A" or (
+                any(answer.startswith(pattern) for pattern in start_patterns)
+                and all(x not in answer for x in combinations)
+            ):
                 ch_cand_list.append("A")
         if "B" in valid_option:
             characters = ["A", "C", "D", "E", "F", "G"]
             combinations = [char + punct for char in characters for punct in punctuations]
             start_patterns = ["B)", "B.", "B,", "(B)"]
-            if answer == "B" or (any(answer.startswith(pattern) for pattern in start_patterns) and all(x not in answer for x in combinations)):
+            if answer == "B" or (
+                any(answer.startswith(pattern) for pattern in start_patterns)
+                and all(x not in answer for x in combinations)
+            ):
                 ch_cand_list.append("B")
         if "C" in valid_option:
             characters = ["A", "B", "D", "E", "F", "G"]
             combinations = [char + punct for char in characters for punct in punctuations]
             start_patterns = ["C)", "C.", "C,", "(C)"]
-            if answer == "C" or (any(answer.startswith(pattern) for pattern in start_patterns) and all(x not in answer for x in combinations)):
+            if answer == "C" or (
+                any(answer.startswith(pattern) for pattern in start_patterns)
+                and all(x not in answer for x in combinations)
+            ):
                 ch_cand_list.append("C")
         if "D" in valid_option:
             characters = ["A", "B", "C", "E", "F", "G"]
             combinations = [char + punct for char in characters for punct in punctuations]
             start_patterns = ["D)", "D.", "D,", "(D)"]
-            if answer == "D" or (any(answer.startswith(pattern) for pattern in start_patterns) and all(x not in answer for x in combinations)):
+            if answer == "D" or (
+                any(answer.startswith(pattern) for pattern in start_patterns)
+                and all(x not in answer for x in combinations)
+            ):
                 ch_cand_list.append("D")
         if "E" in valid_option:
             characters = ["A", "B", "C", "D", "F", "G"]
             combinations = [char + punct for char in characters for punct in punctuations]
             start_patterns = ["E)", "E.", "E,", "(E)"]
-            if answer == "E" or (any(answer.startswith(pattern) for pattern in start_patterns) and all(x not in answer for x in combinations)):
+            if answer == "E" or (
+                any(answer.startswith(pattern) for pattern in start_patterns)
+                and all(x not in answer for x in combinations)
+            ):
                 ch_cand_list.append("E")
         if "F" in valid_option:
             characters = ["A", "B", "C", "D", "E", "G"]
             combinations = [char + punct for char in characters for punct in punctuations]
             start_patterns = ["F)", "F.", "F,", "(F)"]
-            if answer == "F" or (any(answer.startswith(pattern) for pattern in start_patterns) and all(x not in answer for x in combinations)):
+            if answer == "F" or (
+                any(answer.startswith(pattern) for pattern in start_patterns)
+                and all(x not in answer for x in combinations)
+            ):
                 ch_cand_list.append("F")
         if "G" in valid_option:
             characters = ["A", "B", "C", "D", "E", "F"]
             combinations = [char + punct for char in characters for punct in punctuations]
 
             start_patterns = ["G)", "G.", "G,", "(G)"]
-            if answer == "G" or (any(answer.startswith(pattern) for pattern in start_patterns) and all(x not in answer for x in combinations)):
+            if answer == "G" or (
+                any(answer.startswith(pattern) for pattern in start_patterns)
+                and all(x not in answer for x in combinations)
+            ):
                 ch_cand_list.append("G")
 
         if len(ch_cand_list) == 1:
@@ -410,7 +433,13 @@ class MMUPD_Evaluator:
         messages = [
             {"role": "user", "content": prompt},
         ]
-        payload = {"model": self.model_version, "messages": messages, "temperature": temperature, "max_tokens": max_tokens, "n": n}
+        payload = {
+            "model": self.model_version,
+            "messages": messages,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+            "n": n,
+        }
 
         while patience > 0:
             patience -= 1
@@ -434,7 +463,9 @@ class MMUPD_Evaluator:
 
     def extract_answer_from_item(self, item, gt_text, eval_type, question_type, upd_type):
         options = self.extract_options(item)
-        option_str, valid_option, answer_option = self.build_option_str_w_gt(options, gt_text, eval_type, question_type=question_type, upd_type=upd_type)
+        option_str, valid_option, answer_option = self.build_option_str_w_gt(
+            options, gt_text, eval_type, question_type=question_type, upd_type=upd_type
+        )
 
         prompt = self.build_prompt(item["question"], option_str, item["prediction"], upd_type=upd_type)
         retry = 3
@@ -480,7 +511,9 @@ class MMUPD_Evaluator:
                 item = sub_data.iloc[i]
                 idx = item["index"]
                 gt_text = gt_text_map[idx] if gt_text_map is not None else None
-                ret, _, answer_option = self.extract_answer_from_item(sub_data.iloc[i], gt_text, eval_type, question_type=question_type, upd_type=upd_type)
+                ret, _, answer_option = self.extract_answer_from_item(
+                    sub_data.iloc[i], gt_text, eval_type, question_type=question_type, upd_type=upd_type
+                )
                 PRED[i] = ret
                 if eval_type == "standard":
                     if PRED[i] != GT[i]:
@@ -560,7 +593,9 @@ class MMUPD_Evaluator:
 
             sub_data = data[data["index"] % int(1e6) == idx]
 
-            ret = self.eval_sub_data(sub_data, answer_map, gt_text_map, question_type=question_type, eval_type=eval_type, upd_type=upd_type)
+            ret = self.eval_sub_data(
+                sub_data, answer_map, gt_text_map, question_type=question_type, eval_type=eval_type, upd_type=upd_type
+            )
             result[idx] = ret
             hit += ret
             tot += 1

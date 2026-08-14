@@ -181,7 +181,9 @@ class MetricType(Enum):
         try:
             return self.class_impl.match(response, correct_answer)
         except Exception as e:
-            logging.error(f"Assign 0 score - errors in metric {self.name}, likely the response has unexpected answer format. Response: {response}, Correct Answer: {correct_answer}, Error: {e}")
+            logging.error(
+                f"Assign 0 score - errors in metric {self.name}, likely the response has unexpected answer format. Response: {response}, Correct Answer: {correct_answer}, Error: {e}"
+            )
             return 0
 
     @classmethod

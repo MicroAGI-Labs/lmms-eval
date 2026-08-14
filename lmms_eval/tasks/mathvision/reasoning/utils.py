@@ -32,7 +32,9 @@ def mathvision_doc_to_text(doc, lmms_eval_specific_kwargs=None):
     return query_prompt
 
 
-mathvision_doc_to_messages = make_reasoning_doc_to_messages(mathvision_doc_to_visual, mathvision_doc_to_text, system_prompt=SYSTEM_PROMPT)
+mathvision_doc_to_messages = make_reasoning_doc_to_messages(
+    mathvision_doc_to_visual, mathvision_doc_to_text, system_prompt=SYSTEM_PROMPT
+)
 
 
 mathvision_process_results = make_reasoning_process_results("mathvista", mathvision_doc_to_text)

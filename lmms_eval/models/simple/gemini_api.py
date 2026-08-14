@@ -3,17 +3,15 @@ import os
 import pathlib
 import re
 import time
-from typing import List, Tuple
 
 from accelerate import Accelerator, DistributedType
-from loguru import logger as eval_logger
-from PIL import Image
-from tqdm import tqdm
-
 from lmms_eval.api.instance import GenerationResult, Instance, TokenCounts
 from lmms_eval.api.model import lmms
 from lmms_eval.api.registry import register_model
 from lmms_eval.models.model_utils.usage_metrics import is_budget_exceeded, log_usage
+from loguru import logger as eval_logger
+from PIL import Image
+from tqdm import tqdm
 
 try:
     import google.generativeai as genai
@@ -51,7 +49,11 @@ class GeminiAPI(lmms):
 
         accelerator = Accelerator()
         if accelerator.num_processes > 1:
-            assert accelerator.distributed_type in [DistributedType.FSDP, DistributedType.MULTI_GPU, DistributedType.DEEPSPEED], "Unsupported distributed type provided. Only DDP and FSDP are supported."
+            assert accelerator.distributed_type in [
+                DistributedType.FSDP,
+                DistributedType.MULTI_GPU,
+                DistributedType.DEEPSPEED,
+            ], "Unsupported distributed type provided. Only DDP and FSDP are supported."
             self.accelerator = accelerator
             if self.accelerator.is_local_main_process:
                 eval_logger.info(f"Using {accelerator.num_processes} devices with data parallelism")
@@ -129,7 +131,7 @@ class GeminiAPI(lmms):
 
         return result
 
-    def generate_until(self, requests) -> List[GenerationResult]:
+    def generate_until(self, requests) -> list[GenerationResult]:
         res = []
         pbar = tqdm(total=len(requests), disable=(self.rank != 0), desc="Model Responding")
 
@@ -211,10 +213,10 @@ class GeminiAPI(lmms):
         pbar.close()
         return res
 
-    def generate_until_multi_round(self, requests) -> List[str]:
+    def generate_until_multi_round(self, requests) -> list[str]:
         raise NotImplementedError("TODO: Implement multi-round generation for Gemini API")
 
-    def loglikelihood(self, requests: List[Instance]) -> List[Tuple[float, bool]]:
+    def loglikelihood(self, requests: list[Instance]) -> list[tuple[float, bool]]:
         # TODO
         assert False, "Gemini API not support"
 
@@ -239,7 +241,9 @@ class GeminiAPI(lmms):
                 info_list.append(Image.open(image_path[image_counter]))
                 image_counter += 1
             elif part == "<audio>":
-                info_list.append({"mime_type": "audio/wav", "data": pathlib.Path(audio_path[audio_counter]).read_bytes()})
+                info_list.append(
+                    {"mime_type": "audio/wav", "data": pathlib.Path(audio_path[audio_counter]).read_bytes()}
+                )
                 audio_counter += 1
             else:
                 if part == " ":
@@ -278,7 +282,9 @@ class GeminiAPI(lmms):
                 info_list.append(current_video_file)
                 video_counter += 1
             elif part == "<audio>":
-                info_list.append({"mime_type": "audio/wav", "data": pathlib.Path(audio_path[audio_counter]).read_bytes()})
+                info_list.append(
+                    {"mime_type": "audio/wav", "data": pathlib.Path(audio_path[audio_counter]).read_bytes()}
+                )
                 audio_counter += 1
             else:
                 if part == " ":

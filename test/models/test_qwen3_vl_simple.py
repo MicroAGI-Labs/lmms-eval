@@ -4,7 +4,6 @@ from unittest.mock import patch
 
 import numpy as np
 import torch
-
 from lmms_eval.models.simple.qwen3_vl import Qwen3_VL
 
 
@@ -101,7 +100,10 @@ class TestQwen3VLSimple(unittest.TestCase):
         )
 
         with (
-            patch("lmms_eval.models.simple.qwen3_vl.process_vision_info", return_value=(None, [(video_tensor.clone(), metadata)], {"fps": 30.0, "max_frames": 5})),
+            patch(
+                "lmms_eval.models.simple.qwen3_vl.process_vision_info",
+                return_value=(None, [(video_tensor.clone(), metadata)], {"fps": 30.0, "max_frames": 5}),
+            ),
             patch(
                 "lmms_eval.models.simple.qwen3_vl.decord.VideoReader",
                 _FakeVideoReader,

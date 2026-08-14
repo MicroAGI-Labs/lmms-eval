@@ -1,5 +1,4 @@
 import os
-from typing import Optional
 
 from .base import ServerInterface
 from .protocol import ServerConfig
@@ -15,7 +14,13 @@ from .providers import (
 class ProviderFactory:
     """Factory for creating judge instances based on configuration"""
 
-    _provider_classes = {"openai": OpenAIProvider, "azure": AzureOpenAIProvider, "async_openai": AsyncOpenAIProvider, "async_azure": AsyncAzureOpenAIProvider, "dummy": DummyProvider}
+    _provider_classes = {
+        "openai": OpenAIProvider,
+        "azure": AzureOpenAIProvider,
+        "async_openai": AsyncOpenAIProvider,
+        "async_azure": AsyncAzureOpenAIProvider,
+        "dummy": DummyProvider,
+    }
 
     # TODO
     # This should actually be a decorator that registers the class
@@ -25,7 +30,7 @@ class ProviderFactory:
         pass
 
     @classmethod
-    def create_provider(cls, api_type: Optional[str] = None, config: Optional[ServerConfig] = None) -> ServerInterface:
+    def create_provider(cls, api_type: str | None = None, config: ServerConfig | None = None) -> ServerInterface:
         """
         Create a judge instance based on API type
 

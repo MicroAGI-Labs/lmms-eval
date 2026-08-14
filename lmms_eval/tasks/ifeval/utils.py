@@ -1,5 +1,4 @@
 import dataclasses
-from typing import Dict, Optional, Union
 
 from lmms_eval.tasks.ifeval import instructions_registry
 from lmms_eval.utils import eval_logger
@@ -10,7 +9,7 @@ class InputExample:
     key: int
     instruction_id_list: list[str]
     prompt: str
-    kwargs: list[Dict[str, Optional[Union[str, int]]]]
+    kwargs: list[dict[str, str | int | None]]
 
 
 @dataclasses.dataclass

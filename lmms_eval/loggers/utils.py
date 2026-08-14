@@ -3,7 +3,7 @@ import pickle
 import re
 import subprocess
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple, Union
+from typing import Any
 
 import numpy as np
 from loguru import logger
@@ -11,7 +11,7 @@ from torch.utils.collect_env import get_pretty_env_info
 from transformers import __version__ as trans_version
 
 
-def remove_none_pattern(input_string: str) -> Tuple[str, bool]:
+def remove_none_pattern(input_string: str) -> tuple[str, bool]:
     """Remove the ',none' substring from the input_string if it exists at the end.
 
     Args:
@@ -41,7 +41,7 @@ def is_serializable(o: Any) -> bool:
         return False
 
 
-def _handle_non_serializable(o: Any) -> Union[int, str, list]:
+def _handle_non_serializable(o: Any) -> int | str | list:
     """Handle non-serializable objects by converting them to serializable types.
 
     Args:
@@ -60,7 +60,7 @@ def _handle_non_serializable(o: Any) -> Union[int, str, list]:
         return str(o)
 
 
-def get_commit_from_path(repo_path: Union[Path, str]) -> Optional[str]:
+def get_commit_from_path(repo_path: Path | str) -> str | None:
     try:
         git_folder = Path(repo_path, ".git")
         if git_folder.is_file():
@@ -94,7 +94,7 @@ def get_git_commit_hash():
     return git_hash
 
 
-def add_env_info(storage: Dict[str, Any]):
+def add_env_info(storage: dict[str, Any]):
     try:
         pretty_env_info = get_pretty_env_info()
     except Exception as err:
@@ -109,7 +109,7 @@ def add_env_info(storage: Dict[str, Any]):
     storage.update(added_info)
 
 
-def add_tokenizer_info(storage: Dict[str, Any], lm):
+def add_tokenizer_info(storage: dict[str, Any], lm):
     if getattr(lm, "tokenizer", False):
         try:
             tokenizer_info = {

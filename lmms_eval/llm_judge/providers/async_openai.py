@@ -1,6 +1,5 @@
 import asyncio
 import os
-from typing import Dict, List, Optional, Union
 
 import aiohttp
 from loguru import logger as eval_logger
@@ -15,7 +14,7 @@ from .openai import OpenAIProvider
 class AsyncOpenAIProvider(AsyncServerInterface):
     """Async OpenAI API implementation of the Judge interface"""
 
-    def __init__(self, config: Optional[ServerConfig] = None):
+    def __init__(self, config: ServerConfig | None = None):
         super().__init__(config)
         self.api_key = os.getenv("OPENAI_API_KEY", "")
         self.api_url = os.getenv("OPENAI_API_URL", "https://api.openai.com/v1/chat/completions")
@@ -96,7 +95,9 @@ class AsyncOpenAIProvider(AsyncServerInterface):
                             source="judge",
                         )
 
-                    return Response(content=content.strip(), model_used=model_used, usage=usage, raw_response=raw_response)
+                    return Response(
+                        content=content.strip(), model_used=model_used, usage=usage, raw_response=raw_response
+                    )
 
                 except Exception as e:
                     eval_logger.warning(f"Attempt {attempt + 1}/{config.num_retries} failed: {str(e)}")
@@ -106,7 +107,7 @@ class AsyncOpenAIProvider(AsyncServerInterface):
                         eval_logger.error(f"All {config.num_retries} attempts failed")
                         raise
 
-    async def _make_async_request(self, payload: Dict, timeout: int) -> Dict:
+    async def _make_async_request(self, payload: dict, timeout: int) -> dict:
         """Make async HTTP request to OpenAI API"""
         headers = {
             "Authorization": f"Bearer {self.api_key}",
@@ -114,11 +115,13 @@ class AsyncOpenAIProvider(AsyncServerInterface):
         }
 
         async with aiohttp.ClientSession() as session:
-            async with session.post(self.api_url, headers=headers, json=payload, timeout=aiohttp.ClientTimeout(total=timeout)) as response:
+            async with session.post(
+                self.api_url, headers=headers, json=payload, timeout=aiohttp.ClientTimeout(total=timeout)
+            ) as response:
                 response.raise_for_status()
                 return await response.json()
 
-    def _add_images_to_messages(self, messages: List[Dict], images: List[Union[str, bytes]]) -> List[Dict]:
+    def _add_images_to_messages(self, messages: list[dict], images: list[str | bytes]) -> list[dict]:
         """Add images to messages - reuse from base implementation"""
         return OpenAIProvider._add_images_to_messages(self, messages, images)
 

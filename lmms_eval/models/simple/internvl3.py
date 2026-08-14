@@ -1,5 +1,4 @@
 from datetime import timedelta
-from typing import List, Optional, Set, Tuple
 
 import numpy as np
 import numpy.typing as npt
@@ -9,15 +8,14 @@ from accelerate import Accelerator, DistributedType
 from accelerate.state import AcceleratorState
 from accelerate.utils import InitProcessGroupKwargs
 from decord import VideoReader, cpu
+from lmms_eval.api.instance import Instance
+from lmms_eval.api.model import lmms
+from lmms_eval.api.registry import register_model
 from loguru import logger as eval_logger
 from PIL import Image
 from torchvision.transforms.functional import InterpolationMode
 from tqdm import tqdm
 from transformers import AutoModel, AutoTokenizer
-
-from lmms_eval.api.instance import Instance
-from lmms_eval.api.model import lmms
-from lmms_eval.api.registry import register_model
 
 IMAGENET_MEAN = (0.485, 0.456, 0.406)
 IMAGENET_STD = (0.229, 0.224, 0.225)
@@ -52,11 +50,11 @@ def build_transform(input_size: int) -> T.Compose:
 
 def find_closest_aspect_ratio(
     aspect_ratio: float,
-    target_ratios: Set[Tuple[int, int]],
+    target_ratios: set[tuple[int, int]],
     width: int,
     height: int,
     image_size: int,
-) -> Tuple[int, int]:
+) -> tuple[int, int]:
     """Find the closest aspect ratio from a set of target ratios.
 
     Args:
@@ -70,7 +68,7 @@ def find_closest_aspect_ratio(
         The best matching (width, height) ratio tuple.
     """
     best_ratio_diff = float("inf")
-    best_ratio: Tuple[int, int] = (1, 1)
+    best_ratio: tuple[int, int] = (1, 1)
     area = width * height
     for ratio in target_ratios:
         target_aspect_ratio = ratio[0] / ratio[1]
@@ -90,7 +88,7 @@ def dynamic_preprocess(
     max_num: int = 12,
     image_size: int = 448,
     use_thumbnail: bool = False,
-) -> List[Image.Image]:
+) -> list[Image.Image]:
     """Dynamically preprocess an image by splitting it into tiles.
 
     Args:
@@ -106,10 +104,18 @@ def dynamic_preprocess(
     orig_width, orig_height = image.size
     aspect_ratio = orig_width / orig_height
 
-    target_ratios: Set[Tuple[int, int]] = set((i, j) for n in range(min_num, max_num + 1) for i in range(1, n + 1) for j in range(1, n + 1) if min_num <= i * j <= max_num)
+    target_ratios: set[tuple[int, int]] = set(
+        (i, j)
+        for n in range(min_num, max_num + 1)
+        for i in range(1, n + 1)
+        for j in range(1, n + 1)
+        if min_num <= i * j <= max_num
+    )
     sorted_ratios = sorted(target_ratios, key=lambda x: x[0] * x[1])
 
-    target_aspect_ratio = find_closest_aspect_ratio(aspect_ratio, set(sorted_ratios), orig_width, orig_height, image_size)
+    target_aspect_ratio = find_closest_aspect_ratio(
+        aspect_ratio, set(sorted_ratios), orig_width, orig_height, image_size
+    )
 
     target_width = image_size * target_aspect_ratio[0]
     target_height = image_size * target_aspect_ratio[1]
@@ -152,7 +158,7 @@ def load_image(image: Image.Image, input_size: int = 448, max_num: int = 12) -> 
 
 
 def get_index(
-    bound: Optional[Tuple[float, float]],
+    bound: tuple[float, float] | None,
     fps: float,
     max_frame: int,
     first_idx: int = 0,
@@ -177,17 +183,19 @@ def get_index(
     start_idx = max(first_idx, round(start * fps))
     end_idx = min(round(end * fps), max_frame)
     seg_size = float(end_idx - start_idx) / num_segments
-    frame_indices = np.array([int(start_idx + (seg_size / 2) + np.round(seg_size * idx)) for idx in range(num_segments)])
+    frame_indices = np.array(
+        [int(start_idx + (seg_size / 2) + np.round(seg_size * idx)) for idx in range(num_segments)]
+    )
     return frame_indices
 
 
 def load_video(
     video_path: str,
-    bound: Optional[Tuple[float, float]] = None,
+    bound: tuple[float, float] | None = None,
     input_size: int = 448,
     max_num: int = 1,
     num_segments: int = 32,
-) -> Tuple[torch.Tensor, List[int]]:
+) -> tuple[torch.Tensor, list[int]]:
     """Load and preprocess a video into pixel values.
 
     Args:
@@ -204,8 +212,8 @@ def load_video(
     max_frame = len(vr) - 1
     fps = float(vr.get_avg_fps())
 
-    pixel_values_list: List[torch.Tensor] = []
-    num_patches_list: List[int] = []
+    pixel_values_list: list[torch.Tensor] = []
+    num_patches_list: list[int] = []
     transform = build_transform(input_size=input_size)
     frame_indices = get_index(bound, fps, max_frame, first_idx=0, num_segments=num_segments)
     for frame_index in frame_indices:
@@ -299,9 +307,14 @@ class InternVL3(lmms):
                     "train_batch_size": self.batch_size_per_gpu * accelerator.num_processes,
                 }
                 AcceleratorState().deepspeed_plugin.deepspeed_config_process(must_match=True, **kwargs)
-                eval_logger.info("Detected that you are using DistributedType.DEEPSPEED. Make sure you run `accelerate config` and set zero stage to 0")
+                eval_logger.info(
+                    "Detected that you are using DistributedType.DEEPSPEED. Make sure you run `accelerate config` and set zero stage to 0"
+                )
 
-            if accelerator.distributed_type == DistributedType.FSDP or accelerator.distributed_type == DistributedType.DEEPSPEED:
+            if (
+                accelerator.distributed_type == DistributedType.FSDP
+                or accelerator.distributed_type == DistributedType.DEEPSPEED
+            ):
                 self._model = accelerator.prepare(self.model)
             else:
                 self._model = accelerator.prepare_model(self.model, evaluation_mode=True)
@@ -360,7 +373,7 @@ class InternVL3(lmms):
         """Return the world size."""
         return self._world_size
 
-    def flatten(self, input: List[List]) -> List:
+    def flatten(self, input: list[list]) -> list:
         """Flatten a nested list."""
         new_list = []
         for i in input:
@@ -368,7 +381,7 @@ class InternVL3(lmms):
                 new_list.append(j)
         return new_list
 
-    def generate_until(self, requests: List[Instance]) -> List[str]:
+    def generate_until(self, requests: list[Instance]) -> list[str]:
         """Generate responses for a list of requests.
 
         Args:
@@ -377,7 +390,7 @@ class InternVL3(lmms):
         Returns:
             List of generated response strings.
         """
-        res: List[str] = []
+        res: list[str] = []
         pbar = tqdm(total=len(requests), disable=(self.rank != 0), desc="Model Responding")
 
         for contexts, gen_kwargs, doc_to_visual, doc_id, task, split in [reg.args for reg in requests]:
@@ -405,7 +418,10 @@ class InternVL3(lmms):
                     image_num = len(visuals)
                     dynamic_max_num = max(1, min(self.max_num, self.total_max_num // image_num))
 
-                    processed_visuals = [load_image(visual, max_num=dynamic_max_num).to(torch.bfloat16).to(self._device) for visual in visuals]
+                    processed_visuals = [
+                        load_image(visual, max_num=dynamic_max_num).to(torch.bfloat16).to(self._device)
+                        for visual in visuals
+                    ]
                     pixel_values = torch.cat(processed_visuals, dim=0)
                     num_patches_list = [v.size(0) for v in processed_visuals]
                     # count how many <image> tags are already in the text
@@ -427,7 +443,9 @@ class InternVL3(lmms):
                         # e.g., We have 3 images but text only has 1 <image> tag.
                         # InternVL handles this poorly. You might want to fallback to prepending
                         # or raising an error depending on your strictness.
-                        eval_logger.warning(f"[InternVL3] Token mismatch! Text has {existing_tags} tags but {len(processed_visuals)} images provided.")
+                        eval_logger.warning(
+                            f"[InternVL3] Token mismatch! Text has {existing_tags} tags but {len(processed_visuals)} images provided."
+                        )
                         # Optional: Fallback to prepending if you suspect the tags in text are garbage
                         eval_logger.warning("[InternVL3] Fallback: Prepending image tokens to the context.")
                         image_tokens = " ".join(["<image>"] * len(processed_visuals))
@@ -455,7 +473,9 @@ class InternVL3(lmms):
                 # max_num = max(1, min(self.max_num, self.total_max_num // num_segments))
                 dynamic_max_num = max(1, min(self.max_num, self.total_max_num // self.num_frame))
 
-                pixel_values, num_patches_list = load_video(video_path, num_segments=self.num_frame, max_num=dynamic_max_num)
+                pixel_values, num_patches_list = load_video(
+                    video_path, num_segments=self.num_frame, max_num=dynamic_max_num
+                )
                 pixel_values = pixel_values.to(torch.bfloat16).to(self._device)
                 video_prefix = "".join([f"Frame{i + 1}: <image>\n" for i in range(len(num_patches_list))])
                 question = video_prefix + contexts
@@ -475,10 +495,10 @@ class InternVL3(lmms):
         pbar.close()
         return res
 
-    def loglikelihood(self, requests: List[Instance]) -> List[Tuple[float, bool]]:
+    def loglikelihood(self, requests: list[Instance]) -> list[tuple[float, bool]]:
         """Compute log-likelihood for requests. Not implemented for InternVL3."""
         raise NotImplementedError("Loglikelihood is not implemented for InternVL3.")
 
-    def generate_until_multi_round(self, requests: List[Instance]) -> List[str]:
+    def generate_until_multi_round(self, requests: list[Instance]) -> list[str]:
         """Generate multi-round responses. Not implemented for InternVL3."""
         raise NotImplementedError("Multi-round generation is not implemented for InternVL3.")

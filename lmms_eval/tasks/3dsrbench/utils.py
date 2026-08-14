@@ -12,7 +12,6 @@ The evaluation includes multiple accuracy metrics:
 
 import re
 import string
-from typing import Optional
 
 import pandas as pd
 from loguru import logger as eval_logger
@@ -68,7 +67,9 @@ def doc_to_text(doc, lmms_eval_specific_kwargs=None):
         lmms_eval_specific_kwargs = {}
 
     pre_prompt = lmms_eval_specific_kwargs.get("pre_prompt", "")
-    post_prompt = lmms_eval_specific_kwargs.get("post_prompt", "Please select the correct answer from the options above. \n")
+    post_prompt = lmms_eval_specific_kwargs.get(
+        "post_prompt", "Please select the correct answer from the options above. \n"
+    )
 
     question = doc["question"]
 
@@ -101,7 +102,7 @@ def doc_to_text(doc, lmms_eval_specific_kwargs=None):
     return prompt
 
 
-def extract_answer(text: str) -> Optional[str]:
+def extract_answer(text: str) -> str | None:
     """Extract the answer letter (A, B, C, D) from the model's response.
 
     Uses multiple regex patterns to find the answer in various formats.

@@ -2,7 +2,6 @@ import ast
 import json
 import os
 import random
-from typing import Union
 
 import regex as re
 
@@ -39,7 +38,7 @@ def read_file_to_string(file_path):
     :return: A string containing the contents of the file.
     """
     try:
-        with open(file_path, "r", encoding="utf-8") as file:
+        with open(file_path, encoding="utf-8") as file:
             return file.read()
     except FileNotFoundError:
         print(f"The file {file_path} was not found.")
@@ -61,7 +60,7 @@ def read_files_to_string(file_paths):
 
     for file_path in file_paths:
         try:
-            with open(file_path, "r", encoding="utf-8") as file:
+            with open(file_path, encoding="utf-8") as file:
                 all_contents.append(file.read())
         except FileNotFoundError:
             print(f"The file {file_path} was not found.")
@@ -72,7 +71,7 @@ def read_files_to_string(file_paths):
     return "\n".join(all_contents)
 
 
-def get_file_path(filename: Union[str, os.PathLike], search_from: Union[str, os.PathLike] = "."):
+def get_file_path(filename: str | os.PathLike, search_from: str | os.PathLike = "."):
     """
     Search for a file across a directory and return its absolute path.
 
@@ -147,7 +146,7 @@ def is_str_valid_score_format_brackets(s):
 
             scores[key] = value
 
-        fetch_words = [f"score{i+1}" for i in range(length)]
+        fetch_words = [f"score{i + 1}" for i in range(length)]
         # Check if at least 'score1' and 'score2' are present
         return all(key in scores for key in fetch_words)
 
@@ -316,7 +315,7 @@ def write_entry_to_json_file(input_string, uid, prompt_input, vision_input, outp
 
             # Initialize or load existing data
             if os.path.exists(output_file_name):
-                with open(output_file_name, "r") as json_file:
+                with open(output_file_name) as json_file:
                     data = json.load(json_file)
             else:
                 data = {}
@@ -352,7 +351,7 @@ def write_entry_to_json_file(input_string, uid, prompt_input, vision_input, outp
 
 def check_key_in_json(file_path, key):
     try:
-        with open(file_path, "r") as json_file:
+        with open(file_path) as json_file:
             data = json.load(json_file)
 
         # Check if the key exists at the top level of the JSON structure

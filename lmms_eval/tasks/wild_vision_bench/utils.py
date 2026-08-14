@@ -14,7 +14,7 @@ from loguru import logger as eval_logger
 NUM_SECONDS_TO_SLEEP = 5
 
 
-with open(Path(__file__).parent / "_default_template_yaml", "r") as f:
+with open(Path(__file__).parent / "_default_template_yaml") as f:
     raw_data = f.readlines()
     safe_data = []
     for i, line in enumerate(raw_data):
@@ -99,13 +99,13 @@ def get_chat_response(base64_image, prompt, max_retries=5, wait_time=10):
             # print(response_data)
             return response_data["choices"][0]["message"]["content"], GPT_EVAL_MODEL_NAME
         except requests.exceptions.RequestException as e:
-            eval_logger.error(f"Request failed on attempt {attempt+1}: {e}")
+            eval_logger.error(f"Request failed on attempt {attempt + 1}: {e}")
             time.sleep(wait_time)
             if attempt == max_retries - 1:
                 eval_logger.error(f"Failed to get response after {max_retries} attempts")
                 return "", GPT_EVAL_MODEL_NAME
         except Exception as e:
-            eval_logger.error(f"Error on attempt {attempt+1}: {e}")
+            eval_logger.error(f"Error on attempt {attempt + 1}: {e}")
             time.sleep(wait_time)
             return "", GPT_EVAL_MODEL_NAME
 
@@ -148,7 +148,9 @@ def wild_vision_doc_to_target(doc):
 
 def wild_vision_process_results(doc, results):
     pred = results[0]
-    user_prompt = prompt_template.format(question_1=doc["instruction"], answer_1=doc[BASELINE_MODEL_NAME], answer_2=pred)
+    user_prompt = prompt_template.format(
+        question_1=doc["instruction"], answer_1=doc[BASELINE_MODEL_NAME], answer_2=pred
+    )
     base64_image = image_to_base64(doc["image"])
     resps, gpt_name = get_chat_response(base64_image, user_prompt)
     score, _ = get_score(resps, pattern=re.compile("\[\[([AB<>=]+)\]\]"))
@@ -316,7 +318,9 @@ def wild_vision_aggregation_elo_scores(results):
 def wild_vision_aggregation_win_rates(results):
     battles = prepare_elo_data(results)
     win_rates = battles.groupby("model_b").apply(lambda x: (x["winner"] == "model_b").mean()).to_dict()
-    win_rates[BASELINE_MODEL_NAME] = battles.groupby("model_a").apply(lambda x: (x["winner"] == "model_a").mean()).get(BASELINE_MODEL_NAME, 0)
+    win_rates[BASELINE_MODEL_NAME] = (
+        battles.groupby("model_a").apply(lambda x: (x["winner"] == "model_a").mean()).get(BASELINE_MODEL_NAME, 0)
+    )
     return win_rates["evaluation_model"] * 100
 
 

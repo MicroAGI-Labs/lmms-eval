@@ -1,7 +1,7 @@
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 
-def _coerce_score(value: Any) -> Optional[float]:
+def _coerce_score(value: Any) -> float | None:
     if isinstance(value, (int, float)):
         return float(value)
     if isinstance(value, dict):
@@ -11,7 +11,7 @@ def _coerce_score(value: Any) -> Optional[float]:
     return None
 
 
-def _extract_score(sample: Dict[str, Any], score_key: str) -> Optional[float]:
+def _extract_score(sample: dict[str, Any], score_key: str) -> float | None:
     primary = _coerce_score(sample.get(score_key))
     if primary is not None:
         return primary
@@ -26,7 +26,7 @@ def _extract_score(sample: Dict[str, Any], score_key: str) -> Optional[float]:
     return None
 
 
-def _summarize_task_samples(samples: List[Dict[str, Any]], score_key: str) -> Dict[str, Any]:
+def _summarize_task_samples(samples: list[dict[str, Any]], score_key: str) -> dict[str, Any]:
     total_input_tokens = 0.0
     total_output_tokens = 0.0
     total_score = 0.0
@@ -71,13 +71,13 @@ def _summarize_task_samples(samples: List[Dict[str, Any]], score_key: str) -> Di
     }
 
 
-def build_efficiency_summary(results: Dict[str, Any]) -> Dict[str, Any]:
+def build_efficiency_summary(results: dict[str, Any]) -> dict[str, Any]:
     samples_by_task = results.get("samples")
     if not isinstance(samples_by_task, dict) or not samples_by_task:
         return {}
 
-    by_task: Dict[str, Any] = {}
-    overall: Dict[str, Any] = {
+    by_task: dict[str, Any] = {}
+    overall: dict[str, Any] = {
         "docs": 0.0,
         "docs_with_token_counts": 0.0,
         "total_input_tokens": 0.0,
@@ -108,8 +108,14 @@ def build_efficiency_summary(results: Dict[str, Any]) -> Dict[str, Any]:
         overall["total_correct_score"] += task_summary["total_correct_score"]
 
     docs_with_tokens = overall["docs_with_token_counts"]
-    overall["avg_output_tokens_per_sample"] = (overall["total_output_tokens"] / docs_with_tokens) if docs_with_tokens > 0 else 0.0
-    overall["tokens_per_correct_answer"] = (overall["total_output_tokens"] / overall["total_correct_score"]) if overall["total_correct_score"] > 0 else None
+    overall["avg_output_tokens_per_sample"] = (
+        (overall["total_output_tokens"] / docs_with_tokens) if docs_with_tokens > 0 else 0.0
+    )
+    overall["tokens_per_correct_answer"] = (
+        (overall["total_output_tokens"] / overall["total_correct_score"])
+        if overall["total_correct_score"] > 0
+        else None
+    )
 
     return {
         "by_task": by_task,

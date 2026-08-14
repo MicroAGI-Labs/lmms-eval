@@ -5,9 +5,8 @@ from functools import lru_cache
 from typing import Any
 
 from huggingface_hub import hf_hub_download
-from loguru import logger as eval_logger
-
 from lmms_eval.api.metrics import levenshtein_distance
+from loguru import logger as eval_logger
 
 try:
     import fitz as _fitz  # PyMuPDF — self-contained, no system deps
@@ -101,7 +100,9 @@ def _float_precision(value: float) -> int:
     return len(text.split(".", 1)[1])
 
 
-def _is_float_equal(reference: float, prediction: float, include_percentage: bool = False, is_close: bool = False) -> bool:
+def _is_float_equal(
+    reference: float, prediction: float, include_percentage: bool = False, is_close: bool = False
+) -> bool:
     candidates = [reference]
     if include_percentage:
         candidates = [reference / 100.0, reference, reference * 100.0]
@@ -280,7 +281,9 @@ def mmlongbench_doc_to_visual(doc):
 
     if not _HAS_PDF_RENDERER:
         if not _WARNED_MISSING_PDF_RENDERER:
-            eval_logger.warning("Neither PyMuPDF nor pdf2image is installed. MMLongBench-Doc will run with text-only prompts. Install with: pip install pymupdf")
+            eval_logger.warning(
+                "Neither PyMuPDF nor pdf2image is installed. MMLongBench-Doc will run with text-only prompts. Install with: pip install pymupdf"
+            )
             _WARNED_MISSING_PDF_RENDERER = True
         return []
 
@@ -339,7 +342,9 @@ def mmlongbench_doc_aggregate_f1(results):
     pred_positive = [item for item in results if item.get("pred_answerable", False)]
 
     recall = sum(float(item.get("score", 0.0)) for item in gt_positive) / len(gt_positive) if gt_positive else 0.0
-    precision = sum(float(item.get("score", 0.0)) for item in pred_positive) / len(pred_positive) if pred_positive else 0.0
+    precision = (
+        sum(float(item.get("score", 0.0)) for item in pred_positive) / len(pred_positive) if pred_positive else 0.0
+    )
 
     if recall + precision == 0.0:
         return 0.0

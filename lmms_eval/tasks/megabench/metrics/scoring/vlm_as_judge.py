@@ -158,7 +158,10 @@ class OpenAIVLMJudger(abc.ABC):
             if "error" in response_:
                 error_info = response_["error"]
                 print(f"Got error with type: {error_info['type']}. Message: {error_info['message']}")
-                if error_info["message"] == "Sorry! We've encountered an issue with repetitive patterns in your prompt. Please try again with a different prompt.":
+                if (
+                    error_info["message"]
+                    == "Sorry! We've encountered an issue with repetitive patterns in your prompt. Please try again with a different prompt."
+                ):
                     print(query_payload)
                     # If the model's response has too many repetitive tokens, then we give it a score of 0.
                     print("gpt-4o judge query failed...")

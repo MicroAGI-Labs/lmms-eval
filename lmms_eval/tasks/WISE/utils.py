@@ -27,8 +27,9 @@ import os
 import re
 import time
 from collections import defaultdict
+from collections.abc import Iterable, Sequence
 from threading import Lock
-from typing import Any, Dict, Iterable, List, Optional, Sequence
+from typing import Any
 
 import numpy as np
 from loguru import logger as eval_logger
@@ -120,7 +121,7 @@ def _get_float_env(name: str, default: float) -> float:
         return default
 
 
-def _get_eval_config() -> Dict[str, Any]:
+def _get_eval_config() -> dict[str, Any]:
     api_key = os.getenv("WISE_API_KEY") or os.getenv("OPENAI_API_KEY")
     if not api_key:
         raise RuntimeError("WISE_API_KEY or OPENAI_API_KEY must be set for WISE judging.")
@@ -135,7 +136,7 @@ def _get_eval_config() -> Dict[str, Any]:
     }
 
 
-def _get_openai_client(cfg: Dict[str, Any]):
+def _get_openai_client(cfg: dict[str, Any]):
     global _OPENAI_CLIENT
     if _OPENAI_CLIENT is not None:
         return _OPENAI_CLIENT
@@ -162,15 +163,15 @@ def _encode_image(path: str) -> str:
         return base64.b64encode(f.read()).decode("utf-8")
 
 
-def _msg_text(text: str) -> Dict[str, Any]:
+def _msg_text(text: str) -> dict[str, Any]:
     return {"type": "text", "text": text}
 
 
-def _msg_image_png(image_base64: str) -> Dict[str, Any]:
+def _msg_image_png(image_base64: str) -> dict[str, Any]:
     return {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{image_base64}"}}
 
 
-def _build_evaluation_messages(doc: Dict[str, Any], image_base64: str) -> List[Dict[str, Any]]:
+def _build_evaluation_messages(doc: dict[str, Any], image_base64: str) -> list[dict[str, Any]]:
     prompt = str(doc.get("Prompt") or doc.get("prompt") or "")
     explanation = str(doc.get("Explanation") or doc.get("explanation") or "")
 
@@ -235,7 +236,11 @@ Please strictly adhere to the scoring criteria and follow the template format wh
     return [
         {
             "role": "system",
-            "content": [_msg_text("You are a professional Vincennes image quality audit expert, please evaluate the image quality strictly according to the protocol.")],
+            "content": [
+                _msg_text(
+                    "You are a professional Vincennes image quality audit expert, please evaluate the image quality strictly according to the protocol."
+                )
+            ],
         },
         {
             "role": "user",
@@ -247,7 +252,7 @@ Please strictly adhere to the scoring criteria and follow the template format wh
     ]
 
 
-def _extract_scores(text: str) -> Dict[str, float]:
+def _extract_scores(text: str) -> dict[str, float]:
     """Extract three-component scores from judge response.
 
     Expected format:
@@ -277,12 +282,12 @@ def _extract_scores(text: str) -> Dict[str, float]:
     return {}
 
 
-def _call_judge(messages: List[Dict[str, Any]]) -> str:
+def _call_judge(messages: list[dict[str, Any]]) -> str:
     cfg = _get_eval_config()
     client = _get_openai_client(cfg)
     max_retries = int(cfg.get("max_retries", 3))
     call_delay = float(cfg.get("call_delay", 0.5))
-    last_error: Optional[Exception] = None
+    last_error: Exception | None = None
 
     for attempt in range(max_retries):
         try:
@@ -297,10 +302,15 @@ def _call_judge(messages: List[Dict[str, Any]]) -> str:
             return resp.choices[0].message.content if resp.choices else ""
         except Exception as e:
             last_error = e
-            retryable = any(k in str(e).lower() for k in ["timeout", "timed out", "504", "502", "503", "gateway", "rate limit", "overloaded"])
+            retryable = any(
+                k in str(e).lower()
+                for k in ["timeout", "timed out", "504", "502", "503", "gateway", "rate limit", "overloaded"]
+            )
             if retryable and attempt < max_retries - 1:
                 wait = (2**attempt) * 2
-                eval_logger.warning(f"WISE judge call failed (attempt {attempt + 1}/{max_retries}), retrying in {wait}s: {str(e)[:200]}")
+                eval_logger.warning(
+                    f"WISE judge call failed (attempt {attempt + 1}/{max_retries}), retrying in {wait}s: {str(e)[:200]}"
+                )
                 time.sleep(wait)
                 continue
             raise
@@ -308,7 +318,7 @@ def _call_judge(messages: List[Dict[str, Any]]) -> str:
     raise last_error if last_error else RuntimeError("WISE judge call failed.")
 
 
-def _judge_image(doc: Dict[str, Any], image_path: str) -> Dict[str, Any]:
+def _judge_image(doc: dict[str, Any], image_path: str) -> dict[str, Any]:
     """Judge image and calculate WiScore from three component scores.
 
     Component scores are in range 0-2.
@@ -338,7 +348,9 @@ def _judge_image(doc: Dict[str, Any], image_path: str) -> Dict[str, Any]:
                 "evaluation": response,
                 "status": "ok",
             }
-        eval_logger.warning(f"WISE judge response could not be parsed (attempt {attempt}/{MAX_EXTRACT_RETRIES}): {response[:200]}")
+        eval_logger.warning(
+            f"WISE judge response could not be parsed (attempt {attempt}/{MAX_EXTRACT_RETRIES}): {response[:200]}"
+        )
 
     return {
         "consistency": 0.0,
@@ -350,7 +362,7 @@ def _judge_image(doc: Dict[str, Any], image_path: str) -> Dict[str, Any]:
     }
 
 
-def _prompt_id(doc: Dict[str, Any]) -> int:
+def _prompt_id(doc: dict[str, Any]) -> int:
     value = doc.get("prompt_id")
     if value is None:
         value = doc.get("id")
@@ -367,7 +379,7 @@ def _category_from_prompt_id(prompt_id: int) -> str:
     return "unknown"
 
 
-def _load_prediction(results: Sequence[str]) -> Dict[str, Any]:
+def _load_prediction(results: Sequence[str]) -> dict[str, Any]:
     pred = results[0] if results else "{}"
     if isinstance(pred, dict):
         return pred
@@ -378,7 +390,7 @@ def _load_prediction(results: Sequence[str]) -> Dict[str, Any]:
         return {}
 
 
-def _image_from_prediction(pred: Dict[str, Any]) -> Optional[str]:
+def _image_from_prediction(pred: dict[str, Any]) -> str | None:
     """Read the generated image path from the model JSON response.
 
     Expected model output:
@@ -402,15 +414,15 @@ def _image_from_prediction(pred: Dict[str, Any]) -> Optional[str]:
 
 def _pack_result(
     *,
-    doc: Dict[str, Any],
-    image_path: Optional[str],
+    doc: dict[str, Any],
+    image_path: str | None,
     consistency: float = 0.0,
     realism: float = 0.0,
     aesthetic_quality: float = 0.0,
     score: float,
-    evaluation: Optional[str],
+    evaluation: str | None,
     status: str,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     prompt_id = _prompt_id(doc)
     category = _category_from_prompt_id(prompt_id)
     return {
@@ -503,7 +515,7 @@ def wise_process_results(doc, results, **kwargs):
     return metrics
 
 
-def _valid_results(results: Iterable[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def _valid_results(results: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
     valid = []
     for result in results:
         if not isinstance(result, dict) or not result.get("valid", True):
@@ -515,7 +527,7 @@ def _valid_results(results: Iterable[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return valid
 
 
-def _score_values(results: Iterable[Any]) -> List[float]:
+def _score_values(results: Iterable[Any]) -> list[float]:
     values = []
     for result in results:
         if isinstance(result, (int, float)):
@@ -529,14 +541,14 @@ def _score_values(results: Iterable[Any]) -> List[float]:
     return values
 
 
-def _mean_score(results: Iterable[Dict[str, Any]]) -> float:
+def _mean_score(results: Iterable[dict[str, Any]]) -> float:
     values = _score_values(results)
     if not values:
         return 0.0
     return float(np.mean(values))
 
 
-def _mean_for_categories(results: Iterable[Dict[str, Any]], categories: Sequence[str], label: str) -> float:
+def _mean_for_categories(results: Iterable[dict[str, Any]], categories: Sequence[str], label: str) -> float:
     categories = tuple(categories)
     valid = _valid_results(results)
     selected = [r for r in valid if r.get("category") in categories]
@@ -553,7 +565,7 @@ def _mean_for_categories(results: Iterable[Dict[str, Any]], categories: Sequence
     return score
 
 
-def _log_prompt_id_coverage(results: Sequence[Dict[str, Any]]) -> None:
+def _log_prompt_id_coverage(results: Sequence[dict[str, Any]]) -> None:
     present = {int(r["prompt_id"]) for r in results if isinstance(r.get("prompt_id"), int) and r["prompt_id"] > 0}
     if not present:
         return
@@ -562,7 +574,9 @@ def _log_prompt_id_coverage(results: Sequence[Dict[str, Any]]) -> None:
     if missing:
         preview = missing[:20]
         suffix = "..." if len(missing) > len(preview) else ""
-        eval_logger.warning(f"[WISE] Missing {len(missing)} expected prompt_ids for full WISE scoring: {preview}{suffix}")
+        eval_logger.warning(
+            f"[WISE] Missing {len(missing)} expected prompt_ids for full WISE scoring: {preview}{suffix}"
+        )
 
 
 def wise_aggregate_mean(results) -> float:
@@ -610,7 +624,7 @@ def wise_aggregate_overall_wiscore(results) -> float:
 
     _log_prompt_id_coverage(valid)
 
-    category_scores: Dict[str, List[float]] = defaultdict(list)
+    category_scores: dict[str, list[float]] = defaultdict(list)
     for result in valid:
         category = str(result.get("category") or "unknown")
         if category in WISE_WEIGHTS:

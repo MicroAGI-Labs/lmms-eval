@@ -8,9 +8,7 @@ import json
 import os
 from collections import defaultdict
 from io import BytesIO
-from typing import Dict, List, Optional
 
-import numpy as np
 from loguru import logger as eval_logger
 from openai import OpenAI
 from PIL import Image
@@ -22,7 +20,7 @@ BABYVISION_BASE_URL = os.getenv("BABYVISION_BASE_URL")
 BABYVISION_MODEL_NAME = os.getenv("BABYVISION_MODEL_NAME", "gpt-4o")
 
 
-def _get_openai_client() -> Optional[OpenAI]:
+def _get_openai_client() -> OpenAI | None:
     """Get OpenAI client instance."""
     if not BABYVISION_API_KEY:
         eval_logger.error("API key not found. Set BABYVISION_API_KEY environment variable.")
@@ -35,7 +33,7 @@ def _get_openai_client() -> Optional[OpenAI]:
     return OpenAI(**client_kwargs)
 
 
-def image_to_base64(image) -> Optional[str]:
+def image_to_base64(image) -> str | None:
     """Convert PIL Image or image path to base64 string"""
     try:
         if isinstance(image, str):
@@ -56,7 +54,7 @@ def image_to_base64(image) -> Optional[str]:
         return None
 
 
-def parse_bool_response(response_text: str) -> Optional[bool]:
+def parse_bool_response(response_text: str) -> bool | None:
     """Parse boolean response from LLM."""
     text = response_text.strip().lower()
     if "true" in text:
@@ -76,7 +74,7 @@ def _call_openai_for_evaluation(
     task_type: str,
     subtype: str,
     generation_prompt: str,
-) -> Optional[str]:
+) -> str | None:
     """Call OpenAI API for image generation evaluation."""
     input_b64 = image_to_base64(input_image)
     gt_b64 = image_to_base64(gt_image)
@@ -160,7 +158,9 @@ def babyvision_process_results(doc, results, **kwargs):
     gt_image_pil = doc["answerImage"].convert("RGB")
     generated_image_pil = Image.open(model_images[0]).convert("RGB")
 
-    model_response = _call_openai_for_evaluation(client, input_image_pil, gt_image_pil, generated_image_pil, task_type, subtype, generation_prompt)
+    model_response = _call_openai_for_evaluation(
+        client, input_image_pil, gt_image_pil, generated_image_pil, task_type, subtype, generation_prompt
+    )
 
     if model_response is None:
         eval_logger.warning(f"Model evaluation failed for taskId {task_id}")
@@ -168,7 +168,9 @@ def babyvision_process_results(doc, results, **kwargs):
 
     correct = parse_bool_response(model_response)
     if correct is None:
-        return {"babyvision_overall_accuracy": {"taskId": task_id, "correct": False, "error": "Could not parse response"}}
+        return {
+            "babyvision_overall_accuracy": {"taskId": task_id, "correct": False, "error": "Could not parse response"}
+        }
 
     return {
         "babyvision_overall_accuracy": {

@@ -1,10 +1,9 @@
 import ast
 import json
 
-from loguru import logger as eval_logger
-
 from lmms_eval.api.metrics import levenshtein_distance
 from lmms_eval.tasks._task_utils.file_utils import generate_submission_file
+from loguru import logger as eval_logger
 
 
 def multidocvqa_doc_to_text(doc, lmms_eval_specific_kwargs):
@@ -23,7 +22,10 @@ def multidocvqa_process_results(doc, results):
     pred_answer = results[0]
     answer = ast.literal_eval(doc["answers"])
 
-    return {"anls": {"questionId": int(doc["questionId"]), "answer": answer, "pred_answer": pred_answer}, "accuracy": {"questionId": int(doc["questionId"]), "answer": answer, "pred_answer": pred_answer}}
+    return {
+        "anls": {"questionId": int(doc["questionId"]), "answer": answer, "pred_answer": pred_answer},
+        "accuracy": {"questionId": int(doc["questionId"]), "answer": answer, "pred_answer": pred_answer},
+    }
 
 
 def multidocvqa_aggregate_results_anls(results):
@@ -111,4 +113,9 @@ class Evaluator:
 
 if __name__ == "__main__":
     print("-----------------")
-    multidocvqa_aggregate_results_anls([{"questionId": 1, "answer": ["answer"], "pred_answer": "pred_answer"}, {"questionId": 2, "answer": ["nswer"], "pred_answer": "nswer"}])
+    multidocvqa_aggregate_results_anls(
+        [
+            {"questionId": 1, "answer": ["answer"], "pred_answer": "pred_answer"},
+            {"questionId": 2, "answer": ["nswer"], "pred_answer": "nswer"},
+        ]
+    )

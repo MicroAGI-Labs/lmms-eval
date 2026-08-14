@@ -5,7 +5,7 @@ Tasks: Google Map Navigation, Collision Detection
 
 import re
 from io import BytesIO
-from typing import Any, Dict, List
+from typing import Any
 
 from loguru import logger as eval_logger
 from PIL import Image
@@ -51,7 +51,7 @@ Please output path for the following map:
 [Test Image]"""
 
 
-def gmap_doc_to_visual(doc: Dict) -> List[Image.Image]:
+def gmap_doc_to_visual(doc: dict) -> list[Image.Image]:
     """Get visual inputs for google map task."""
     images = []
     for key in ["example_image", "test_image"]:
@@ -64,12 +64,12 @@ def gmap_doc_to_visual(doc: Dict) -> List[Image.Image]:
     return images
 
 
-def gmap_doc_to_text(doc: Dict, lmms_eval_specific_kwargs: Dict = None) -> str:
+def gmap_doc_to_text(doc: dict, lmms_eval_specific_kwargs: dict = None) -> str:
     """Get prompt for google map task."""
     return GMAP_PROMPT
 
 
-def gmap_process_results(doc: Dict, results: List[str]) -> Dict[str, Any]:
+def gmap_process_results(doc: dict, results: list[str]) -> dict[str, Any]:
     """Process google map results - parse directions and compare."""
     result_text = results[0] if results else ""
 
@@ -128,7 +128,7 @@ def gmap_process_results(doc: Dict, results: List[str]) -> Dict[str, Any]:
     }
 
 
-def gmap_aggregate_results(results: List[Dict]) -> float:
+def gmap_aggregate_results(results: list[dict]) -> float:
     """Aggregate google map results."""
     scores = [r["score"] for r in results]
     acc = sum(scores) / len(scores) if scores else 0.0
@@ -174,7 +174,7 @@ Please analyze and determine the time needed for the car and the person passing 
 The car is moving {car_dir} with speed {car_speed}, and the person is moving {person_dir} with speed {person_speed}."""
 
 
-def collision_doc_to_visual(doc: Dict) -> List[Image.Image]:
+def collision_doc_to_visual(doc: dict) -> list[Image.Image]:
     """Get visual inputs for collision task."""
     images = []
     for key in ["icon_image", "example_image", "test_image"]:
@@ -187,7 +187,7 @@ def collision_doc_to_visual(doc: Dict) -> List[Image.Image]:
     return images
 
 
-def collision_doc_to_text(doc: Dict, lmms_eval_specific_kwargs: Dict = None) -> str:
+def collision_doc_to_text(doc: dict, lmms_eval_specific_kwargs: dict = None) -> str:
     """Get prompt for collision task."""
     return COLLISION_PROMPT_TEMPLATE.format(
         car_dir=doc.get("car_dir", ""),
@@ -197,7 +197,7 @@ def collision_doc_to_text(doc: Dict, lmms_eval_specific_kwargs: Dict = None) -> 
     )
 
 
-def collision_process_results(doc: Dict, results: List[str]) -> Dict[str, Any]:
+def collision_process_results(doc: dict, results: list[str]) -> dict[str, Any]:
     """Process collision results - parse Car/Person times and compare."""
     result_text = results[0] if results else ""
 
@@ -230,7 +230,7 @@ def collision_process_results(doc: Dict, results: List[str]) -> Dict[str, Any]:
     }
 
 
-def collision_aggregate_results(results: List[Dict]) -> float:
+def collision_aggregate_results(results: list[dict]) -> float:
     """Aggregate collision results."""
     car_scores = [r["car_score"] for r in results]
     person_scores = [r["person_score"] for r in results]
@@ -296,7 +296,7 @@ Please output path for the following map:
 [Test Image]"""
 
 
-def gmap_doc_to_text_visual_cot(doc: Dict, lmms_eval_specific_kwargs: Dict = None) -> str:
+def gmap_doc_to_text_visual_cot(doc: dict, lmms_eval_specific_kwargs: dict = None) -> str:
     """Get Visual CoT prompt for google map task."""
     return f"[GEN_PROMPT]{GMAP_GEN_PROMPT}[/GEN_PROMPT][QUESTION]{GMAP_QUESTION_PROMPT_COT}[/QUESTION]"
 
@@ -344,7 +344,7 @@ Please analyze and determine the time needed for the car and the person passing 
 The car is moving {car_dir} with speed {car_speed}, and the person is moving {person_dir} with speed {person_speed}."""
 
 
-def collision_doc_to_text_visual_cot(doc: Dict, lmms_eval_specific_kwargs: Dict = None) -> str:
+def collision_doc_to_text_visual_cot(doc: dict, lmms_eval_specific_kwargs: dict = None) -> str:
     """Get Visual CoT prompt for collision task."""
     question = COLLISION_QUESTION_TEMPLATE_COT.format(
         car_dir=doc.get("car_dir", ""),

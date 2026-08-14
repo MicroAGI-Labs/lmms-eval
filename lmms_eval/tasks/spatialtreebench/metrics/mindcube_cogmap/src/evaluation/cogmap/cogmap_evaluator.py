@@ -7,7 +7,6 @@ This module provides the CogMapEvaluator class that handles:
 """
 
 from collections import defaultdict
-from typing import Dict, Optional
 
 from ..core.base_metrics import (
     apply_filtering_to_results,
@@ -39,7 +38,7 @@ class CogMapEvaluator:
         """
         self.include_detailed_metrics = include_detailed_metrics
 
-    def _preserve_necessary_cogmap_fields(self, results: Dict) -> Dict:
+    def _preserve_necessary_cogmap_fields(self, results: dict) -> dict:
         """Preserve necessary fields in the results dictionary."""
         new_cogmap_results = {
             "parsable_json_count": results["cogmap_similarity"]["parsable_json_count"],
@@ -60,7 +59,7 @@ class CogMapEvaluator:
         results["gen_cogmap_accuracy"] = round(results["gen_cogmap_accuracy"], 4)
         return results
 
-    def evaluate(self, jsonl_path: str, output_path: Optional[str] = None) -> Dict:
+    def evaluate(self, jsonl_path: str, output_path: str | None = None) -> dict:
         """Run complete cognitive map evaluation.
 
         Args:
@@ -159,7 +158,7 @@ class CogMapEvaluator:
 
         return final_results
 
-    def _initialize_cogmap_results_structure(self) -> Dict:
+    def _initialize_cogmap_results_structure(self) -> dict:
         """Initialize results structure with cognitive map specific fields."""
         results = initialize_basic_results_structure()
 
@@ -199,7 +198,7 @@ class CogMapEvaluator:
 
         return results
 
-    def _initialize_similarity_accumulators(self) -> Dict:
+    def _initialize_similarity_accumulators(self) -> dict:
         """Initialize similarity metric accumulators."""
         return {
             "parsable_json_count": 0,
@@ -216,11 +215,11 @@ class CogMapEvaluator:
     def _extract_cognitive_map(
         self,
         cogmap_answer: str,
-        item: Dict,
+        item: dict,
         cogmap_field: str,
         item_id: str,
-        error_cases: Dict,
-    ) -> Optional[Dict]:
+        error_cases: dict,
+    ) -> dict | None:
         """Extract cognitive map from response with error handling."""
         try:
             # First try direct extraction from the answer text
@@ -261,7 +260,7 @@ class CogMapEvaluator:
             )
             return None
 
-    def _extract_grounded_cogmap(self, item: Dict) -> Optional[Dict]:
+    def _extract_grounded_cogmap(self, item: dict) -> dict | None:
         """Extract grounded cognitive map from item."""
         grounded_cogmap = item.get("grounded_cogmap")
         if isinstance(grounded_cogmap, str):
@@ -270,10 +269,10 @@ class CogMapEvaluator:
 
     def _update_similarity_metrics(
         self,
-        similarity: Dict,
-        results: Dict,
+        similarity: dict,
+        results: dict,
         setting: str,
-        total_metrics: Dict,
+        total_metrics: dict,
         include_in_overall: bool,
     ):
         """Update similarity metrics in results structure."""
@@ -337,7 +336,7 @@ class CogMapEvaluator:
                         results["settings"][setting]["cogmap_similarity"]["rotation_distribution"] = defaultdict(int)
                     results["settings"][setting]["cogmap_similarity"]["rotation_distribution"][rotation_name] += 1
 
-    def _finalize_cogmap_metrics(self, results: Dict, total_metrics: Dict):
+    def _finalize_cogmap_metrics(self, results: dict, total_metrics: dict):
         """Finalize cognitive map metrics by calculating averages and percentages."""
         filtered_total = results["total"]  # This is now the filtered total
         filtered_valid_cogmap_count = total_metrics["valid_graph_count"]
@@ -348,15 +347,27 @@ class CogMapEvaluator:
             results["cogmap_similarity"]["valid_format_count"] = total_metrics["valid_format_count"]
             results["cogmap_similarity"]["total_valid"] = filtered_valid_cogmap_count
             results["cogmap_similarity"]["valid_percent"] = (filtered_valid_cogmap_count / filtered_total) * 100
-            results["cogmap_similarity"]["isomorphic_count"] = total_metrics["isomorphic_count"]  # Backward compatibility
-            results["cogmap_similarity"]["rotation_invariant_isomorphic_count"] = total_metrics["rotation_invariant_isomorphic_count"]
+            results["cogmap_similarity"]["isomorphic_count"] = total_metrics[
+                "isomorphic_count"
+            ]  # Backward compatibility
+            results["cogmap_similarity"]["rotation_invariant_isomorphic_count"] = total_metrics[
+                "rotation_invariant_isomorphic_count"
+            ]
 
             # Calculate averages for overall metrics (using same logic as old version)
             if filtered_valid_cogmap_count > 0:
-                results["cogmap_similarity"]["avg_relative_position_accuracy"] = total_metrics["total_relative_position_accuracy"] / filtered_valid_cogmap_count
-                results["cogmap_similarity"]["avg_facing_similarity"] = total_metrics["total_facing_similarity"] / filtered_valid_cogmap_count
-                results["cogmap_similarity"]["avg_directional_similarity"] = total_metrics["total_directional_similarity"] / filtered_valid_cogmap_count
-                results["cogmap_similarity"]["avg_overall_similarity"] = total_metrics["total_overall_similarity"] / filtered_valid_cogmap_count
+                results["cogmap_similarity"]["avg_relative_position_accuracy"] = (
+                    total_metrics["total_relative_position_accuracy"] / filtered_valid_cogmap_count
+                )
+                results["cogmap_similarity"]["avg_facing_similarity"] = (
+                    total_metrics["total_facing_similarity"] / filtered_valid_cogmap_count
+                )
+                results["cogmap_similarity"]["avg_directional_similarity"] = (
+                    total_metrics["total_directional_similarity"] / filtered_valid_cogmap_count
+                )
+                results["cogmap_similarity"]["avg_overall_similarity"] = (
+                    total_metrics["total_overall_similarity"] / filtered_valid_cogmap_count
+                )
 
         # Setting-specific metrics (using same logic as old version)
         for setting, stats in results["settings"].items():
@@ -372,14 +383,14 @@ class CogMapEvaluator:
                 stats["cogmap_similarity"]["avg_directional_similarity"] /= setting_valid
                 stats["cogmap_similarity"]["avg_overall_similarity"] /= setting_valid
 
-    def _print_results(self, results: Dict):
+    def _print_results(self, results: dict):
         """Print results with cognitive map specific information."""
         print_basic_results(results)
 
         if self.include_detailed_metrics and "cogmap_similarity" in results:
             self._print_cogmap_metrics(results)
 
-    def _print_cogmap_metrics(self, results: Dict):
+    def _print_cogmap_metrics(self, results: dict):
         """Print cognitive map specific metrics."""
         cogmap_sim = results["cogmap_similarity"]
         total = results["total"]

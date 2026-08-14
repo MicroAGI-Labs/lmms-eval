@@ -1,9 +1,5 @@
 import time
 import warnings
-from typing import List
-
-from loguru import logger as eval_logger
-from tqdm import tqdm
 
 from lmms_eval import utils
 from lmms_eval.api.instance import GenerationResult, Instance, TokenCounts
@@ -11,6 +7,8 @@ from lmms_eval.api.registry import register_model
 from lmms_eval.models.model_utils.gen_metrics import log_metrics
 from lmms_eval.models.simple.llava_hf import LlavaHf as LlavaHfSimple
 from lmms_eval.protocol import ChatMessages
+from loguru import logger as eval_logger
+from tqdm import tqdm
 
 warnings.filterwarnings("ignore")
 
@@ -25,7 +23,7 @@ VICUNA_CHAT_TEMPLATE = "{% for message in messages %}{% if loop.index0 == 0 %}A 
 class LlavaHf(LlavaHfSimple):
     is_simple = False
 
-    def generate_until(self, requests: List[Instance]) -> List[GenerationResult]:
+    def generate_until(self, requests: list[Instance]) -> list[GenerationResult]:
         res = []
 
         # A dummy collate here to sort by doc id
@@ -37,7 +35,11 @@ class LlavaHf(LlavaHfSimple):
         # in the same batch.
         re_ords = utils.Collator([reg.args for reg in requests], _collate, group_fn=lambda x: x[2], grouping=True)
         chunks = re_ords.get_batched(n=self.batch_size, batch_fn=None)
-        num_iters = len(requests) // self.batch_size if len(requests) % self.batch_size == 0 else len(requests) // self.batch_size + 1
+        num_iters = (
+            len(requests) // self.batch_size
+            if len(requests) % self.batch_size == 0
+            else len(requests) // self.batch_size + 1
+        )
         pbar = tqdm(total=num_iters, disable=(self.rank != 0), desc="Model Responding")
         total_elapsed_time = 0
         total_tokens = 0
@@ -46,7 +48,7 @@ class LlavaHf(LlavaHfSimple):
             task = task[0]
             split = split[0]
             chat_messages = [doc_to_messages[0](self.task_dict[task][split][ids]) for ids in doc_id]
-            chat_messages: List[ChatMessages] = [ChatMessages(**{"messages": message}) for message in chat_messages]
+            chat_messages: list[ChatMessages] = [ChatMessages(**{"messages": message}) for message in chat_messages]
             visuals = []
             videos = []
             for messages in chat_messages:
@@ -65,7 +67,9 @@ class LlavaHf(LlavaHfSimple):
 
             if len(videos) == 0:
                 videos = None
-            inputs = self._image_processor(images=visuals, videos=videos, text=text, return_tensors="pt").to(self._device, self.model.dtype)
+            inputs = self._image_processor(images=visuals, videos=videos, text=text, return_tensors="pt").to(
+                self._device, self.model.dtype
+            )
 
             # we assume all gen kwargs in the batch are the same
             # this is safe to assume because the `grouper` object ensures it.
@@ -112,7 +116,9 @@ class LlavaHf(LlavaHfSimple):
             if self.accelerator.is_main_process and doc_id[0] % 100 == 0:
                 eval_logger.debug(f"Generated text for doc ID {doc_id[0]}:\n\n{text_output}\n")
 
-            token_counts = TokenCounts(output_tokens=len(generated_ids_trimmed[0])) if generated_ids_trimmed is not None else None
+            token_counts = (
+                TokenCounts(output_tokens=len(generated_ids_trimmed[0])) if generated_ids_trimmed is not None else None
+            )
             res.append(GenerationResult(text=text_output, token_counts=token_counts))
             self.cache_hook.add_partial("generate_until", (text, gen_kwargs), text_output)
             pbar.update(1)

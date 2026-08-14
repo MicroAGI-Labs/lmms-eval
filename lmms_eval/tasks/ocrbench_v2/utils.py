@@ -147,13 +147,29 @@ def ocrbench_v2_process_results(doc, results):
     elif data_type == "handwritten answer extraction cn":
         if "简答" in question:
             ocr_metric = cal_per_metrics(pred, gt_ans[0])
-            score = (get_value_or_zero(ocr_metric["bleu"]) + get_value_or_zero(ocr_metric["meteor"]) + get_value_or_zero(ocr_metric["f_measure"]) + (1 - get_value_or_zero(ocr_metric["edit_dist"]))) / 4
+            score = (
+                get_value_or_zero(ocr_metric["bleu"])
+                + get_value_or_zero(ocr_metric["meteor"])
+                + get_value_or_zero(ocr_metric["f_measure"])
+                + (1 - get_value_or_zero(ocr_metric["edit_dist"]))
+            ) / 4
         else:
             assert len(gt_ans) == 1
             answer = gt_ans[0]
             chars = list(answer)
             if len(answer) > 1:
-                answer_list = ["".join(chars), ".".join(chars), ". ".join(chars), ",".join(chars), ", ".join(chars), "、".join(chars), ";".join(chars), "; ".join(chars), " ".join(chars), "和".join(chars)]
+                answer_list = [
+                    "".join(chars),
+                    ".".join(chars),
+                    ". ".join(chars),
+                    ",".join(chars),
+                    ", ".join(chars),
+                    "、".join(chars),
+                    ";".join(chars),
+                    "; ".join(chars),
+                    " ".join(chars),
+                    "和".join(chars),
+                ]
                 max_score = 0
                 for answer in answer_list:
                     if answer in pred:
@@ -321,7 +337,9 @@ def ocrbench_v2_process_results(doc, results):
             score = 0
         else:
             ocr_metric = cal_per_metrics(pred, gt_ans[0])
-            score = (ocr_metric["bleu"] + ocr_metric["meteor"] + ocr_metric["f_measure"] + (1 - ocr_metric["edit_dist"])) / 4
+            score = (
+                ocr_metric["bleu"] + ocr_metric["meteor"] + ocr_metric["f_measure"] + (1 - ocr_metric["edit_dist"])
+            ) / 4
 
     elif data_type == "fine-grained text recognition en":
         if not isinstance(pred, str):
@@ -330,13 +348,23 @@ def ocrbench_v2_process_results(doc, results):
             score = 0
         else:
             ocr_metric = cal_per_metrics(pred, gt_ans[0])
-            score = (get_value_or_zero(ocr_metric["bleu"]) + get_value_or_zero(ocr_metric["meteor"]) + get_value_or_zero(ocr_metric["f_measure"]) + (1 - get_value_or_zero(ocr_metric["edit_dist"]))) / 4
+            score = (
+                get_value_or_zero(ocr_metric["bleu"])
+                + get_value_or_zero(ocr_metric["meteor"])
+                + get_value_or_zero(ocr_metric["f_measure"])
+                + (1 - get_value_or_zero(ocr_metric["edit_dist"]))
+            ) / 4
     elif data_type == "full-page OCR en":
         if not pred:
             score = 0
         else:
             ocr_metric = cal_per_metrics(pred, gt_ans[0])
-            score = (get_value_or_zero(ocr_metric["bleu"]) + get_value_or_zero(ocr_metric["meteor"]) + get_value_or_zero(ocr_metric["f_measure"]) + (1 - get_value_or_zero(ocr_metric["edit_dist"]))) / 4
+            score = (
+                get_value_or_zero(ocr_metric["bleu"])
+                + get_value_or_zero(ocr_metric["meteor"])
+                + get_value_or_zero(ocr_metric["f_measure"])
+                + (1 - get_value_or_zero(ocr_metric["edit_dist"]))
+            ) / 4
 
     elif data_type == "full-page OCR cn":
         if not isinstance(pred, str):
@@ -346,7 +374,9 @@ def ocrbench_v2_process_results(doc, results):
                 score = 0
             else:
                 ocr_metric = cal_per_metrics(pred, gt_ans[0])
-                score = (ocr_metric["bleu"] + ocr_metric["meteor"] + ocr_metric["f_measure"] + (1 - ocr_metric["edit_dist"])) / 4
+                score = (
+                    ocr_metric["bleu"] + ocr_metric["meteor"] + ocr_metric["f_measure"] + (1 - ocr_metric["edit_dist"])
+                ) / 4
 
     elif data_type == "text grounding en":
         if not isinstance(pred, str):
@@ -385,9 +415,24 @@ def calculate_average_score(categories, score_buckets):
     return total_score / total_count
 
 
-ENGLISH_TASKS = ["text_recognition_en", "text_detection_en", "text_spotting_en", "relationship_extraction_en", "element_parsing_en", "mathematical_calculation_en", "visual_text_understanding_en", "knowledge_reasoning_en"]
+ENGLISH_TASKS = [
+    "text_recognition_en",
+    "text_detection_en",
+    "text_spotting_en",
+    "relationship_extraction_en",
+    "element_parsing_en",
+    "mathematical_calculation_en",
+    "visual_text_understanding_en",
+    "knowledge_reasoning_en",
+]
 
-CHINESE_TASKS = ["text_recognition_cn", "relationship_extraction_cn", "element_parsing_cn", "visual_text_understanding_cn", "knowledge_reasoning_cn"]
+CHINESE_TASKS = [
+    "text_recognition_cn",
+    "relationship_extraction_cn",
+    "element_parsing_cn",
+    "visual_text_understanding_cn",
+    "knowledge_reasoning_cn",
+]
 
 
 def _fill_score_buckets(results):
@@ -461,7 +506,11 @@ def ocrbench_v2_aggregate_accuracy(results, args):
     en_count = sum(len(score_buckets[t]) for t in ENGLISH_TASKS)
     cn_count = sum(len(score_buckets[t]) for t in CHINESE_TASKS)
     total = en_count + cn_count
-    Final_score = (OCRBench_v2_English_subset_score * en_count + OCRBench_v2_Chinese_subset_score * cn_count) / total if total > 0 else 0.0
+    Final_score = (
+        (OCRBench_v2_English_subset_score * en_count + OCRBench_v2_Chinese_subset_score * cn_count) / total
+        if total > 0
+        else 0.0
+    )
     file_name = generate_submission_file("ocrbench_v2_results.txt", args, subpath="results")
     with open(file_name, "w") as f:
         print("######################### OCRBench v2 ##########################", file=f)

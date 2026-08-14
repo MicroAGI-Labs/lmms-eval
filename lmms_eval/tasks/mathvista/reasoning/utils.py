@@ -2,7 +2,6 @@ from pathlib import Path
 
 import pandas as pd
 import yaml
-
 from lmms_eval.tasks._task_utils.reasoning_utils import compute_score
 from lmms_eval.tasks.mathvista.mathvista_evals import MathVistaEvaluator
 
@@ -12,7 +11,7 @@ SYSTEM_PROMPT = (
     "Please provide a clear, concise response within <answer> </answer> tags that directly addresses the question."
 )
 
-with open(Path(__file__).parent / "mathvista_testmini_cot.yaml", "r") as f:
+with open(Path(__file__).parent / "mathvista_testmini_cot.yaml") as f:
     raw_data = f.readlines()
     safe_data = []
     for i, line in enumerate(raw_data):
@@ -58,7 +57,9 @@ def mathvista_doc_to_messages(doc, lmms_eval_specific_kwargs=None):
     visuals = mathvista_doc_to_visual(doc)
 
     user_messages = []
-    user_messages.append({"role": "user", "content": [{"type": "image", "url": visuals[0]}, {"type": "text", "text": query_prompt}]})
+    user_messages.append(
+        {"role": "user", "content": [{"type": "image", "url": visuals[0]}, {"type": "text", "text": query_prompt}]}
+    )
 
     return system_messages + user_messages
 
@@ -81,11 +82,16 @@ def mathvista_process_results(doc, results):
             ground_truth = options[choice_index]
         else:
             ground_truth = doc["answer"]
-        score_dict = compute_score(data_source="mathvista", solution_str=pred.strip(), ground_truth=ground_truth, extra_info=extra_info)
+        score_dict = compute_score(
+            data_source="mathvista", solution_str=pred.strip(), ground_truth=ground_truth, extra_info=extra_info
+        )
         acc_score += score_dict["acc_score"]
         format_score += score_dict.get("format_reward_score", 0.0)
 
-    return {"acc_score": acc_score / len(results) if results else 0.0, "format_score": format_score / len(results) if results else 0.0}
+    return {
+        "acc_score": acc_score / len(results) if results else 0.0,
+        "format_score": format_score / len(results) if results else 0.0,
+    }
 
 
 def mathvista_aggregate_results(results, args, *, calculate_gain=False, random_scores=None):
@@ -101,7 +107,17 @@ def mathvista_aggregate_results(results, args, *, calculate_gain=False, random_s
 
     results_dict = {result["question_id"]: result for result in results}
     df = pd.DataFrame(results_dict).T
-    target_keys = ["question_type", "answer_type", "language", "source", "category", "task", "context", "grade", "skills"]
+    target_keys = [
+        "question_type",
+        "answer_type",
+        "language",
+        "source",
+        "category",
+        "task",
+        "context",
+        "grade",
+        "skills",
+    ]
 
     for key in target_keys:
         values = df[key].explode().unique() if key == "skills" else df[key].unique()
@@ -119,7 +135,9 @@ def mathvista_aggregate_results(results, args, *, calculate_gain=False, random_s
                 scores[key]["acc_gain"] = gain
             else:
                 for sub_key in scores[key]:
-                    gain = round(float(scores[key][sub_key]["accuracy"]) - float(random_scores[key][sub_key]["accuracy"]), 2)
+                    gain = round(
+                        float(scores[key][sub_key]["accuracy"]) - float(random_scores[key][sub_key]["accuracy"]), 2
+                    )
                     scores[key][sub_key]["acc_gain"] = gain
 
     if scores["average"]["accuracy"] == 0:

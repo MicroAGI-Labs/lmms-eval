@@ -8,7 +8,7 @@ import requests
 import yaml
 from loguru import logger as eval_logger
 
-with open(Path(__file__).parent / "_default_template_yaml", "r") as f:
+with open(Path(__file__).parent / "_default_template_yaml") as f:
     raw_data = f.readlines()
     safe_data = []
     for i, line in enumerate(raw_data):
@@ -171,13 +171,13 @@ def parse_score(review):
         return correctness, int(score), reason
     except SyntaxError as e:
         eval_logger.error(f"Syntax error parsing the review string: {e}. Review content: {review}")
-        return "incorrect", int(0), ""
+        return "incorrect", 0, ""
     except ValueError as e:
         eval_logger.error(f"Value error parsing the review string: {e}. Review content: {review}")
-        return "incorrect", int(0), ""
+        return "incorrect", 0, ""
     except Exception as e:
         eval_logger.error(f"Unexpected error parsing the review string: {e}. Review content: {review}")
-        return "incorrect", int(0), ""
+        return "incorrect", 0, ""
 
 
 # Process result for evaluation in temporal task
@@ -206,8 +206,26 @@ def cvrr_process_results(doc, result):
         reason = ""
 
     return {
-        "gpt_eval_score": {"VideoID": doc["VideoID"], "Q": doc["Q"], "A": doc["A"], "pred": pred, "DimensionName": doc["DimensionName"], "correctness": correctness, "score": score, "reason": reason},
-        "gpt_eval_accuracy": {"VideoID": doc["VideoID"], "Q": doc["Q"], "A": doc["A"], "pred": pred, "DimensionName": doc["DimensionName"], "correctness": correctness, "score": score, "reason": reason},
+        "gpt_eval_score": {
+            "VideoID": doc["VideoID"],
+            "Q": doc["Q"],
+            "A": doc["A"],
+            "pred": pred,
+            "DimensionName": doc["DimensionName"],
+            "correctness": correctness,
+            "score": score,
+            "reason": reason,
+        },
+        "gpt_eval_accuracy": {
+            "VideoID": doc["VideoID"],
+            "Q": doc["Q"],
+            "A": doc["A"],
+            "pred": pred,
+            "DimensionName": doc["DimensionName"],
+            "correctness": correctness,
+            "score": score,
+            "reason": reason,
+        },
     }
 
 

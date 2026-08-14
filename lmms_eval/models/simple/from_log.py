@@ -2,15 +2,13 @@ import json
 import os
 import re
 from datetime import datetime
-from typing import List, Tuple
 
 from accelerate import Accelerator, DistributedType
-from loguru import logger as eval_logger
-from tqdm import tqdm
-
 from lmms_eval.api.instance import Instance
 from lmms_eval.api.model import lmms
 from lmms_eval.api.registry import register_model
+from loguru import logger as eval_logger
+from tqdm import tqdm
 
 
 @register_model("from_log")
@@ -52,7 +50,7 @@ class FromLog(lmms):
                         try:
                             log_file = os.path.join(root, file)
 
-                            with open(log_file, "r") as f:
+                            with open(log_file) as f:
                                 log_data = json.load(f)
 
                             # check if model is matched
@@ -78,7 +76,11 @@ class FromLog(lmms):
                             else:
                                 log_time = "unknown"
 
-                            if task not in self.logs or (self.logs[task]["time"] == "unknown" or datetime.strptime(log_time, "%m%d_%H%M") > datetime.strptime(self.logs[task]["time"], "%m%d_%H%M")):
+                            if task not in self.logs or (
+                                self.logs[task]["time"] == "unknown"
+                                or datetime.strptime(log_time, "%m%d_%H%M")
+                                > datetime.strptime(self.logs[task]["time"], "%m%d_%H%M")
+                            ):
                                 self.logs[task] = {"time": log_time, "logs": logs}
 
                         except Exception:
@@ -86,7 +88,11 @@ class FromLog(lmms):
 
         accelerator = Accelerator()
         if accelerator.num_processes > 1:
-            assert accelerator.distributed_type in [DistributedType.FSDP, DistributedType.MULTI_GPU, DistributedType.DEEPSPEED], "Unsupported distributed type provided. Only DDP and FSDP are supported."
+            assert accelerator.distributed_type in [
+                DistributedType.FSDP,
+                DistributedType.MULTI_GPU,
+                DistributedType.DEEPSPEED,
+            ], "Unsupported distributed type provided. Only DDP and FSDP are supported."
             self.accelerator = accelerator
             if self.accelerator.is_local_main_process:
                 eval_logger.info(f"Using {accelerator.num_processes} devices with data parallelism")
@@ -99,7 +105,7 @@ class FromLog(lmms):
 
         self.device = self.accelerator.device
 
-    def generate_until(self, requests) -> List[str]:
+    def generate_until(self, requests) -> list[str]:
         res = []
         pbar = tqdm(total=len(requests), disable=(self.rank != 0), desc="Model Responding")
 
@@ -111,9 +117,9 @@ class FromLog(lmms):
         pbar.close()
         return res
 
-    def loglikelihood(self, requests: List[Instance]) -> List[Tuple[float, bool]]:
+    def loglikelihood(self, requests: list[Instance]) -> list[tuple[float, bool]]:
         # TODO
         assert False, "not support"
 
-    def generate_until_multi_round(self, requests) -> List[str]:
+    def generate_until_multi_round(self, requests) -> list[str]:
         return generate_until(self, requests)

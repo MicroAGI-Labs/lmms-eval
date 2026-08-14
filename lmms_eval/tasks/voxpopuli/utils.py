@@ -1,4 +1,3 @@
-import os
 import re
 from collections import defaultdict
 
@@ -6,7 +5,24 @@ import numpy as np
 from loguru import logger as eval_logger
 
 # Language code mapping (voxpopuli uses integer codes)
-LANGUAGE_MAP = {0: "en", 1: "de", 2: "fr", 3: "es", 4: "pl", 5: "it", 6: "ro", 7: "hu", 8: "cs", 9: "nl", 10: "fi", 11: "hr", 12: "sk", 13: "sl", 14: "et", 15: "lt"}
+LANGUAGE_MAP = {
+    0: "en",
+    1: "de",
+    2: "fr",
+    3: "es",
+    4: "pl",
+    5: "it",
+    6: "ro",
+    7: "hu",
+    8: "cs",
+    9: "nl",
+    10: "fi",
+    11: "hr",
+    12: "sk",
+    13: "sl",
+    14: "et",
+    15: "lt",
+}
 
 
 def _fallback_silent_audio(sampling_rate: int = 16000):
@@ -89,7 +105,9 @@ def voxpopuli_doc_to_audio(doc):
         if audio_array.dtype != np.float32:
             audio_array = audio_array.astype(np.float32)
 
-        eval_logger.debug(f"Audio array shape: {audio_array.shape}, dtype: {audio_array.dtype}, sampling_rate: {sampling_rate}")
+        eval_logger.debug(
+            f"Audio array shape: {audio_array.shape}, dtype: {audio_array.dtype}, sampling_rate: {sampling_rate}"
+        )
 
         return [{"array": audio_array, "sampling_rate": sampling_rate}]
 
@@ -181,7 +199,10 @@ def extract_transcription(text):
             return match.group(1).strip()
 
     # Pattern 3: Text enclosed in quotes (single or double)
-    quote_patterns = [r"^['\"](.+?)['\"]$", r"['\"]([^'\"]{20,})['\"]"]  # Entire text in quotes  # Long text in quotes (at least 20 chars)
+    quote_patterns = [
+        r"^['\"](.+?)['\"]$",
+        r"['\"]([^'\"]{20,})['\"]",
+    ]  # Entire text in quotes  # Long text in quotes (at least 20 chars)
 
     for pattern in quote_patterns:
         match = re.search(pattern, text, re.DOTALL)

@@ -27,16 +27,24 @@ class VIEScore:
 
         self.context = vie_prompts._context_no_delimit
         if self.task == "t2i":
-            self.SC_prompt = "\n".join([self.context, vie_prompts._prompts_0shot_one_image_gen_rule, vie_prompts._prompts_0shot_t2i_rule_SC])
+            self.SC_prompt = "\n".join(
+                [self.context, vie_prompts._prompts_0shot_one_image_gen_rule, vie_prompts._prompts_0shot_t2i_rule_SC]
+            )
             self.PQ_prompt = "\n".join([self.context, vie_prompts._prompts_0shot_rule_PQ])
         elif self.task == "tie":
-            self.SC_prompt = "\n".join([self.context, vie_prompts._prompts_0shot_two_image_edit_rule, vie_prompts._prompts_0shot_tie_rule_SC])
+            self.SC_prompt = "\n".join(
+                [self.context, vie_prompts._prompts_0shot_two_image_edit_rule, vie_prompts._prompts_0shot_tie_rule_SC]
+            )
             self.PQ_prompt = "\n".join([self.context, vie_prompts._prompts_0shot_rule_PQ])
         elif self.task == "t2v":
-            self.SC_prompt = "\n".join([self.context, vie_prompts._prompts_0shot_one_video_gen_rule, vie_prompts._prompts_0shot_t2v_rule_SC])
+            self.SC_prompt = "\n".join(
+                [self.context, vie_prompts._prompts_0shot_one_video_gen_rule, vie_prompts._prompts_0shot_t2v_rule_SC]
+            )
             self.PQ_prompt = "\n".join([self.context, vie_prompts._prompts_0shot_t2v_rule_PQ])
 
-    def evaluate(self, image_prompts, text_prompt, extract_overall_score_only=False, extract_all_score=True, echo_output=False):
+    def evaluate(
+        self, image_prompts, text_prompt, extract_overall_score_only=False, extract_all_score=True, echo_output=False
+    ):
         if not isinstance(image_prompts, list):
             image_prompts = [image_prompts]
 

@@ -2,9 +2,8 @@ import json
 import os
 import uuid
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any
 
-import numpy as np
 import torch
 from accelerate import (
     Accelerator,
@@ -14,13 +13,12 @@ from accelerate import (
     load_checkpoint_and_dispatch,
 )
 from huggingface_hub import snapshot_download
-from loguru import logger as eval_logger
-from PIL import Image
-from tqdm import tqdm
-
 from lmms_eval.api.instance import Instance
 from lmms_eval.api.model import lmms
 from lmms_eval.api.registry import register_model
+from loguru import logger as eval_logger
+from PIL import Image
+from tqdm import tqdm
 
 # Try to import Bagel dependencies
 try:
@@ -45,7 +43,7 @@ except ImportError as e:
 
 
 # Mode-specific base parameters as specified by user
-BASE_PARAMS: Dict[str, Dict[str, Any]] = {
+BASE_PARAMS: dict[str, dict[str, Any]] = {
     "generate": dict(
         cfg_text_scale=4.0,
         cfg_img_scale=1.0,
@@ -135,32 +133,36 @@ class BagelUMM(lmms):
         self,
         pretrained: str = "",
         mode: str = "understanding",
-        device: Optional[str] = "cuda",
-        device_map: Optional[str] = "auto",
-        batch_size: Optional[Union[int, str]] = 1,
-        torch_dtype: Optional[str] = "bfloat16",
+        device: str | None = "cuda",
+        device_map: str | None = "auto",
+        batch_size: int | str | None = 1,
+        torch_dtype: str | None = "bfloat16",
         use_cache: bool = True,
-        attn_implementation: Optional[str] = None,
+        attn_implementation: str | None = None,
         # Generation parameters (can override mode defaults)
-        max_think_token_n: Optional[int] = None,
-        do_sample: Optional[bool] = None,
+        max_think_token_n: int | None = None,
+        do_sample: bool | None = None,
         text_temperature: float = 0.3,
-        cfg_text_scale: Optional[float] = None,
-        cfg_img_scale: Optional[float] = None,
-        cfg_interval: Optional[List[float]] = None,
-        timestep_shift: Optional[float] = None,
-        num_timesteps: Optional[int] = None,
-        cfg_renorm_min: Optional[float] = None,
-        cfg_renorm_type: Optional[str] = None,
+        cfg_text_scale: float | None = None,
+        cfg_img_scale: float | None = None,
+        cfg_interval: list[float] | None = None,
+        timestep_shift: float | None = None,
+        num_timesteps: int | None = None,
+        cfg_renorm_min: float | None = None,
+        cfg_renorm_type: str | None = None,
         # Image generation settings
-        image_shapes: Tuple[int, int] = (1024, 1024),
-        output_dir: Optional[str] = None,
+        image_shapes: tuple[int, int] = (1024, 1024),
+        output_dir: str | None = None,
         **kwargs,
     ) -> None:
         super().__init__()
 
         if not BAGEL_AVAILABLE:
-            raise ImportError(f"Failed to import Bagel dependencies: {BAGEL_IMPORT_ERROR}\n" "Please install the Bagel package by running:\n" "uv pip install git+https://github.com/oscarqjh/Bagel.git")
+            raise ImportError(
+                f"Failed to import Bagel dependencies: {BAGEL_IMPORT_ERROR}\n"
+                "Please install the Bagel package by running:\n"
+                "uv pip install git+https://github.com/oscarqjh/Bagel.git"
+            )
 
         # Validate mode
         if mode not in BASE_PARAMS:
@@ -169,7 +171,9 @@ class BagelUMM(lmms):
         # Validate attention implementation
         valid_attn_implementations = [None, "flash_attention_2", "sdpa", "eager"]
         if attn_implementation not in valid_attn_implementations:
-            raise ValueError(f"attn_implementation must be one of {valid_attn_implementations}, got {attn_implementation}")
+            raise ValueError(
+                f"attn_implementation must be one of {valid_attn_implementations}, got {attn_implementation}"
+            )
         self.attn_implementation = attn_implementation
 
         self.pretrained = pretrained
@@ -238,7 +242,7 @@ class BagelUMM(lmms):
 
             # Non-main processes read the output_dir from temp file
             if not accelerator.is_main_process:
-                with open("/tmp/bagel_output_dir.txt", "r") as f:
+                with open("/tmp/bagel_output_dir.txt") as f:
                     self.output_dir = f.read().strip()
 
         # Load model
@@ -293,7 +297,9 @@ class BagelUMM(lmms):
                 # Non-main processes get the cached path
                 if not self.accelerator.is_main_process:
                     user_cache_dir = os.path.expanduser("~/.cache/huggingface/hub")
-                    model_path = snapshot_download(repo_id=self.pretrained, cache_dir=user_cache_dir, local_files_only=True)
+                    model_path = snapshot_download(
+                        repo_id=self.pretrained, cache_dir=user_cache_dir, local_files_only=True
+                    )
 
         # Load LLM config
         llm_config = Qwen2Config.from_json_file(os.path.join(model_path, "llm_config.json"))
@@ -407,7 +413,9 @@ class BagelUMM(lmms):
                 break
 
         if checkpoint is None:
-            raise FileNotFoundError(f"Could not find checkpoint in {model_path}. " f"Expected one of: {checkpoint_candidates}")
+            raise FileNotFoundError(
+                f"Could not find checkpoint in {model_path}. Expected one of: {checkpoint_candidates}"
+            )
 
         eval_logger.info(f"Loading checkpoint from: {checkpoint}")
 
@@ -478,7 +486,7 @@ class BagelUMM(lmms):
     def world_size(self):
         return self._world_size
 
-    def loglikelihood(self, requests: List[Instance]) -> List[Tuple[float, bool]]:
+    def loglikelihood(self, requests: list[Instance]) -> list[tuple[float, bool]]:
         raise NotImplementedError("Loglikelihood is not implemented for Bagel")
 
     def flatten(self, input):
@@ -488,7 +496,7 @@ class BagelUMM(lmms):
                 new_list.append(j)
         return new_list
 
-    def generate_until(self, requests: List[Instance]) -> List[str]:
+    def generate_until(self, requests: list[Instance]) -> list[str]:
         res = []
         pbar = tqdm(total=len(requests), disable=(self.rank != 0), desc="Model Responding")
 
@@ -536,7 +544,9 @@ class BagelUMM(lmms):
                 context_parts = contexts.split("<image>")
 
                 # Sanity check: splitting by N tags should give N+1 parts
-                assert len(context_parts) == num_visuals + 1, f"Split error: expected {num_visuals + 1} parts, got {len(context_parts)}"
+                assert len(context_parts) == num_visuals + 1, (
+                    f"Split error: expected {num_visuals + 1} parts, got {len(context_parts)}"
+                )
 
                 for i, text_part in enumerate(context_parts):
                     # Add text part (may be empty string after strip)
@@ -550,11 +560,19 @@ class BagelUMM(lmms):
 
             else:
                 # Case 3: Mismatch between <image> tokens and actual visuals
-                raise ValueError(f"Mismatch between <image> tokens and visuals: " f"Found {num_image_tags} <image> token(s) in context, " f"but received {num_visuals} visual(s). " f"Context preview: '{contexts[:200]}...'")
+                raise ValueError(
+                    f"Mismatch between <image> tokens and visuals: "
+                    f"Found {num_image_tags} <image> token(s) in context, "
+                    f"but received {num_visuals} visual(s). "
+                    f"Context preview: '{contexts[:200]}...'"
+                )
 
             # Final sanity check: input_list should not be empty
             if not input_list:
-                raise ValueError(f"Failed to build input_list: no valid inputs. " f"Context: '{contexts[:100]}...', Visuals: {num_visuals}")
+                raise ValueError(
+                    f"Failed to build input_list: no valid inputs. "
+                    f"Context: '{contexts[:100]}...', Visuals: {num_visuals}"
+                )
 
             # Prepare inference parameters
             inference_params = self.inference_params.copy()
@@ -598,5 +616,5 @@ class BagelUMM(lmms):
         pbar.close()
         return res
 
-    def generate_until_multi_round(self, requests: List[Instance]) -> List[str]:
+    def generate_until_multi_round(self, requests: list[Instance]) -> list[str]:
         raise NotImplementedError("Multi-round generation is not implemented for Bagel")

@@ -1,8 +1,7 @@
 from collections import defaultdict
-from typing import Dict
 
 
-def initialize_basic_results_structure() -> Dict:
+def initialize_basic_results_structure() -> dict:
     """Initialize the basic results data structure.
 
     Returns:
@@ -42,7 +41,7 @@ def initialize_basic_results_structure() -> Dict:
     return results
 
 
-def _initialize_cogmap_results_structure() -> Dict:
+def _initialize_cogmap_results_structure() -> dict:
     """Initialize results structure with cognitive map specific fields."""
     results = initialize_basic_results_structure()
 
@@ -86,7 +85,7 @@ def _initialize_cogmap_results_structure() -> Dict:
     return results
 
 
-def _initialize_similarity_accumulators() -> Dict:
+def _initialize_similarity_accumulators() -> dict:
     """Initialize similarity metric accumulators."""
     return {
         "parsable_json_count": 0,
@@ -102,10 +101,10 @@ def _initialize_similarity_accumulators() -> Dict:
 
 
 def _update_similarity_metrics(
-    similarity: Dict,
-    results: Dict,
+    similarity: dict,
+    results: dict,
     setting: str,
-    total_metrics: Dict,
+    total_metrics: dict,
     include_in_overall: bool,
 ):
     """Update similarity metrics in results structure."""
@@ -170,7 +169,7 @@ def _update_similarity_metrics(
                 results["settings"][setting]["cogmap_similarity"]["rotation_distribution"][rotation_name] += 1
 
 
-def get_unfiltered_totals(results: Dict) -> tuple:
+def get_unfiltered_totals(results: dict) -> tuple:
     """Calculate unfiltered totals including all settings.
 
     Args:
@@ -190,7 +189,7 @@ def get_unfiltered_totals(results: Dict) -> tuple:
     return unfiltered_total, unfiltered_correct
 
 
-def get_filtered_totals(results: Dict) -> tuple:
+def get_filtered_totals(results: dict) -> tuple:
     """Calculate filtered totals excluding settings that shouldn't be included in overall metrics.
 
     Args:
@@ -211,7 +210,7 @@ def get_filtered_totals(results: Dict) -> tuple:
     return filtered_total, filtered_correct
 
 
-def apply_filtering_to_results(results: Dict) -> Dict:
+def apply_filtering_to_results(results: dict) -> dict:
     """Apply filtering logic to exclude certain settings from overall metrics.
     This maintains compatibility with the original evaluation logic.
 
@@ -239,7 +238,7 @@ def apply_filtering_to_results(results: Dict) -> Dict:
     return results
 
 
-def update_accuracy_metrics(results: Dict) -> Dict:
+def update_accuracy_metrics(results: dict) -> dict:
     """Update accuracy metrics for all settings.
 
     Args:
@@ -265,15 +264,21 @@ def update_accuracy_metrics(results: Dict) -> Dict:
     return results
 
 
-def _preserve_necessary_cogmap_fields(results: Dict) -> Dict:
+def _preserve_necessary_cogmap_fields(results: dict) -> dict:
     """Preserve necessary fields in the results dictionary."""
     new_cogmap_results = {
         "parsable_json_count": results["cogmap_similarity"]["parsable_json_count"],
-        "parsable_json_accuracy": round(results["cogmap_similarity"]["parsable_json_count"] / results["total"], 4) if results["total"] > 0.0001 else 0.0,
+        "parsable_json_accuracy": round(results["cogmap_similarity"]["parsable_json_count"] / results["total"], 4)
+        if results["total"] > 0.0001
+        else 0.0,
         "valid_count": results["cogmap_similarity"]["total_valid"],
-        "valid_accuracy": round(results["cogmap_similarity"]["total_valid"] / results["total"], 4) if results["total"] > 0.0001 else 0.0,
+        "valid_accuracy": round(results["cogmap_similarity"]["total_valid"] / results["total"], 4)
+        if results["total"] > 0.0001
+        else 0.0,
         "isomorphic_count": results["cogmap_similarity"]["isomorphic_count"],
-        "isomorphic_accuracy": round(results["cogmap_similarity"]["isomorphic_count"] / results["total"], 4) if results["total"] > 0.0001 else 0.0,
+        "isomorphic_accuracy": round(results["cogmap_similarity"]["isomorphic_count"] / results["total"], 4)
+        if results["total"] > 0.0001
+        else 0.0,
         "avg_overall_similarity": round(results["cogmap_similarity"]["avg_overall_similarity"], 4),
         "avg_facing_similarity": round(results["cogmap_similarity"]["avg_facing_similarity"], 4),
         "avg_directional_similarity": round(results["cogmap_similarity"]["avg_directional_similarity"], 4),

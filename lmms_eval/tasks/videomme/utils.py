@@ -11,7 +11,14 @@ import yaml
 from loguru import logger as eval_logger
 
 VIDEO_TYPE = ["short", "medium", "long"]
-CATEGORIES = ["Knowledge", "Film & Television", "Sports Competition", "Artistic Performance", "Life Record", "Multilingual"]
+CATEGORIES = [
+    "Knowledge",
+    "Film & Television",
+    "Sports Competition",
+    "Artistic Performance",
+    "Life Record",
+    "Multilingual",
+]
 
 SUB_CATEGORIES = [
     "Humanity & History",
@@ -77,7 +84,7 @@ hf_home = os.getenv("HF_HOME", "~/.cache/huggingface/")
 # cache_dir = os.path.join(hf_home, cache_dir)
 # base_cache_dir = config["dataset_kwargs"]["cache_dir"]
 base_cache_dir = os.path.expanduser(hf_home)
-with open(Path(__file__).parent / "videomme.yaml", "r") as f:
+with open(Path(__file__).parent / "videomme.yaml") as f:
     raw_data = f.readlines()
     safe_data = []
     for i, line in enumerate(raw_data):
@@ -95,7 +102,7 @@ def parse_subtitle_time(time_str):
 
 def load_subtitles(subtitle_path):
     subtitles = {}
-    with open(subtitle_path, "r", encoding="utf-8") as file:
+    with open(subtitle_path, encoding="utf-8") as file:
         content = file.read().split("\n\n")
         for section in content:
             if section.strip():
@@ -151,7 +158,6 @@ def videomme_doc_to_visual(doc):
 
 
 def videomme_doc_to_text(doc, lmms_eval_specific_kwargs=None):
-
     if "format" in lmms_eval_specific_kwargs and lmms_eval_specific_kwargs["format"] == "qwen3_vl":
         return videomme_doc_to_text_qwen3vl(doc, lmms_eval_specific_kwargs)
 
@@ -159,7 +165,11 @@ def videomme_doc_to_text(doc, lmms_eval_specific_kwargs=None):
     question = doc["question"]
     option = "\n".join([f"{opt}" for i, opt in enumerate(doc["options"])])
     question = question + "\n" + option
-    post_prompt = lmms_eval_specific_kwargs["post_prompt"] if "post_prompt" in lmms_eval_specific_kwargs else "The best answer is:"
+    post_prompt = (
+        lmms_eval_specific_kwargs["post_prompt"]
+        if "post_prompt" in lmms_eval_specific_kwargs
+        else "The best answer is:"
+    )
     full_prompt = option_prompt + "\n" + question + "\n" + post_prompt
     return full_prompt
 
@@ -333,7 +343,9 @@ def videomme_aggregate_results(results):
             if video_type in k:
                 total_correct += v["correct"]
                 total_answered += v["answered"]
-        eval_logger.info(f"Evaluation on video Type: {video_type}: {100 * total_correct / total_answered if total_answered > 0 else 0 : .1f}%")
+        eval_logger.info(
+            f"Evaluation on video Type: {video_type}: {100 * total_correct / total_answered if total_answered > 0 else 0: .1f}%"
+        )
 
     for category in CATEGORIES:
         total_correct = 0
@@ -342,7 +354,9 @@ def videomme_aggregate_results(results):
             if category in k:
                 total_correct += v["correct"]
                 total_answered += v["answered"]
-        eval_logger.info(f"Evaluation on Categories: {category}: {100 * total_correct / total_answered if total_answered > 0 else 0 : .1f}%")
+        eval_logger.info(
+            f"Evaluation on Categories: {category}: {100 * total_correct / total_answered if total_answered > 0 else 0: .1f}%"
+        )
 
     for sub_cate in SUB_CATEGORIES:
         total_correct = 0
@@ -351,7 +365,9 @@ def videomme_aggregate_results(results):
             if sub_cate in k:
                 total_correct += v["correct"]
                 total_answered += v["answered"]
-        eval_logger.info(f"Evaluation on Video Sub Categories: {sub_cate}: {100 * total_correct / total_answered if total_answered > 0 else 0 : .1f}%")
+        eval_logger.info(
+            f"Evaluation on Video Sub Categories: {sub_cate}: {100 * total_correct / total_answered if total_answered > 0 else 0: .1f}%"
+        )
 
     for task_cate in TASK_CATEGORIES:
         total_correct = 0
@@ -360,12 +376,14 @@ def videomme_aggregate_results(results):
             if task_cate in k:
                 total_correct += v["correct"]
                 total_answered += v["answered"]
-        eval_logger.info(f"Evaluation on Task Categories: {task_cate}: {100 * total_correct / total_answered if total_answered > 0 else 0 : .1f}%")
+        eval_logger.info(
+            f"Evaluation on Task Categories: {task_cate}: {100 * total_correct / total_answered if total_answered > 0 else 0: .1f}%"
+        )
 
     total_correct = 0
     total_answered = 0
     for k, v in category2score.items():
         total_correct += v["correct"]
         total_answered += v["answered"]
-    eval_logger.info(f"Overall Performance: {100 * total_correct / total_answered if total_answered > 0 else 0 : .1f}%")
+    eval_logger.info(f"Overall Performance: {100 * total_correct / total_answered if total_answered > 0 else 0: .1f}%")
     return 100 * total_correct / total_answered if total_answered > 0 else 0

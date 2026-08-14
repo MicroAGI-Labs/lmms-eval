@@ -1,7 +1,6 @@
 import os
 import warnings
 from datetime import timedelta
-from typing import List, Optional, Tuple, Union
 
 import numpy as np
 import soundfile as sf
@@ -9,12 +8,11 @@ import torch
 from accelerate import Accelerator, DistributedType, InitProcessGroupKwargs
 from accelerate.state import AcceleratorState
 from decord import VideoReader, cpu
-from PIL import Image
-from tqdm import tqdm
-
 from lmms_eval import utils
 from lmms_eval.api.instance import Instance
 from lmms_eval.api.model import lmms
+from PIL import Image
+from tqdm import tqdm
 
 warnings.filterwarnings("ignore")
 
@@ -37,16 +35,18 @@ try:
     )
 except Exception as e:
     eval_logger.error(f"Error {e} in loading VITA")
-    eval_logger.debug("You can set PYTHONPATH to include vita to make the import successful if it is not relative to deps")
+    eval_logger.debug(
+        "You can set PYTHONPATH to include vita to make the import successful if it is not relative to deps"
+    )
 
 
 class VITA(lmms):
     def __init__(
         self,
         pretrained: str = "VITA-MLLM/VITA-1.5",
-        truncation: Optional[bool] = True,
-        device: Optional[str] = "cuda:0",
-        batch_size: Optional[Union[int, str]] = 1,
+        truncation: bool | None = True,
+        device: str | None = "cuda:0",
+        batch_size: int | str | None = 1,
         model_base=None,
         model_type="qwen2p5_instruct",
         frameCat=False,
@@ -76,7 +76,9 @@ class VITA(lmms):
 
         model_path = os.path.expanduser(pretrained)
         model_name = get_model_name_from_path(model_path)
-        self._tokenizer, self._model, self._image_processor, self._max_length = load_pretrained_model(model_path, model_base, model_name, model_type, device_map=self.device_map)
+        self._tokenizer, self._model, self._image_processor, self._max_length = load_pretrained_model(
+            model_path, model_base, model_name, model_type, device_map=self.device_map
+        )
         self.model.resize_token_embeddings(len(self.tokenizer))
         self.model_type = model_type
 
@@ -108,7 +110,11 @@ class VITA(lmms):
             self.dynamic_preprocess = dynamic_preprocess
         # assert self.batch_size_per_gpu == 1, "Llava currently does not support batched generation. See https://github.com/haotian-liu/LLaVA/issues/754. HF Llava also has this issue."
         if accelerator.num_processes > 1:
-            assert accelerator.distributed_type in [DistributedType.FSDP, DistributedType.MULTI_GPU, DistributedType.DEEPSPEED], "Unsupported distributed type provided. Only DDP and FSDP are supported."
+            assert accelerator.distributed_type in [
+                DistributedType.FSDP,
+                DistributedType.MULTI_GPU,
+                DistributedType.DEEPSPEED,
+            ], "Unsupported distributed type provided. Only DDP and FSDP are supported."
             # If you want to use DistributedType.DEEPSPEED, you have to run accelerate config before using the model
             # Also, you have to select zero stage 0 (equivalent to DDP) in order to make the prepare model works
             # I tried to set different parameters in the kwargs to let default zero 2 stage works, but it didn't work.
@@ -118,9 +124,14 @@ class VITA(lmms):
                     "train_batch_size": self.batch_size_per_gpu * accelerator.num_processes,
                 }
                 AcceleratorState().deepspeed_plugin.deepspeed_config_process(must_match=True, **kwargs)
-                eval_logger.info("Detected that you are using DistributedType.DEEPSPEED. Make sure you run `accelerate config` and set zero stage to 0")
+                eval_logger.info(
+                    "Detected that you are using DistributedType.DEEPSPEED. Make sure you run `accelerate config` and set zero stage to 0"
+                )
 
-            if accelerator.distributed_type == DistributedType.FSDP or accelerator.distributed_type == DistributedType.DEEPSPEED:
+            if (
+                accelerator.distributed_type == DistributedType.FSDP
+                or accelerator.distributed_type == DistributedType.DEEPSPEED
+            ):
                 self._model = accelerator.prepare(self.model)
             else:
                 self._model = accelerator.prepare_model(self.model, evaluation_mode=True)
@@ -189,7 +200,7 @@ class VITA(lmms):
     def world_size(self):
         return self._world_size
 
-    def tok_encode(self, string: str, left_truncate_len=None, add_special_tokens=None) -> List[int]:
+    def tok_encode(self, string: str, left_truncate_len=None, add_special_tokens=None) -> list[int]:
         """ """
         add_special_tokens = False if add_special_tokens is None else add_special_tokens
         encoding = self.tokenizer.encode(string, add_special_tokens=add_special_tokens)
@@ -204,7 +215,7 @@ class VITA(lmms):
         except:
             return self.tokenizer.decode([tokens])
 
-    def loglikelihood(self, requests: List[Instance]) -> List[Tuple[float, bool]]:
+    def loglikelihood(self, requests: list[Instance]) -> list[tuple[float, bool]]:
         # TODO
         raise NotImplementedError("Loglikelihood is not implemented for VITA model")
 
@@ -218,7 +229,7 @@ class VITA(lmms):
                     new_list.append(j)
         return new_list
 
-    def generate_until(self, requests: List[Instance]) -> List[str]:
+    def generate_until(self, requests: list[Instance]) -> list[str]:
         res = []
 
         def _collate(x):
@@ -266,11 +277,22 @@ class VITA(lmms):
                 elif isinstance(visual, Image.Image):
                     image = visual
                     if self.frameCat:
-                        image, p_num = self.dynamic_preprocess(image, min_num=2, max_num=12, image_size=448, use_thumbnail=True, img_mean=self._image_processor.image_mean)
+                        image, p_num = self.dynamic_preprocess(
+                            image,
+                            min_num=2,
+                            max_num=12,
+                            image_size=448,
+                            use_thumbnail=True,
+                            img_mean=self._image_processor.image_mean,
+                        )
                     else:
-                        image, p_num = self.dynamic_preprocess(image, min_num=1, max_num=12, image_size=448, use_thumbnail=True)
+                        image, p_num = self.dynamic_preprocess(
+                            image, min_num=1, max_num=12, image_size=448, use_thumbnail=True
+                        )
                     assert len(p_num) == 1
-                    image_tensor = self.model.process_images(image, self.model.config).to(dtype=self.model.dtype, device="cuda")
+                    image_tensor = self.model.process_images(image, self.model.config).to(
+                        dtype=self.model.dtype, device="cuda"
+                    )
                     # Same situation with video
                     prompts_input = DEFAULT_IMAGE_TOKEN * p_num[0] + "\n" + prompts_input
                     modality = "image"
@@ -297,9 +319,17 @@ class VITA(lmms):
             prompt = conv.get_prompt(modality)
 
             if audios:
-                input_ids = tokenizer_image_audio_token(prompt, self.tokenizer, IMAGE_TOKEN_INDEX, return_tensors="pt").unsqueeze(0).cuda()
+                input_ids = (
+                    tokenizer_image_audio_token(prompt, self.tokenizer, IMAGE_TOKEN_INDEX, return_tensors="pt")
+                    .unsqueeze(0)
+                    .cuda()
+                )
             else:
-                input_ids = tokenizer_image_token(prompt, self.tokenizer, IMAGE_TOKEN_INDEX, return_tensors="pt").unsqueeze(0).cuda()
+                input_ids = (
+                    tokenizer_image_token(prompt, self.tokenizer, IMAGE_TOKEN_INDEX, return_tensors="pt")
+                    .unsqueeze(0)
+                    .cuda()
+                )
             stop_str = conv.sep if conv.sep_style != SeparatorStyle.TWO else conv.sep2
             keywords = [stop_str]
             stopping_criteria = KeywordsStoppingCriteria(keywords, self.tokenizer, input_ids)
@@ -368,7 +398,7 @@ class VITA(lmms):
         res = re_ords.get_original(res)
         return res
 
-    def generate_until_multi_round(self, requests) -> List[str]:
+    def generate_until_multi_round(self, requests) -> list[str]:
         raise NotImplementedError("TODO: Implement multi-round generation for LLaVA")
 
     def _get_rawvideo_dec(
@@ -437,14 +467,20 @@ class VITA(lmms):
                         result.paste(pil_img, ((height - width) // 2, 0))
                         return result
 
-                patch_images = [expand2square(i, tuple(int(x * 255) for x in image_processor.image_mean)) for i in patch_images]
-                patch_images = [image_processor.preprocess(i, return_tensors="pt")["pixel_values"][0] for i in patch_images]
+                patch_images = [
+                    expand2square(i, tuple(int(x * 255) for x in image_processor.image_mean)) for i in patch_images
+                ]
+                patch_images = [
+                    image_processor.preprocess(i, return_tensors="pt")["pixel_values"][0] for i in patch_images
+                ]
             else:
-                patch_images = [image_processor.preprocess(i, return_tensors="pt")["pixel_values"][0] for i in patch_images]
+                patch_images = [
+                    image_processor.preprocess(i, return_tensors="pt")["pixel_values"][0] for i in patch_images
+                ]
 
             patch_images = torch.stack(patch_images)
             slice_len = patch_images.shape[0]
 
             return patch_images, slice_len
         else:
-            print("video path: {} error.".format(video_path))
+            print(f"video path: {video_path} error.")

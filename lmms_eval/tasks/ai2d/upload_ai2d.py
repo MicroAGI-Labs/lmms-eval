@@ -76,7 +76,11 @@ class AI2D(datasets.GeneratorBasedBuilder):
         return [
             datasets.SplitGenerator(
                 name=datasets.Split.TEST,
-                gen_kwargs={"annotation": annotation_path, "images": image_path, "test_annotation": test_annotation_path},
+                gen_kwargs={
+                    "annotation": annotation_path,
+                    "images": image_path,
+                    "test_annotation": test_annotation_path,
+                },
             ),
         ]
 

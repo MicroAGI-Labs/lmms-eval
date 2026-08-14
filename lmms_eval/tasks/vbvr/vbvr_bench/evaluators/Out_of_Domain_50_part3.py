@@ -2,7 +2,6 @@
 Specific evaluators for Out-of-Domain_50 tasks (Part 3).
 """
 
-from typing import Dict, List, Optional, Tuple
 
 import cv2
 import numpy as np
@@ -22,9 +21,21 @@ class SelectLeftmostShapeEvaluator(BaseEvaluator):
     - Scene preservation (10%): Original shapes unchanged
     """
 
-    TASK_WEIGHTS = {"position_identification": 0.45, "marking_precision": 0.30, "marking_quality": 0.15, "scene_preservation": 0.10}
+    TASK_WEIGHTS = {
+        "position_identification": 0.45,
+        "marking_precision": 0.30,
+        "marking_quality": 0.15,
+        "scene_preservation": 0.10,
+    }
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         if len(video_frames) < 2:
             return 0.0
 
@@ -124,7 +135,7 @@ class SelectLeftmostShapeEvaluator(BaseEvaluator):
         else:
             return 0.1
 
-    def _find_leftmost_shape(self, frame: np.ndarray) -> Optional[Tuple[int, int]]:
+    def _find_leftmost_shape(self, frame: np.ndarray) -> tuple[int, int] | None:
         """Find the leftmost shape (smallest x)."""
         shapes = self._detect_shapes(frame)
 
@@ -134,7 +145,7 @@ class SelectLeftmostShapeEvaluator(BaseEvaluator):
         leftmost = min(shapes, key=lambda s: s[0])
         return leftmost
 
-    def _detect_shapes(self, frame: np.ndarray) -> List[Tuple[int, int]]:
+    def _detect_shapes(self, frame: np.ndarray) -> list[tuple[int, int]]:
         """Detect shapes with their centers."""
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         _, binary = cv2.threshold(gray, 200, 255, cv2.THRESH_BINARY_INV)
@@ -156,7 +167,7 @@ class SelectLeftmostShapeEvaluator(BaseEvaluator):
         """Count shapes."""
         return len(self._detect_shapes(frame))
 
-    def _detect_red_circle(self, frame: np.ndarray) -> Optional[Tuple[int, int, int]]:
+    def _detect_red_circle(self, frame: np.ndarray) -> tuple[int, int, int] | None:
         """Detect red circle."""
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
@@ -189,9 +200,21 @@ class OutlineInnermostSquareEvaluator(BaseEvaluator):
     - Element preservation (5%): Original squares unchanged
     """
 
-    TASK_WEIGHTS = {"concentric_structure": 0.40, "color_preservation": 0.35, "outline_addition": 0.20, "element_preservation": 0.05}
+    TASK_WEIGHTS = {
+        "concentric_structure": 0.40,
+        "color_preservation": 0.35,
+        "outline_addition": 0.20,
+        "element_preservation": 0.05,
+    }
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         if len(video_frames) < 2:
             return 0.0
 
@@ -206,11 +229,19 @@ class OutlineInnermostSquareEvaluator(BaseEvaluator):
         gt_squares = self._detect_concentric_squares(first_frame)
 
         # 1. Check concentric structure preservation (40%)
-        scores["concentric_structure"] = self._evaluate_concentric_structure(first_frame, final_frame, center_x, center_y)
+        scores["concentric_structure"] = self._evaluate_concentric_structure(
+            first_frame, final_frame, center_x, center_y
+        )
 
         # If structure is completely broken, return early with low score
         if scores["concentric_structure"] < 0.3:
-            self._last_task_details = {"concentric_structure": scores["concentric_structure"], "color_preservation": 0.0, "outline_addition": 0.0, "element_preservation": 0.0, "structure_broken": True}
+            self._last_task_details = {
+                "concentric_structure": scores["concentric_structure"],
+                "color_preservation": 0.0,
+                "outline_addition": 0.0,
+                "element_preservation": 0.0,
+                "structure_broken": True,
+            }
             return 0.0
 
         # 2. Check color preservation (35%) - colors on all 4 sides should match
@@ -225,7 +256,7 @@ class OutlineInnermostSquareEvaluator(BaseEvaluator):
         self._last_task_details = scores
         return sum(scores[k] * self.TASK_WEIGHTS[k] for k in self.TASK_WEIGHTS)
 
-    def _detect_concentric_squares(self, frame: np.ndarray) -> List[Dict]:
+    def _detect_concentric_squares(self, frame: np.ndarray) -> list[dict]:
         """Detect concentric squares by scanning from center outward."""
         h, w = frame.shape[:2]
         center_x, center_y = w // 2, h // 2
@@ -249,7 +280,9 @@ class OutlineInnermostSquareEvaluator(BaseEvaluator):
 
         return squares
 
-    def _evaluate_concentric_structure(self, first_frame: np.ndarray, final_frame: np.ndarray, center_x: int, center_y: int) -> float:
+    def _evaluate_concentric_structure(
+        self, first_frame: np.ndarray, final_frame: np.ndarray, center_x: int, center_y: int
+    ) -> float:
         """Check if concentric square structure is preserved."""
         h, w = first_frame.shape[:2]
 
@@ -298,7 +331,9 @@ class OutlineInnermostSquareEvaluator(BaseEvaluator):
 
         return matches / total
 
-    def _evaluate_color_preservation(self, first_frame: np.ndarray, final_frame: np.ndarray, center_x: int, center_y: int) -> float:
+    def _evaluate_color_preservation(
+        self, first_frame: np.ndarray, final_frame: np.ndarray, center_x: int, center_y: int
+    ) -> float:
         """Check if colors on all 4 sides (上下左右) are preserved."""
         h, w = first_frame.shape[:2]
 
@@ -345,7 +380,9 @@ class OutlineInnermostSquareEvaluator(BaseEvaluator):
 
         return preserved / total
 
-    def _evaluate_outline_addition(self, first_frame: np.ndarray, final_frame: np.ndarray, center_x: int, center_y: int) -> float:
+    def _evaluate_outline_addition(
+        self, first_frame: np.ndarray, final_frame: np.ndarray, center_x: int, center_y: int
+    ) -> float:
         """Check if blue outline was added around innermost square."""
         # Count blue pixels in first vs final
         first_blue = self._count_blue_pixels(first_frame)
@@ -415,7 +452,7 @@ class MarkTangentPointEvaluator(BaseEvaluator):
 
     TASK_WEIGHTS = {"pair_id": 0.40, "calculation": 0.40, "position": 0.15, "annotation": 0.05}
 
-    def _detect_circles(self, frame: np.ndarray) -> List[Dict]:
+    def _detect_circles(self, frame: np.ndarray) -> list[dict]:
         """Detect circles in the frame."""
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
@@ -429,7 +466,7 @@ class MarkTangentPointEvaluator(BaseEvaluator):
 
         return detected
 
-    def _find_tangent_pairs(self, circles: List[Dict]) -> List[Tuple[int, int, Tuple[float, float]]]:
+    def _find_tangent_pairs(self, circles: list[dict]) -> list[tuple[int, int, tuple[float, float]]]:
         """Find externally tangent circle pairs and their tangent points."""
         tangent_pairs = []
 
@@ -456,7 +493,7 @@ class MarkTangentPointEvaluator(BaseEvaluator):
 
         return tangent_pairs
 
-    def _detect_black_marking(self, frame: np.ndarray) -> Optional[Tuple[int, int]]:
+    def _detect_black_marking(self, frame: np.ndarray) -> tuple[int, int] | None:
         """Detect black circle marking."""
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
@@ -485,7 +522,14 @@ class MarkTangentPointEvaluator(BaseEvaluator):
 
         return None
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         """Evaluate mark tangent point task."""
         scores = {}
 
@@ -558,7 +602,7 @@ class HighlightHorizontalLinesEvaluator(BaseEvaluator):
 
     TASK_WEIGHTS = {"identification": 0.40, "completeness": 0.30, "position": 0.20, "annotation": 0.10}
 
-    def _detect_horizontal_lines(self, frame: np.ndarray) -> List[Dict]:
+    def _detect_horizontal_lines(self, frame: np.ndarray) -> list[dict]:
         """Detect horizontal line segments using contour analysis."""
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
@@ -582,7 +626,7 @@ class HighlightHorizontalLinesEvaluator(BaseEvaluator):
 
         return horizontal_lines
 
-    def _detect_black_markings(self, frame: np.ndarray) -> List[Tuple[int, int]]:
+    def _detect_black_markings(self, frame: np.ndarray) -> list[tuple[int, int]]:
         """Detect black circle markings."""
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
@@ -605,7 +649,14 @@ class HighlightHorizontalLinesEvaluator(BaseEvaluator):
 
         return centers
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         """Evaluate highlight horizontal lines task."""
         scores = {}
 
@@ -712,9 +763,21 @@ class AddBordersToUnborderedEvaluator(BaseEvaluator):
     - Scene preservation (10%): Original attributes unchanged
     """
 
-    TASK_WEIGHTS = {"border_identification": 0.40, "border_addition": 0.35, "border_appearance": 0.15, "scene_preservation": 0.10}
+    TASK_WEIGHTS = {
+        "border_identification": 0.40,
+        "border_addition": 0.35,
+        "border_appearance": 0.15,
+        "scene_preservation": 0.10,
+    }
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         if len(video_frames) < 2:
             return 0.0
 
@@ -767,7 +830,14 @@ class AddBordersToUnborderedEvaluator(BaseEvaluator):
         # Need significant increase in dark pixels for borders
         # Borders are BLACK lines, so should add at least 1000 dark pixels
         if dark_increase < 1000:
-            self._last_task_details = {"border_identification": 0.0, "border_addition": 0.0, "border_appearance": 0.0, "scene_preservation": 0.5, "no_borders_added": True, "dark_pixel_increase": int(dark_increase)}
+            self._last_task_details = {
+                "border_identification": 0.0,
+                "border_addition": 0.0,
+                "border_appearance": 0.0,
+                "scene_preservation": 0.5,
+                "no_borders_added": True,
+                "dark_pixel_increase": int(dark_increase),
+            }
             return 0.0
 
         # Detect colorful shapes (几何体) in both frames
@@ -804,7 +874,9 @@ class AddBordersToUnborderedEvaluator(BaseEvaluator):
         scores["border_appearance"] = self._evaluate_border_appearance(final_frame)
 
         # 4. Scene preservation (10%): Check shapes preserved
-        scores["scene_preservation"] = self._evaluate_scene_preservation(first_frame, final_frame, first_shapes, final_shapes)
+        scores["scene_preservation"] = self._evaluate_scene_preservation(
+            first_frame, final_frame, first_shapes, final_shapes
+        )
 
         self._last_task_details = scores
         self._last_task_details["first_shapes"] = int(len(first_shapes))
@@ -815,7 +887,7 @@ class AddBordersToUnborderedEvaluator(BaseEvaluator):
 
         return sum(scores[k] * self.TASK_WEIGHTS[k] for k in self.TASK_WEIGHTS)
 
-    def _detect_colorful_shapes(self, frame: np.ndarray) -> List[Dict]:
+    def _detect_colorful_shapes(self, frame: np.ndarray) -> list[dict]:
         """Detect colorful geometric shapes (几何体) in the frame."""
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
@@ -844,7 +916,7 @@ class AddBordersToUnborderedEvaluator(BaseEvaluator):
 
         return shapes
 
-    def _count_shapes_with_black_border(self, frame: np.ndarray, shapes: List[Dict]) -> int:
+    def _count_shapes_with_black_border(self, frame: np.ndarray, shapes: list[dict]) -> int:
         """Count how many shapes have black borders around them."""
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         bordered_count = 0
@@ -877,7 +949,7 @@ class AddBordersToUnborderedEvaluator(BaseEvaluator):
 
         return bordered_count
 
-    def _evaluate_border_id(self, first_shapes: List[Dict], first_bordered: int, final_bordered: int) -> float:
+    def _evaluate_border_id(self, first_shapes: list[dict], first_bordered: int, final_bordered: int) -> float:
         """Rule-based: Check if unbordered shapes were identified and bordered."""
         if len(first_shapes) == 0:
             return 0.0
@@ -941,7 +1013,9 @@ class AddBordersToUnborderedEvaluator(BaseEvaluator):
         else:
             return 0.2
 
-    def _evaluate_scene_preservation(self, first_frame: np.ndarray, final_frame: np.ndarray, first_shapes: List[Dict], final_shapes: List[Dict]) -> float:
+    def _evaluate_scene_preservation(
+        self, first_frame: np.ndarray, final_frame: np.ndarray, first_shapes: list[dict], final_shapes: list[dict]
+    ) -> float:
         """Rule-based: Check if shape colors and positions are preserved."""
         # Check if same number of shapes exist
         if len(first_shapes) == 0:
@@ -1011,9 +1085,21 @@ class IdentifyChineseCharacterEvaluator(BaseEvaluator):
     - Marking specification compliance (10%): Red circle, proper style
     """
 
-    TASK_WEIGHTS = {"character_recognition": 0.45, "marking_target": 0.30, "marking_position": 0.15, "marking_specification": 0.10}
+    TASK_WEIGHTS = {
+        "character_recognition": 0.45,
+        "marking_target": 0.30,
+        "marking_position": 0.15,
+        "marking_specification": 0.10,
+    }
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         if len(video_frames) < 2:
             return 0.0
 
@@ -1104,7 +1190,7 @@ class IdentifyChineseCharacterEvaluator(BaseEvaluator):
         else:
             return 0.5
 
-    def _find_chinese_character(self, frame: np.ndarray) -> Optional[Tuple[int, int]]:
+    def _find_chinese_character(self, frame: np.ndarray) -> tuple[int, int] | None:
         """Find Chinese character (more complex than letters)."""
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         _, binary = cv2.threshold(gray, 100, 255, cv2.THRESH_BINARY_INV)
@@ -1132,7 +1218,7 @@ class IdentifyChineseCharacterEvaluator(BaseEvaluator):
         most_complex = max(characters, key=lambda c: c[2])
         return (most_complex[0], most_complex[1])
 
-    def _detect_red_circle(self, frame: np.ndarray) -> Optional[Tuple[int, int, int]]:
+    def _detect_red_circle(self, frame: np.ndarray) -> tuple[int, int, int] | None:
         """Detect red circle."""
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
@@ -1165,9 +1251,21 @@ class MarkAsymmetricalShapeEvaluator(BaseEvaluator):
     - Scene preservation (10%): Original shapes unchanged
     """
 
-    TASK_WEIGHTS = {"symmetry_identification": 0.45, "marking_precision": 0.30, "marking_quality": 0.15, "scene_preservation": 0.10}
+    TASK_WEIGHTS = {
+        "symmetry_identification": 0.45,
+        "marking_precision": 0.30,
+        "marking_quality": 0.15,
+        "scene_preservation": 0.10,
+    }
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         if len(video_frames) < 2:
             return 0.0
 
@@ -1265,7 +1363,7 @@ class MarkAsymmetricalShapeEvaluator(BaseEvaluator):
         else:
             return 0.6
 
-    def _find_asymmetrical_shape(self, frame: np.ndarray) -> Optional[Tuple[int, int]]:
+    def _find_asymmetrical_shape(self, frame: np.ndarray) -> tuple[int, int] | None:
         """Find the asymmetrical shape (odd-sided polygon or lowest symmetry)."""
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         _, binary = cv2.threshold(gray, 200, 255, cv2.THRESH_BINARY_INV)
@@ -1304,7 +1402,7 @@ class MarkAsymmetricalShapeEvaluator(BaseEvaluator):
         most_asymmetric = min(shapes, key=lambda s: s[2])
         return (most_asymmetric[0], most_asymmetric[1])
 
-    def _detect_shapes_with_symmetry(self, frame: np.ndarray) -> List[Tuple[int, int, float]]:
+    def _detect_shapes_with_symmetry(self, frame: np.ndarray) -> list[tuple[int, int, float]]:
         """Detect shapes with their symmetry score."""
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         _, binary = cv2.threshold(gray, 200, 255, cv2.THRESH_BINARY_INV)
@@ -1392,7 +1490,7 @@ class MarkAsymmetricalShapeEvaluator(BaseEvaluator):
 
         return sum(1 for cnt in contours if cv2.contourArea(cnt) > 300)
 
-    def _detect_red_circle(self, frame: np.ndarray) -> Optional[Tuple[int, int, int]]:
+    def _detect_red_circle(self, frame: np.ndarray) -> tuple[int, int, int] | None:
         """Detect red circle."""
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
@@ -1428,7 +1526,12 @@ class ColorTripleIntersectionEvaluator(BaseEvaluator):
     4. Visual quality (10%) - Pure red color, uniform fill
     """
 
-    TASK_WEIGHTS = {"triple_intersection_identification": 0.40, "fill_coverage": 0.30, "fill_precision": 0.20, "visual_quality": 0.10}
+    TASK_WEIGHTS = {
+        "triple_intersection_identification": 0.40,
+        "fill_coverage": 0.30,
+        "fill_precision": 0.20,
+        "visual_quality": 0.10,
+    }
 
     def _detect_red_region(self, frame: np.ndarray) -> np.ndarray:
         """Detect red-filled regions in frame."""
@@ -1465,7 +1568,7 @@ class ColorTripleIntersectionEvaluator(BaseEvaluator):
 
         return (r_score + g_score + b_score) / 3
 
-    def _detect_circles(self, frame: np.ndarray) -> List[Dict]:
+    def _detect_circles(self, frame: np.ndarray) -> list[dict]:
         """Detect circles in the Venn diagram."""
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY) if len(frame.shape) == 3 else frame
 
@@ -1479,7 +1582,14 @@ class ColorTripleIntersectionEvaluator(BaseEvaluator):
 
         return detected
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         """Evaluate triple intersection filling accuracy."""
 
         if not video_frames or gt_final_frame is None:
@@ -1534,9 +1644,21 @@ class HighDensityLiquidEvaluator(BaseEvaluator):
     - Element preservation (5%): Original elements unchanged
     """
 
-    TASK_WEIGHTS = {"physics_reasoning": 0.45, "marking_correctness": 0.30, "marking_standardization": 0.20, "element_preservation": 0.05}
+    TASK_WEIGHTS = {
+        "physics_reasoning": 0.45,
+        "marking_correctness": 0.30,
+        "marking_standardization": 0.20,
+        "element_preservation": 0.05,
+    }
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         if len(video_frames) < 2:
             return 0.0
 
@@ -1615,7 +1737,7 @@ class HighDensityLiquidEvaluator(BaseEvaluator):
             # Marked the wrong square!
             return 0.2
 
-    def _find_yellow_squares(self, frame: np.ndarray) -> List[Tuple[int, int, int, int]]:
+    def _find_yellow_squares(self, frame: np.ndarray) -> list[tuple[int, int, int, int]]:
         """Find yellow squares with their positions.
 
         Returns: List of (center_x, center_y, top_y, area)
@@ -1704,7 +1826,7 @@ class HighDensityLiquidEvaluator(BaseEvaluator):
         else:
             return 0.6
 
-    def _find_floating_object(self, frame: np.ndarray) -> Optional[Tuple[int, int]]:
+    def _find_floating_object(self, frame: np.ndarray) -> tuple[int, int] | None:
         """Find the yellow square (方块) that floats higher in the higher density liquid.
 
         This task has two containers with blue/green liquids. Yellow squares float
@@ -1752,7 +1874,7 @@ class HighDensityLiquidEvaluator(BaseEvaluator):
 
         return sum(1 for cnt in contours if 500 < cv2.contourArea(cnt) < 10000)
 
-    def _detect_red_rectangle(self, frame: np.ndarray) -> Optional[Tuple[int, int, int, int]]:
+    def _detect_red_rectangle(self, frame: np.ndarray) -> tuple[int, int, int, int] | None:
         """Detect red rectangle marking in the frame.
 
         CRITICAL: The marking should be a small-to-medium sized rectangle,
@@ -1820,9 +1942,21 @@ class PigmentColorMixingEvaluator(BaseEvaluator):
         ("cyan", "magenta", "yellow"): (0, 0, 0),  # Black
     }
 
-    TASK_WEIGHTS = {"mixing_correctness": 0.60, "fill_accuracy": 0.25, "scene_preservation": 0.10, "visual_quality": 0.05}
+    TASK_WEIGHTS = {
+        "mixing_correctness": 0.60,
+        "fill_accuracy": 0.25,
+        "scene_preservation": 0.10,
+        "visual_quality": 0.05,
+    }
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         if len(video_frames) < 2:
             return 0.0
 
@@ -1838,7 +1972,9 @@ class PigmentColorMixingEvaluator(BaseEvaluator):
         self._last_task_details = scores
         return sum(scores[k] * self.TASK_WEIGHTS[k] for k in self.TASK_WEIGHTS)
 
-    def _evaluate_color_mixing(self, first_frame: np.ndarray, final_frame: np.ndarray, gt_final_frame: Optional[np.ndarray] = None) -> float:
+    def _evaluate_color_mixing(
+        self, first_frame: np.ndarray, final_frame: np.ndarray, gt_final_frame: np.ndarray | None = None
+    ) -> float:
         """Rule-based: Check if mixed color matches expected result."""
         # Get mixed color from final frame (center region)
         mixed_color = self._get_mixed_region_color(final_frame)
@@ -1944,7 +2080,7 @@ class PigmentColorMixingEvaluator(BaseEvaluator):
         except Exception:
             return 0.5
 
-    def _detect_input_colors(self, frame: np.ndarray) -> List[str]:
+    def _detect_input_colors(self, frame: np.ndarray) -> list[str]:
         """Detect CMY colors present in the frame."""
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
@@ -1967,7 +2103,7 @@ class PigmentColorMixingEvaluator(BaseEvaluator):
 
         return colors_present
 
-    def _get_mixed_region_color(self, frame: np.ndarray) -> Optional[Tuple[int, int, int]]:
+    def _get_mixed_region_color(self, frame: np.ndarray) -> tuple[int, int, int] | None:
         """Get average color of the center mixing region."""
         h, w = frame.shape[:2]
         cx, cy = w // 2, h // 2
@@ -1981,7 +2117,7 @@ class PigmentColorMixingEvaluator(BaseEvaluator):
         avg_color = np.mean(region, axis=(0, 1))
         return tuple(int(c) for c in avg_color)
 
-    def _calculate_expected_mix(self, input_colors: List[str]) -> Optional[Tuple[int, int, int]]:
+    def _calculate_expected_mix(self, input_colors: list[str]) -> tuple[int, int, int] | None:
         """Calculate expected mixed color based on CMY rules."""
         key = tuple(sorted(input_colors))
 

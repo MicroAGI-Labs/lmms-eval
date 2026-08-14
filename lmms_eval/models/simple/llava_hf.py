@@ -1,5 +1,4 @@
 import warnings
-from typing import List, Optional, Tuple, Union
 
 import numpy as np
 import PIL
@@ -7,6 +6,10 @@ import torch
 from accelerate import Accelerator, DistributedType
 from accelerate.state import AcceleratorState
 from decord import VideoReader, cpu
+from lmms_eval import utils
+from lmms_eval.api.instance import Instance
+from lmms_eval.api.model import lmms
+from lmms_eval.api.registry import register_model
 from tqdm import tqdm
 from transformers import (
     AutoConfig,
@@ -14,11 +17,6 @@ from transformers import (
     LlavaForConditionalGeneration,
     LlavaNextForConditionalGeneration,
 )
-
-from lmms_eval import utils
-from lmms_eval.api.instance import Instance
-from lmms_eval.api.model import lmms
-from lmms_eval.api.registry import register_model
 
 warnings.filterwarnings("ignore")
 
@@ -66,14 +64,14 @@ class LlavaHf(lmms):
         pretrained: str = "llava-hf/llava-1.5-7b-hf",
         revision: str = "main",
         device: str = "cuda",
-        dtype: Optional[Union[str, torch.dtype]] = "auto",
+        dtype: str | torch.dtype | None = "auto",
         batch_size: int = 1,
-        trust_remote_code: Optional[bool] = False,
-        attn_implementation: Optional[str] = None,
+        trust_remote_code: bool | None = False,
+        attn_implementation: str | None = None,
         device_map: str = "",
-        chat_template: Optional[str] = None,
+        chat_template: str | None = None,
         use_cache: bool = True,
-        max_frames_num: Optional[int] = 32,
+        max_frames_num: int | None = 32,
         **kwargs,
     ) -> None:
         super().__init__()
@@ -94,10 +92,19 @@ class LlavaHf(lmms):
         self.max_frames_num = max_frames_num
         model_type = getattr(config, "model_type", "llava")
         model_type = model_map[model_type]
-        self._model = model_type.from_pretrained(pretrained, revision=revision, torch_dtype=dtype, device_map=self.device_map, trust_remote_code=trust_remote_code, attn_implementation=attn_implementation)
+        self._model = model_type.from_pretrained(
+            pretrained,
+            revision=revision,
+            torch_dtype=dtype,
+            device_map=self.device_map,
+            trust_remote_code=trust_remote_code,
+            attn_implementation=attn_implementation,
+        )
 
         self.pretrained = pretrained
-        self._image_processor = AutoProcessor.from_pretrained(pretrained, revision=revision, trust_remote_code=trust_remote_code)
+        self._image_processor = AutoProcessor.from_pretrained(
+            pretrained, revision=revision, trust_remote_code=trust_remote_code
+        )
         # Pad from left for batched generation: https://huggingface.co/docs/transformers/v4.39.3/en/model_doc/llava#usage-tips
         self._image_processor.tokenizer.padding_side = "left"
         self._tokenizer = self._image_processor.tokenizer
@@ -106,7 +113,11 @@ class LlavaHf(lmms):
         self.chat_template = chat_template
         self.use_cache = use_cache
         if accelerator.num_processes > 1 and device_map == "":
-            assert accelerator.distributed_type in [DistributedType.FSDP, DistributedType.MULTI_GPU, DistributedType.DEEPSPEED], "Unsupported distributed type provided. Only DDP and FSDP are supported."
+            assert accelerator.distributed_type in [
+                DistributedType.FSDP,
+                DistributedType.MULTI_GPU,
+                DistributedType.DEEPSPEED,
+            ], "Unsupported distributed type provided. Only DDP and FSDP are supported."
             # If you want to use DistributedType.DEEPSPEED, you have to run accelerate config before using the model
             # Also, you have to select zero stage 0 (equivalent to DDP) in order to make the prepare model works
             # I tried to set different parameters in the kwargs to let default zero 2 stage works, but it didn't work.
@@ -116,8 +127,13 @@ class LlavaHf(lmms):
                     "train_batch_size": self.batch_size_per_gpu * accelerator.num_processes,
                 }
                 AcceleratorState().deepspeed_plugin.deepspeed_config_process(must_match=True, **kwargs)
-                eval_logger.info("Detected that you are using DistributedType.DEEPSPEED. Make sure you run `accelerate config` and set zero stage to 0")
-            if accelerator.distributed_type == DistributedType.FSDP or accelerator.distributed_type == DistributedType.DEEPSPEED:
+                eval_logger.info(
+                    "Detected that you are using DistributedType.DEEPSPEED. Make sure you run `accelerate config` and set zero stage to 0"
+                )
+            if (
+                accelerator.distributed_type == DistributedType.FSDP
+                or accelerator.distributed_type == DistributedType.DEEPSPEED
+            ):
                 self._model = accelerator.prepare(self.model)
             else:
                 self._model = accelerator.prepare_model(self.model, evaluation_mode=True)
@@ -179,7 +195,7 @@ class LlavaHf(lmms):
     def world_size(self):
         return self._world_size
 
-    def tok_encode(self, string: str, left_truncate_len=None, add_special_tokens=None) -> List[int]:
+    def tok_encode(self, string: str, left_truncate_len=None, add_special_tokens=None) -> list[int]:
         """ """
         add_special_tokens = False if add_special_tokens is None else add_special_tokens
         encoding = self.tokenizer.encode(string, add_special_tokens=add_special_tokens)
@@ -191,7 +207,7 @@ class LlavaHf(lmms):
     def tok_decode(self, tokens):
         return self.tokenizer.decode(tokens)
 
-    def loglikelihood(self, requests: List[Instance]) -> List[Tuple[float, bool]]:
+    def loglikelihood(self, requests: list[Instance]) -> list[tuple[float, bool]]:
         res = []
         pbar = tqdm(total=len(requests), disable=(self.rank != 0), desc="Model Responding")
 
@@ -212,18 +228,26 @@ class LlavaHf(lmms):
             if self.chat_template is not None:
                 self.tokenizer.chat_template = self.chat_template
                 prompt = self.tokenizer.apply_chat_template(messages[:-1], tokenize=False, add_generation_prompt=True)
-                prompt_and_continuation = self.tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=False)
+                prompt_and_continuation = self.tokenizer.apply_chat_template(
+                    messages, tokenize=False, add_generation_prompt=False
+                )
             elif self.tokenizer.chat_template is not None:
                 prompt = self.tokenizer.apply_chat_template(messages[:-1], tokenize=False, add_generation_prompt=True)
-                prompt_and_continuation = self.tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=False)
+                prompt_and_continuation = self.tokenizer.apply_chat_template(
+                    messages, tokenize=False, add_generation_prompt=False
+                )
             else:
                 self.tokenizer.chat_template = VICUNA_CHAT_TEMPLATE
                 prompt = self.tokenizer.apply_chat_template(messages[:-1], tokenize=False, add_generation_prompt=True)
-                prompt_and_continuation = self.tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=False)
+                prompt_and_continuation = self.tokenizer.apply_chat_template(
+                    messages, tokenize=False, add_generation_prompt=False
+                )
 
             formatted_contexts = [prompt]
             formatted_continuation = [prompt_and_continuation]
-            model_inputs = self._image_processor(text=formatted_continuation, images=visuals, return_tensors="pt").to(self._device, self.model.dtype)
+            model_inputs = self._image_processor(text=formatted_continuation, images=visuals, return_tensors="pt").to(
+                self._device, self.model.dtype
+            )
             labels = model_inputs["input_ids"].clone()
             contxt_id = self._image_processor(text=formatted_contexts, return_tensors="pt")["input_ids"]
             labels[:, : contxt_id.shape[1]] = -100
@@ -264,7 +288,7 @@ class LlavaHf(lmms):
         spare_frames = vr.get_batch(frame_idx).asnumpy()
         return spare_frames  # (frames, height, width, channels)
 
-    def generate_until(self, requests: List[Instance]) -> List[str]:
+    def generate_until(self, requests: list[Instance]) -> list[str]:
         res = []
 
         def _collate(x):
@@ -282,7 +306,11 @@ class LlavaHf(lmms):
         # in the same batch.
         re_ords = utils.Collator([reg.args for reg in requests], _collate, grouping=True)
         chunks = re_ords.get_batched(n=self.batch_size, batch_fn=None)
-        num_iters = len(requests) // self.batch_size if len(requests) % self.batch_size == 0 else len(requests) // self.batch_size + 1
+        num_iters = (
+            len(requests) // self.batch_size
+            if len(requests) % self.batch_size == 0
+            else len(requests) // self.batch_size + 1
+        )
         pbar = tqdm(total=num_iters, disable=(self.rank != 0), desc="Model Responding")
         for chunk in chunks:
             contexts, all_gen_kwargs, doc_to_visual, doc_id, task, split = zip(*chunk)
@@ -309,7 +337,9 @@ class LlavaHf(lmms):
                 if isinstance(until, str):
                     until = [until]
                 elif not isinstance(until, list):
-                    raise ValueError(f"Expected `gen_kwargs['until']` to be of type Union[str,list] but got {type(until)}")
+                    raise ValueError(
+                        f"Expected `gen_kwargs['until']` to be of type Union[str,list] but got {type(until)}"
+                    )
             assert self.batch_size_per_gpu == 1, "Do not support batch_size_per_gpu > 1 for now"
             context = contexts[0]
 
@@ -344,9 +374,13 @@ class LlavaHf(lmms):
                     pbar.update(1)
 
             if task_type == "image":
-                inputs = self._image_processor(images=visuals, text=text, return_tensors="pt").to(self._device, self.model.dtype)
+                inputs = self._image_processor(images=visuals, text=text, return_tensors="pt").to(
+                    self._device, self.model.dtype
+                )
             elif task_type == "video":
-                inputs = self._image_processor(videos=visuals, text=text, return_tensors="pt").to(self._device, self.model.dtype)
+                inputs = self._image_processor(videos=visuals, text=text, return_tensors="pt").to(
+                    self._device, self.model.dtype
+                )
 
             gen_kwargs["image_sizes"] = [visuals[idx].size for idx in range(len(visuals))]
             if "max_new_tokens" not in gen_kwargs:
@@ -387,5 +421,5 @@ class LlavaHf(lmms):
         pbar.close()
         return res
 
-    def generate_until_multi_round(self, requests) -> List[str]:
+    def generate_until_multi_round(self, requests) -> list[str]:
         raise NotImplementedError("TODO: Implement multi-round generation for LLaVAHF")

@@ -7,10 +7,9 @@ from pathlib import Path
 import cv2
 import numpy as np
 import yaml
+from lmms_eval.tasks.spatialtreebench.metrics import rule_metrics
 from loguru import logger as eval_logger
 from PIL import Image
-
-from lmms_eval.tasks.spatialtreebench.metrics import rule_metrics
 
 
 class TreeNode:
@@ -66,7 +65,7 @@ def load_spatree_hierarchy(file_path):
     """
     Loads the SpaTree hierarchy from a JSON file into a tree of TreeNode objects.
     """
-    with open(file_path, "r") as f:
+    with open(file_path) as f:
         data = json.load(f)
     return _dict_to_treenode(data)
 
@@ -76,7 +75,7 @@ spatree_hierarchy = load_spatree_hierarchy(str(Path(__file__).parent / "spatree_
 hf_home = os.getenv("HF_HOME", "~/.cache/huggingface/")
 base_cache_dir = os.path.expanduser(os.getenv("SPATREEBENCH_MEDIA_ROOT", hf_home))
 hf_datasets_cache_dir = os.path.join(os.path.expanduser(hf_home), "datasets")
-with open(Path(__file__).parent / "spatialtreebench.yaml", "r") as f:
+with open(Path(__file__).parent / "spatialtreebench.yaml") as f:
     raw_data = f.readlines()
     safe_data = []
     for i, line in enumerate(raw_data):
@@ -120,7 +119,8 @@ def _ensure_local_media_path(path_or_url: str) -> str:
         return cached
 
     raise FileNotFoundError(
-        f"Media file not found for '{path_or_url}'. Tried: {candidate} and HF datasets cache under {hf_datasets_cache_dir}. " "Set SPATREEBENCH_MEDIA_ROOT to a folder containing images/ and videos/ if your media is stored elsewhere."
+        f"Media file not found for '{path_or_url}'. Tried: {candidate} and HF datasets cache under {hf_datasets_cache_dir}. "
+        "Set SPATREEBENCH_MEDIA_ROOT to a folder containing images/ and videos/ if your media is stored elsewhere."
     )
 
 
@@ -278,7 +278,9 @@ def spatialtreebench_process_results(doc, results):
             result = metric_func(response=prediction, answer=answer, extra_info=metric_extra_info)
             score = result.get("score", 0)
         except Exception as e:
-            eval_logger.error(f"Error calculating metric {metric_func_name} for doc {doc.get('session_id', 'N/A')}: {e}")
+            eval_logger.error(
+                f"Error calculating metric {metric_func_name} for doc {doc.get('session_id', 'N/A')}: {e}"
+            )
             score = 0
 
     # Extract spatree hierarchy tags

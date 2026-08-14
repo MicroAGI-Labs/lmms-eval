@@ -4,13 +4,12 @@ from pathlib import Path
 
 import numpy as np
 import yaml
-from PIL import Image
-
 from lmms_eval.tasks.phyx.phyx_evals import PhyXEvaluator
+from PIL import Image
 
 
 def load_phyx_config():
-    with open(Path(__file__).parent / "phyx.yaml", "r") as f:
+    with open(Path(__file__).parent / "phyx.yaml") as f:
         raw_data = f.readlines()
         safe_data = []
         for line in raw_data:

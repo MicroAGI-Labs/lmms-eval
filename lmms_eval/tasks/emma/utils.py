@@ -6,11 +6,10 @@ from pathlib import Path
 
 import yaml
 from latex2sympy2 import latex2sympy
-from sympy import simplify
-from word2number import w2n
-
 from lmms_eval.llm_judge import get_server
 from lmms_eval.llm_judge.protocol import ServerConfig
+from sympy import simplify
+from word2number import w2n
 
 try:
     from dotenv import load_dotenv
@@ -25,12 +24,15 @@ dir_name = os.path.dirname(os.path.abspath(__file__))
 
 
 emma_config = {
-    "Strategy_Instruction": {"CoT": "Please solve the problem step by step.", "Directly": "Please ensure that your output only contains the final answer without any additional content (such as intermediate reasoning steps)."},
+    "Strategy_Instruction": {
+        "CoT": "Please solve the problem step by step.",
+        "Directly": "Please ensure that your output only contains the final answer without any additional content (such as intermediate reasoning steps).",
+    },
     "multi_choice_format": '{context}\n{question}\n{options}\nAnswer with the option\'s letter from the given choices and put the letter in one "\\boxed{{}}". ',
     "open_ended_format": '{context}\n{question}\nAnswer the question using a single word or phrase and put the answer in one "\\boxed{{}}". ',
 }
 
-with open(Path(__file__).parent / "emma_all.yaml", "r") as f:
+with open(Path(__file__).parent / "emma_all.yaml") as f:
     raw_data = f.readlines()
     safe_data = []
     for i, line in enumerate(raw_data):
@@ -180,7 +182,16 @@ def emma_process_results(doc, results):
                 # Parse the judge result to determine correctness
                 is_correct = "correct" in judge_result and "incorrect" not in judge_result
 
-                emma_submission = {"id": doc["pid"], "query": query, "gt_content": gt, "pred": pred, "subject": doc["subject"], "category": doc["category"], "judge_response": judge_response, "is_correct": is_correct}
+                emma_submission = {
+                    "id": doc["pid"],
+                    "query": query,
+                    "gt_content": gt,
+                    "pred": pred,
+                    "subject": doc["subject"],
+                    "category": doc["category"],
+                    "judge_response": judge_response,
+                    "is_correct": is_correct,
+                }
 
             except Exception as e:
                 eval_logger.error(f"Error using LMM judge: {e}")
@@ -188,12 +199,29 @@ def emma_process_results(doc, results):
                 pred_extracted = fast_extract_answer(pred)
                 is_correct = is_equal(pred_extracted, gt)
 
-                emma_submission = {"id": doc["pid"], "query": query, "gt_content": gt, "pred": pred, "subject": doc["subject"], "category": doc["category"], "judge_error": str(e), "is_correct": is_correct}
+                emma_submission = {
+                    "id": doc["pid"],
+                    "query": query,
+                    "gt_content": gt,
+                    "pred": pred,
+                    "subject": doc["subject"],
+                    "category": doc["category"],
+                    "judge_error": str(e),
+                    "is_correct": is_correct,
+                }
 
         else:
             # for no lmms judge, use fast_extract_answer only
             pred = fast_extract_answer(pred)
-            emma_submission = {"id": doc["pid"], "query": query, "gt_content": gt, "pred": pred, "subject": doc["subject"], "category": doc["category"], "is_correct": is_equal(pred, gt)}
+            emma_submission = {
+                "id": doc["pid"],
+                "query": query,
+                "gt_content": gt,
+                "pred": pred,
+                "subject": doc["subject"],
+                "category": doc["category"],
+                "is_correct": is_equal(pred, gt),
+            }
             # Note: the key name here is very important. It decides which aggregation function will receive the results
             # We note down the question id/category to help us aggregate the results later
         return {key_name: emma_submission}

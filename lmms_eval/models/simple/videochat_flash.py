@@ -1,20 +1,18 @@
 import logging
 import warnings
 from datetime import timedelta
-from typing import List, Optional, Tuple, Union
 
 import PIL
 import torch
 from accelerate import Accelerator, DistributedType, InitProcessGroupKwargs
 from accelerate.state import AcceleratorState
-from packaging import version
-from tqdm import tqdm
-from transformers import AutoModel, AutoTokenizer
-
 from lmms_eval import utils
 from lmms_eval.api.instance import Instance
 from lmms_eval.api.model import lmms
 from lmms_eval.api.registry import register_model
+from packaging import version
+from tqdm import tqdm
+from transformers import AutoModel, AutoTokenizer
 
 # Suppress warnings
 warnings.filterwarnings("ignore")
@@ -42,11 +40,11 @@ class VideoChat_Flash(lmms):
     def __init__(
         self,
         pretrained: str = "OpenGVLab/VideoChat-Flash-Qwen2-7B_res448",
-        device: Optional[str] = "cuda:0",
-        batch_size: Optional[Union[int, str]] = 1,
-        device_map: Optional[str] = "cuda:0",
-        use_cache: Optional[bool] = True,
-        max_num_frames: Optional[int] = 32,
+        device: str | None = "cuda:0",
+        batch_size: int | str | None = 1,
+        device_map: str | None = "cuda:0",
+        use_cache: bool | None = True,
+        max_num_frames: int | None = 32,
         **kwargs,
     ) -> None:
         super().__init__()
@@ -87,7 +85,11 @@ class VideoChat_Flash(lmms):
         assert self.batch_size_per_gpu == 1
 
         if accelerator.num_processes > 1:
-            assert accelerator.distributed_type in [DistributedType.FSDP, DistributedType.MULTI_GPU, DistributedType.DEEPSPEED], "Unsupported distributed type provided. Only DDP and FSDP are supported."
+            assert accelerator.distributed_type in [
+                DistributedType.FSDP,
+                DistributedType.MULTI_GPU,
+                DistributedType.DEEPSPEED,
+            ], "Unsupported distributed type provided. Only DDP and FSDP are supported."
             # If you want to use DistributedType.DEEPSPEED, you have to run accelerate config before using the model
             # Also, you have to select zero stage 0 (equivalent to DDP) in order to make the prepare model works
             # I tried to set different parameters in the kwargs to let default zero 2 stage works, but it didn't work.
@@ -97,9 +99,14 @@ class VideoChat_Flash(lmms):
                     "train_batch_size": self.batch_size_per_gpu * accelerator.num_processes,
                 }
                 AcceleratorState().deepspeed_plugin.deepspeed_config_process(must_match=True, **kwargs)
-                eval_logger.info("Detected that you are using DistributedType.DEEPSPEED. Make sure you run `accelerate config` and set zero stage to 0")
+                eval_logger.info(
+                    "Detected that you are using DistributedType.DEEPSPEED. Make sure you run `accelerate config` and set zero stage to 0"
+                )
 
-            if accelerator.distributed_type == DistributedType.FSDP or accelerator.distributed_type == DistributedType.DEEPSPEED:
+            if (
+                accelerator.distributed_type == DistributedType.FSDP
+                or accelerator.distributed_type == DistributedType.DEEPSPEED
+            ):
                 self._model = accelerator.prepare(self.model)
             else:
                 self._model = accelerator.prepare_model(self.model, evaluation_mode=True)
@@ -162,7 +169,7 @@ class VideoChat_Flash(lmms):
     def world_size(self):
         return self._world_size
 
-    def tok_encode(self, string: str, left_truncate_len=None, add_special_tokens=None) -> List[int]:
+    def tok_encode(self, string: str, left_truncate_len=None, add_special_tokens=None) -> list[int]:
         """ """
         add_special_tokens = False if add_special_tokens is None else add_special_tokens
         encoding = self.tokenizer.encode(string, add_special_tokens=add_special_tokens)
@@ -177,7 +184,7 @@ class VideoChat_Flash(lmms):
         except:
             return self.tokenizer.decode([tokens])
 
-    def loglikelihood(self, requests: List[Instance]) -> List[Tuple[float, bool]]:
+    def loglikelihood(self, requests: list[Instance]) -> list[tuple[float, bool]]:
         raise NotImplementedError
 
     def flatten(self, input):
@@ -187,7 +194,7 @@ class VideoChat_Flash(lmms):
                 new_list.append(j)
         return new_list
 
-    def generate_until(self, requests: List[Instance]) -> List[str]:
+    def generate_until(self, requests: list[Instance]) -> list[str]:
         res = []
 
         def _collate(x):
@@ -201,14 +208,22 @@ class VideoChat_Flash(lmms):
 
         re_ords = utils.Collator([reg.args for reg in requests], _collate, grouping=True)
         chunks = re_ords.get_batched(n=self.batch_size, batch_fn=None)
-        num_iters = len(requests) // self.batch_size if len(requests) % self.batch_size == 0 else len(requests) // self.batch_size + 1
+        num_iters = (
+            len(requests) // self.batch_size
+            if len(requests) % self.batch_size == 0
+            else len(requests) // self.batch_size + 1
+        )
         pbar = tqdm(total=num_iters, disable=(self.rank != 0), desc="Model Responding")
         for chunk in chunks:
-            batched_contexts, all_gen_kwargs, batched_doc_to_visual, batched_doc_id, batched_task, batched_split = zip(*chunk)
+            batched_contexts, all_gen_kwargs, batched_doc_to_visual, batched_doc_id, batched_task, batched_split = zip(
+                *chunk
+            )
 
             task = batched_task[0]
             split = batched_split[0]
-            batched_visuals = [batched_doc_to_visual[0](self.task_dict[task][split][ids]) for ids in batched_doc_id]  # [B, N]
+            batched_visuals = [
+                batched_doc_to_visual[0](self.task_dict[task][split][ids]) for ids in batched_doc_id
+            ]  # [B, N]
             assert len(batched_visuals) == 1
 
             # we assume all gen kwargs in the batch are the same
@@ -232,11 +247,15 @@ class VideoChat_Flash(lmms):
             question_input = []
             text_outputs = []
             for visual, context in zip(batched_visuals, batched_contexts):
-                if len(visual) > 1 or "image_aspect_ratio" not in self._config.__dict__:  # for multi image case, we treat per image aspect ratio as "pad" by default.
+                if (
+                    len(visual) > 1 or "image_aspect_ratio" not in self._config.__dict__
+                ):  # for multi image case, we treat per image aspect ratio as "pad" by default.
                     self._config.image_aspect_ratio = getattr(gen_kwargs, "image_aspect_ratio", "pad")
                     eval_logger.info(f"Setting image aspect ratio: {self._config.image_aspect_ratio}")
 
-                if type(visual[0]) == PIL.Image.Image:  # and "task_type" not in metadata and "sample_frames" not in metadata:  # For image task
+                if (
+                    type(visual[0]) == PIL.Image.Image
+                ):  # and "task_type" not in metadata and "sample_frames" not in metadata:  # For image task
                     raise NotImplementedError(f"I don't want image task now: {visual}, {task}, {metadata}")
 
                 elif type(visual[0]) == str:  # For video task

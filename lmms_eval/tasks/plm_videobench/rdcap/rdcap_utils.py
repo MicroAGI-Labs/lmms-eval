@@ -2,20 +2,23 @@ import json
 import os
 
 import numpy as np
-from openai import OpenAI
-
 from lmms_eval.tasks.plm_videobench.eval_utils import *
+from openai import OpenAI
 
 # Load default config parameters
 config = load_defualt_config()
 
 # Load metadta
 metadata_map = load_plm_stc_metadata(config)
-assert metadata_map, "metadata_map is not created. Please double check if you have downloaded the metadata and set the correct path in _default_template_yaml."
+assert metadata_map, (
+    "metadata_map is not created. Please double check if you have downloaded the metadata and set the correct path in _default_template_yaml."
+)
 
 # Load video paths
 video_base_dir = config["plm_stc"]["video_base_dir"]
-assert video_base_dir is not None, "video_base_dir is not set. Please double check if you have downloaded the videos and set the correct path in _default_template_yaml."
+assert video_base_dir is not None, (
+    "video_base_dir is not set. Please double check if you have downloaded the videos and set the correct path in _default_template_yaml."
+)
 
 # Load the number of video frames
 num_video_frames = config["plm_stc"]["num_video_frames"]
@@ -40,9 +43,13 @@ def plm_rdcap_doc_to_visual(doc):
 
 
 def plm_rdcap_doc_to_text(doc, lmms_eval_specific_kwargs=None):
-    assert lmms_eval_specific_kwargs and "prompt" in lmms_eval_specific_kwargs, "'prompt' must be specified in lmms_eval_specific_kwargs for the 'plm_rdcap' task."
+    assert lmms_eval_specific_kwargs and "prompt" in lmms_eval_specific_kwargs, (
+        "'prompt' must be specified in lmms_eval_specific_kwargs for the 'plm_rdcap' task."
+    )
 
-    prompt = lmms_eval_specific_kwargs["prompt"].format(start_frame=0, end_frame=num_video_frames - 1, total_frames=num_video_frames)
+    prompt = lmms_eval_specific_kwargs["prompt"].format(
+        start_frame=0, end_frame=num_video_frames - 1, total_frames=num_video_frames
+    )
 
     return prompt
 
@@ -53,7 +60,12 @@ def plm_rdcap_process_results(doc, results):
 
     gt_dense_captions = doc["dense_captions"]
     rescale_factor = doc["total_frames"] / num_video_frames
-    gt_segments = np.array([[int(entry["start_frame"] / rescale_factor), int(entry["end_frame"] / rescale_factor)] for entry in gt_dense_captions])
+    gt_segments = np.array(
+        [
+            [int(entry["start_frame"] / rescale_factor), int(entry["end_frame"] / rescale_factor)]
+            for entry in gt_dense_captions
+        ]
+    )
     gt_captions = [entry["caption"] for entry in gt_dense_captions]
 
     if len(pred_segments) == 0:

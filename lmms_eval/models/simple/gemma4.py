@@ -21,25 +21,73 @@ Notes on the transformers integration:
 
 import os
 import warnings
-from typing import List, Optional, Tuple, Union
+from types import MethodType
+from typing import Callable
+from typing import Protocol
 
 import torch
-from accelerate import Accelerator, DistributedType
-from loguru import logger as eval_logger
-from PIL import Image
-from tqdm import tqdm
-from transformers import AutoModelForImageTextToText, AutoProcessor, AutoTokenizer
-
+from accelerate import Accelerator
+from accelerate import DistributedType
 from lmms_eval import utils
 from lmms_eval.api.instance import Instance
 from lmms_eval.api.model import lmms
 from lmms_eval.api.registry import register_model
 from lmms_eval.models.model_utils.media_encoder import encode_image_to_data_url
+from loguru import logger as eval_logger
+from PIL import Image
+from tqdm import tqdm
+from transformers import AutoModelForImageTextToText
+from transformers import AutoProcessor
+from transformers import AutoTokenizer
+from transformers.video_utils import VideoMetadata
 
 warnings.simplefilter("ignore", category=DeprecationWarning)
 warnings.filterwarnings("ignore")
 
 DEFAULT_MAX_FRAMES = 32
+
+
+class _VideoProcessor(Protocol):
+    num_frames: int | None
+    sample_frames: Callable[..., torch.Tensor]
+
+
+def _validate_batch_size(batch_size: int | str | None) -> int:
+    if (type(batch_size) is int and batch_size == 1) or (type(batch_size) is str and batch_size == "1"):
+        return 1
+    raise ValueError(f"Gemma4 requires batch_size=1 because videos can have different frame counts, got {batch_size!r}")
+
+
+def _validate_max_num_frames(max_num_frames: int) -> int:
+    if type(max_num_frames) is not int or max_num_frames <= 0:
+        raise ValueError(f"Gemma4 requires max_num_frames to be a positive integer, got {max_num_frames!r}")
+    return max_num_frames
+
+
+def _sample_frames_up_to_limit(
+    video_processor: _VideoProcessor,
+    metadata: VideoMetadata,
+    num_frames: int | None = None,
+    fps: int | float | None = None,
+    **_: object,
+) -> torch.Tensor:
+    if fps is not None:
+        raise ValueError("Gemma4 uses a fixed maximum frame count, not FPS sampling")
+    requested_frames = num_frames if num_frames is not None else video_processor.num_frames
+    if requested_frames is None or requested_frames <= 0:
+        raise ValueError(f"Gemma4 requires a positive frame limit, got {requested_frames}")
+    if metadata.total_num_frames <= 0:
+        raise ValueError(f"Gemma4 requires a non-empty video, got {metadata.total_num_frames} frames")
+
+    sampled_frames = min(requested_frames, metadata.total_num_frames)
+    if sampled_frames == 1:
+        return torch.zeros(1, dtype=torch.int64)
+    return torch.arange(sampled_frames, dtype=torch.int64) * (metadata.total_num_frames - 1) // (sampled_frames - 1)
+
+
+def _configure_video_processor(video_processor: _VideoProcessor, max_num_frames: int) -> None:
+    video_processor.num_frames = _validate_max_num_frames(max_num_frames)
+    video_processor.sample_frames = MethodType(_sample_frames_up_to_limit, video_processor)
 
 
 @register_model("gemma4")
@@ -52,21 +100,23 @@ class Gemma4(lmms):
     def __init__(
         self,
         pretrained: str = "google/gemma-4-E2B-it",
-        device: Optional[str] = "cuda",
-        device_map: Optional[str] = "auto",
-        batch_size: Optional[Union[int, str]] = 1,
-        trust_remote_code: Optional[bool] = True,
+        device: str | None = "cuda",
+        device_map: str | None = "auto",
+        batch_size: int | str | None = 1,
+        trust_remote_code: bool | None = True,
         use_cache=True,
-        attn_implementation: Optional[str] = None,
+        attn_implementation: str | None = None,
         max_num_frames: int = DEFAULT_MAX_FRAMES,
-        interleave_visuals: Optional[bool] = False,
-        system_prompt: Optional[str] = "You are a helpful assistant.",
-        reasoning_prompt: Optional[str] = None,
+        interleave_visuals: bool | None = False,
+        system_prompt: str | None = "You are a helpful assistant.",
+        reasoning_prompt: str | None = None,
         **kwargs,
     ) -> None:
         super().__init__()
         # Do not use kwargs for now
         assert kwargs == {}, f"Unexpected kwargs: {kwargs}"
+        max_num_frames = _validate_max_num_frames(max_num_frames)
+        self.batch_size_per_gpu = _validate_batch_size(batch_size)
 
         accelerator = Accelerator()
         if accelerator.num_processes > 1:
@@ -91,13 +141,17 @@ class Gemma4(lmms):
         # current releases; a future Gemma4ForConditionalGeneration would also
         # be picked up automatically).
         self._model = AutoModelForImageTextToText.from_pretrained(pretrained, **model_kwargs).eval()
-        self._tokenizer = AutoTokenizer.from_pretrained(pretrained, trust_remote_code=trust_remote_code, device_map=self.device_map)
+        self._tokenizer = AutoTokenizer.from_pretrained(
+            pretrained, trust_remote_code=trust_remote_code, device_map=self.device_map
+        )
         self.processor = AutoProcessor.from_pretrained(pretrained)
+        _configure_video_processor(self.processor.video_processor, max_num_frames)
 
         self._config = self._model.config
-        self._max_length = kwargs.get("max_length", 2048)
+        # vsibench avg 2758 in-tok/sample (32 video frames × 86 image tokens); 2048 silently
+        # truncated late video frames. 4096 covers full vsibench distribution at <1 GB extra.
+        self._max_length = kwargs.get("max_length", 4096)
         self._model.tie_weights()
-        self.batch_size_per_gpu = int(batch_size)
         self.use_cache = use_cache
         self.system_prompt = system_prompt
         self.interleave_visuals = interleave_visuals
@@ -172,10 +226,10 @@ class Gemma4(lmms):
     def world_size(self):
         return self._world_size
 
-    def loglikelihood(self, requests: List[Instance]) -> List[Tuple[float, bool]]:
+    def loglikelihood(self, requests: list[Instance]) -> list[tuple[float, bool]]:
         raise NotImplementedError("Not implemented for Gemma4.")
 
-    def flatten(self, input: List[List]) -> List:
+    def flatten(self, input: list[list]) -> list:
         """Flatten a nested list into a single list.
 
         Args:
@@ -199,7 +253,7 @@ class Gemma4(lmms):
             quality=85,
         )
 
-    def generate_until(self, requests: List[Instance]) -> List[str]:
+    def generate_until(self, requests: list[Instance]) -> list[str]:
         """Generate text completions for given requests.
 
         Args:
@@ -239,7 +293,9 @@ class Gemma4(lmms):
             if isinstance(until, str):
                 until = [until]
             elif not isinstance(until, list):
-                raise ValueError(f"Expected `gen_kwargs['until']` to be of type Union[str, list], but got {type(until)}")
+                raise ValueError(
+                    f"Expected `gen_kwargs['until']` to be of type Union[str, list], but got {type(until)}"
+                )
 
             # Avoid using '\n\n' as a stopper to prevent truncation, which can lead to incorrect results
             until = [item for item in until if item != "\n\n"]
@@ -285,6 +341,11 @@ class Gemma4(lmms):
 
                 batched_messages.append(message)
 
+            # Dynamic padding (left-pad to longest in batch) instead of max_length so
+            # batch_size > 1 stops wasting prefill on padded text tokens; vsibench
+            # video inputs (avg 2758 tokens) drive the batch ceiling, not the
+            # 128-token question text. Removes silent truncation when any sample
+            # exceeds self._max_length.
             inputs = self.processor.apply_chat_template(
                 batched_messages,
                 add_generation_prompt=True,
@@ -292,9 +353,8 @@ class Gemma4(lmms):
                 return_dict=True,
                 processor_kwargs={
                     "return_tensors": "pt",
-                    "padding": "max_length",
+                    "padding": True,
                     "pad_to_multiple_of": 8,
-                    "max_length": self.max_length,
                 },
             ).to(self.model.device, dtype=torch.bfloat16)
 
@@ -331,7 +391,9 @@ class Gemma4(lmms):
             )
 
             generated_ids_trimmed = [out_ids[len(in_ids) :] for in_ids, out_ids in zip(inputs.input_ids, cont)]
-            answers = self.processor.batch_decode(generated_ids_trimmed, skip_special_tokens=True, clean_up_tokenization_spaces=False)
+            answers = self.processor.batch_decode(
+                generated_ids_trimmed, skip_special_tokens=True, clean_up_tokenization_spaces=False
+            )
             for i, ans in enumerate(answers):
                 for term in until:
                     if len(term) > 0:
@@ -348,7 +410,7 @@ class Gemma4(lmms):
         pbar.close()
         return res
 
-    def generate_until_multi_round(self, requests: List[Instance]) -> List[str]:
+    def generate_until_multi_round(self, requests: list[Instance]) -> list[str]:
         """Generate text in a multi-round conversation format.
 
         Args:

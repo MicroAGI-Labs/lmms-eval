@@ -3,10 +3,9 @@ import json
 import os
 import sys
 
-from loguru import logger as eval_logger
-
 import lmms_eval.tasks._task_utils.file_utils as file_utils
 from lmms_eval.tasks._task_utils.default_template_yaml import load_default_template_yaml
+from loguru import logger as eval_logger
 
 config = load_default_template_yaml(__file__)
 
@@ -77,7 +76,14 @@ def perceptiontest_process_results_mc_ppl(doc, result):
             min_index = i
 
     # Return the result with the index of the lowest value
-    return {"submission": {"video_name": doc["video_name"], "question": doc["question"], "question_id": doc["question_id"], "pred_id": min_index}}
+    return {
+        "submission": {
+            "video_name": doc["video_name"],
+            "question": doc["question"],
+            "question_id": doc["question_id"],
+            "pred_id": min_index,
+        }
+    }
 
 
 # Process result for generation
@@ -88,7 +94,14 @@ def perceptiontest_process_results_mc(doc, result):
     pred_to_index = {"A": 0, "B": 1, "C": 2}
     index = pred_to_index.get(pred, -1)  # Default to -1 if the prediction is not found
 
-    return {"submission": {"video_name": doc["video_name"], "question": doc["question"], "question_id": doc["question_id"], "pred_id": index}}
+    return {
+        "submission": {
+            "video_name": doc["video_name"],
+            "question": doc["question"],
+            "question_id": doc["question_id"],
+            "pred_id": index,
+        }
+    }
 
 
 def perceptiontest_aggregate_submissions(results, args, task):

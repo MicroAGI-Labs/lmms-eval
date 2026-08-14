@@ -6,6 +6,7 @@ import sys
 import time
 from pathlib import Path
 
+import lmms_eval.tasks._task_utils.file_utils as file_utils
 import numpy as np
 import requests
 import torch
@@ -20,8 +21,6 @@ from pycocoevalcap.eval import Bleu, Rouge
 from pycocoevalcap.tokenizer.ptbtokenizer import PTBTokenizer
 from tqdm import tqdm
 
-import lmms_eval.tasks._task_utils.file_utils as file_utils
-
 # import nltk
 # nltk.download('punkt')
 # from nltk.translate.bleu_score import sentence_bleu, SmoothingFunction
@@ -31,7 +30,7 @@ import lmms_eval.tasks._task_utils.file_utils as file_utils
 
 NUM_SECONDS_TO_SLEEP = 5
 
-with open(Path(__file__).parent / "_default_template_yaml", "r") as f:
+with open(Path(__file__).parent / "_default_template_yaml") as f:
     raw_data = f.readlines()
     safe_data = []
     for i, line in enumerate(raw_data):
@@ -249,8 +248,22 @@ def funqa_process_results(doc, result):
     # content = eval_prompt.format(question=doc["question"], answer=doc["answer"], candidate=pred)
     content, gpt_prompt, gpt_score = get_eval(candidate=pred, task=doc["task"], content=doc["prompt"], max_tokens=1024)
     return {
-        "submission": {"pred": pred, "answer": doc["answer"], "task": doc["task"], "eval_answer": content, gpt_prompt: gpt_prompt, "gpt_score": gpt_score},
-        "funqa_gpt": {"pred": pred, "answer": doc["answer"], "task": doc["task"], "eval_answer": content, gpt_prompt: gpt_prompt, "gpt_score": gpt_score},
+        "submission": {
+            "pred": pred,
+            "answer": doc["answer"],
+            "task": doc["task"],
+            "eval_answer": content,
+            gpt_prompt: gpt_prompt,
+            "gpt_score": gpt_score,
+        },
+        "funqa_gpt": {
+            "pred": pred,
+            "answer": doc["answer"],
+            "task": doc["task"],
+            "eval_answer": content,
+            gpt_prompt: gpt_prompt,
+            "gpt_score": gpt_score,
+        },
         "funqa_BLEU": {"pred": pred, "answer": doc["answer"], "task": doc["task"]},
         "funqa_ROUGE": {"pred": pred, "answer": doc["answer"], "task": doc["task"]},
         "funqa_BLEURT": {"pred": pred, "answer": doc["answer"], "task": doc["task"]},
@@ -268,7 +281,9 @@ def funqa_aggregate_submissions(results, args, task):
 
 def funqa_aggregate_results_bleurt(results, args):
     bleurt_version = "lucadiliello/BLEURT-20"
-    eval_logger.info(f"Loading BLEURT model {bleurt_version}, you can change to the small version BLEURT-20-D12 in tasks/funqa/utils.py")
+    eval_logger.info(
+        f"Loading BLEURT model {bleurt_version}, you can change to the small version BLEURT-20-D12 in tasks/funqa/utils.py"
+    )
     config = BleurtConfig.from_pretrained(bleurt_version)
     model = BleurtForSequenceClassification.from_pretrained(bleurt_version)
     tokenizer = BleurtTokenizer.from_pretrained(bleurt_version)

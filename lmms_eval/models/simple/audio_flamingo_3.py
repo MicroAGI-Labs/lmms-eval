@@ -1,6 +1,5 @@
 import os
 import tempfile
-from typing import List, Optional, Tuple, Union
 
 import numpy as np
 import soundfile as sf
@@ -32,9 +31,9 @@ class AudioFlamingo3(lmms):
     def __init__(
         self,
         pretrained: str = "nvidia/audio-flamingo-3-hf",
-        device: Optional[str] = "cuda",
-        device_map: Optional[str] = "cuda",
-        batch_size: Optional[Union[int, str]] = 1,
+        device: str | None = "cuda",
+        device_map: str | None = "cuda",
+        batch_size: int | str | None = 1,
         use_cache: bool = True,
         **kwargs,
     ) -> None:
@@ -53,7 +52,11 @@ class AudioFlamingo3(lmms):
             self.device_map = f"cuda:{accelerator.local_process_index}"
 
         if AudioFlamingo3ForConditionalGeneration is None:
-            raise ImportError("AudioFlamingo3ForConditionalGeneration is not available in transformers " f"{transformers.__version__}. Please upgrade transformers/accelerate in this env, e.g. " "`pip install -U transformers accelerate`.")
+            raise ImportError(
+                "AudioFlamingo3ForConditionalGeneration is not available in transformers "
+                f"{transformers.__version__}. Please upgrade transformers/accelerate in this env, e.g. "
+                "`pip install -U transformers accelerate`."
+            )
 
         self._model = AudioFlamingo3ForConditionalGeneration.from_pretrained(
             pretrained,
@@ -123,7 +126,7 @@ class AudioFlamingo3(lmms):
     def world_size(self):
         return self._world_size
 
-    def loglikelihood(self, requests: List[Instance]) -> List[Tuple[float, bool]]:
+    def loglikelihood(self, requests: list[Instance]) -> list[tuple[float, bool]]:
         raise NotImplementedError("Loglikelihood is not implemented for AudioFlamingo3")
 
     def _save_audio_to_temp(self, audio_array: np.ndarray, sampling_rate: int) -> str:
@@ -132,7 +135,7 @@ class AudioFlamingo3(lmms):
         sf.write(temp_file.name, audio_array, sampling_rate)
         return temp_file.name
 
-    def generate_until(self, requests: List[Instance]) -> List[str]:
+    def generate_until(self, requests: list[Instance]) -> list[str]:
         res = []
 
         def _collate(x):
@@ -160,7 +163,9 @@ class AudioFlamingo3(lmms):
                 if isinstance(until, str):
                     until = [until]
                 elif not isinstance(until, list):
-                    raise ValueError(f"Expected `gen_kwargs['until']` to be of type Union[str,list] " f"but got {type(until)}")
+                    raise ValueError(
+                        f"Expected `gen_kwargs['until']` to be of type Union[str,list] but got {type(until)}"
+                    )
 
             # Build conversations for each item in the batch
             conversations = []
@@ -255,5 +260,5 @@ class AudioFlamingo3(lmms):
         pbar.close()
         return res
 
-    def generate_until_multi_round(self, requests) -> List[str]:
+    def generate_until_multi_round(self, requests) -> list[str]:
         raise NotImplementedError("Multi-round generation is not implemented")

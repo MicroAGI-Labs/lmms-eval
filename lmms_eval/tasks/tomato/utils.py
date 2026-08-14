@@ -1,19 +1,16 @@
 import base64
 import os
-import random
 import re
 from collections import defaultdict
 from pathlib import Path
-from typing import Tuple
+from typing import Any
 
 import cv2
 import numpy as np
 import yaml
 from loguru import logger as eval_logger
-from openai import AzureOpenAI, OpenAI
-
-random.seed(42)
-
+from openai import AzureOpenAI
+from openai import OpenAI
 
 dir_name = os.path.dirname(os.path.abspath(__file__))
 
@@ -24,7 +21,10 @@ MAX_ITER = 5
 USE_GPT_PARSER = False  # whether to use gpt parser from TOMATO's source code, else use lmms_eval parser
 
 if USE_GPT_PARSER:
-    eval_logger.info(f"Using GPT parser for TOMATO task. The max iteration is set to {MAX_ITER}. " "If the response is not a valid answer, it will try to use GPT to parse the response.")
+    eval_logger.info(
+        f"Using GPT parser for TOMATO task. The max iteration is set to {MAX_ITER}. "
+        "If the response is not a valid answer, it will try to use GPT to parse the response."
+    )
     API_TYPE = os.getenv("API_TYPE", "azure")
     if API_TYPE == "openai":
         endpoint = os.getenv("OPENAI_API_URL", "https://api.openai.com/v1/chat/completions")
@@ -48,7 +48,9 @@ if USE_GPT_PARSER:
     else:
         raise ValueError(f"Unsupported API_TYPE: {API_TYPE}. Please set it to 'openai' or 'azure'.")
 
-eval_logger.info(f"Using {NUM_FRAMES} frames for TOMATO task. Please set the max_num_frames=16 in model_args for the result reported in the TOMATO paper: https://arxiv.org/pdf/2410.23266.")
+eval_logger.info(
+    f"Using {NUM_FRAMES} frames for TOMATO task. Please set the max_num_frames=16 in model_args for the result reported in the TOMATO paper: https://arxiv.org/pdf/2410.23266."
+)
 
 
 """
@@ -66,7 +68,7 @@ python3 -m accelerate.commands.launch \
     --output_path ./logs/
 """
 
-with open(Path(__file__).parent / "tomato.yaml", "r") as f:
+with open(Path(__file__).parent / "tomato.yaml") as f:
     raw_data = f.readlines()
     safe_data = []
     for i, line in enumerate(raw_data):
@@ -79,7 +81,7 @@ hf_home = os.getenv("HF_HOME", "~/.cache/huggingface/")
 cache_dir = os.path.join(hf_home, config["dataset_kwargs"]["cache_dir"])
 
 
-def construct_prompt(question: str, options: list, num_frames: int) -> Tuple:
+def construct_prompt(question: str, options: list, num_frames: int) -> tuple:
     """
     Args:
         question (str): question in the dataset
@@ -115,7 +117,7 @@ DO NOT GENERATE ANSWER SUCH AS 'NOT POSSIBLE TO DETERMINE.'
     return prompt, all_choices, index2ans
 
 
-def read_video(video_path: str, total_frames: int):
+def read_video(video_path: str, total_frames: int) -> tuple[list[str], float]:
     # Create a VideoCapture object
     video = cv2.VideoCapture(video_path)
     if not video.isOpened():
@@ -154,30 +156,28 @@ def read_video(video_path: str, total_frames: int):
         video.release()
 
 
-def tomato_doc_to_visual(doc):
+def tomato_doc_to_visual(doc: dict[str, Any]) -> list[str]:
     """
     Return the path to the video only
     """
-    video_paths = []
-    # Get the video
     abs_video_path = os.path.join(cache_dir, doc["video_path"])
     abs_video_path = os.path.expanduser(abs_video_path)
-    if os.path.exists(abs_video_path):
-        video_paths.append(abs_video_path)
-    else:
-        eval_logger.error(f"Video path does not exist: {abs_video_path}")
-    return video_paths
+    if not os.path.exists(abs_video_path):
+        raise FileNotFoundError(f"TOMATO video path does not exist: {abs_video_path}")
+    return [abs_video_path]
 
 
-def tomato_doc_to_text(doc, lmms_eval_specific_kwargs=None):
+def tomato_doc_to_text(doc: dict[str, Any], lmms_eval_specific_kwargs: dict[str, Any] | None = None) -> str:
     """
     Process the document to a prompt for video + audio inputs
     """
-    prompt, all_choices, index2ans = construct_prompt(question=doc["question"], options=doc["options"], num_frames=NUM_FRAMES)
-    return prompt
+    prompt, all_choices, index2ans = construct_prompt(
+        question=doc["question"], options=doc["options"], num_frames=NUM_FRAMES
+    )
+    return f"{SYSTEM_PROMPT}\n\n{prompt}\nRespond with only the letter of the correct answer."
 
 
-def gpt_parser(response, all_choices, index2ans):
+def gpt_parser(response: str, all_choices: list[str], index2ans: dict[str, str]) -> str:
     prompt = f"""You are given a response, a list of multiple-choice options, and a index2answer mapping. You are required to extract the letter option from the GPT. 
     
     response: {response}
@@ -211,68 +211,41 @@ Your extracted letter is:
     return response
 
 
-def parse_multi_choice_response(response, all_choices, index2ans):
+def parse_multi_choice_response(response: str, all_choices: list[str], index2ans: dict[str, str]) -> str:
     """
     Parse the prediction from the generated response.
     Return the predicted index e.g., A, B, C, D.
     """
-    for char in [",", ".", "!", "?", ";", ":", "'"]:
-        response = response.strip(char)
-    response = " " + response + " "  # add space to avoid partial match
+    response = response.strip()
+    parsed_response = pre_parser(response, all_choices, index2ans)
+    if parsed_response:
+        return parsed_response
 
-    index_ans = True
-    ans_with_brack = False
-    candidates = []
-    for choice in all_choices:  # e.g., (A) (B) (C) (D)
-        if f"{choice}" in response:
-            candidates.append(choice)
-            ans_with_brack = True
+    choice_pattern = "|".join(re.escape(choice) for choice in all_choices)
+    patterns = (
+        rf"(?:answer|option|choice)\s*(?:is|:)?\s*\(?({choice_pattern})\)?(?![A-Z0-9])",
+        rf"\(({choice_pattern})\)",
+        rf"^\s*({choice_pattern})[\).:]?\s*$",
+    )
+    for pattern in patterns:
+        candidates = re.findall(pattern, response.upper(), flags=re.MULTILINE)
+        if candidates:
+            return candidates[-1]
 
-    if len(candidates) == 0:
-        for choice in all_choices:  # e.g., A B C D
-            if f" {choice} " in response:
-                candidates.append(choice)
-
-    # if all above doesn't get candidates, check if the content is larger than 5 tokens and try to parse the example
-    if len(candidates) == 0 and len(response.split()) > 5:
-        for index, ans in index2ans.items():
-            if ans.lower() in response.lower():
-                candidates.append(index)
-                index_ans = False  # it's content ans.
-
-    if len(candidates) == 0:  # still not get answer, randomly choose one.
-        # pred_index = random.choice(all_choices)
-        pred_index = "A"
-    elif len(candidates) > 1:
-        start_indexes = []
-        if index_ans:
-            if ans_with_brack:
-                for can in candidates:
-                    index = response.rfind(f"({can})")
-                    start_indexes.append(index)  # -1 will be ignored anyway
-                # start_indexes = [generated_response.index(f'({can})') for can in candidates]
-            else:
-                for can in candidates:
-                    index = response.rfind(f" {can} ")
-                    start_indexes.append(index)
-        else:
-            for can in candidates:
-                index = response.lower().rfind(index2ans[can].lower())
-                start_indexes.append(index)
-        # get the last one
-        pred_index = candidates[np.argmax(start_indexes)]
-    else:  # if only one candidate, use it.
-        pred_index = candidates[0]
-
-    return pred_index
+    answer_candidates = [
+        (response.lower().rfind(answer.lower()), index)
+        for index, answer in index2ans.items()
+        if answer.lower() in response.lower()
+    ]
+    return max(answer_candidates)[1] if answer_candidates else ""
 
 
-def pre_parser(response, all_choices, index2ans):
+def pre_parser(response: str, all_choices: list[str], index2ans: dict[str, str]) -> str:
     parsed_response = ""
     response = response.strip()
 
     # preprocess matches
-    full_choices = [f"{k}: {v}" for k, v in index2ans.items()]
+    full_choices = [f"{k}: {v}".upper() for k, v in index2ans.items()]
     pattern = r"^Answer is:?[\(]?([A-Fa-f])[\)]?$"
     match = re.match(pattern, response)
 
@@ -291,7 +264,7 @@ def pre_parser(response, all_choices, index2ans):
     return parsed_response
 
 
-def tomato_process_results(doc, results):
+def tomato_process_results(doc: dict[str, Any], results: list[str]) -> dict[str, dict[str, Any]]:
     """
     Args:
         doc: a instance of the eval dataset
@@ -300,7 +273,9 @@ def tomato_process_results(doc, results):
         a dictionary with key: metric name (in this case av_odyssey score), value: metric value
     """
     respone = results[0]
-    _, all_choices, index2ans = construct_prompt(question=doc["question"], options=doc["options"], num_frames=NUM_FRAMES)
+    _, all_choices, index2ans = construct_prompt(
+        question=doc["question"], options=doc["options"], num_frames=NUM_FRAMES
+    )
     optionized_list = [f"{chr(65 + i)}. {option}" for i, option in enumerate(doc["options"])]
     gt = optionized_list[doc["answer"]]
     if USE_GPT_PARSER:
@@ -314,7 +289,7 @@ def tomato_process_results(doc, results):
                     break
                 curr_iter += 1
             if parsed_response not in all_choices:
-                parsed_response = random.choice(all_choices)
+                parsed_response = ""
 
     else:
         parsed_response = parse_multi_choice_response(respone, all_choices, index2ans)
@@ -325,10 +300,17 @@ def tomato_process_results(doc, results):
     key_name = "tomato_score"
     # Note: the key name here is very important. It decides which aggregation function will receive the results
     # We note down the question id/category to help us aggregate the results later
-    return {key_name: {"question_id": doc["id"], "score": score, "reason_type": reason_type, "demonstration_type": demo_type}}
+    return {
+        key_name: {
+            "question_id": doc["id"],
+            "score": score,
+            "reason_type": reason_type,
+            "demonstration_type": demo_type,
+        }
+    }
 
 
-def tomato_aggregate_results(results):
+def tomato_aggregate_results(results: list[dict[str, Any]]) -> float:
     """
     Args:
         results: a list of values returned by process_results
@@ -340,7 +322,6 @@ def tomato_aggregate_results(results):
     num_corrects = 0
     num_total = 0
     for result in results:
-        question_id = result["question_id"]
         score = result["score"]
         reason_type = result["reason_type"]
         demonstration_type = result["demonstration_type"]

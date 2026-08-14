@@ -4,7 +4,7 @@ import inspect
 import math
 import pathlib
 import sys
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any
 
 import numpy as np
 
@@ -125,11 +125,17 @@ class TaskOutput:
                 if isinstance(bootstrap_iters, int):
                     stderr_fn = stderr_for_metric(
                         metric=agg_fn,
-                        bootstrap_iters=min(bootstrap_iters, 100) if metric in ["bleu", "chrf", "ter"] else bootstrap_iters,
+                        bootstrap_iters=min(bootstrap_iters, 100)
+                        if metric in ["bleu", "chrf", "ter"]
+                        else bootstrap_iters,
                     )
-                    self.agg_metrics[f"{metric}_stderr,{filter_key}"] = stderr_fn(items) if (stderr_fn and len(items) > 1) else "N/A"
+                    self.agg_metrics[f"{metric}_stderr,{filter_key}"] = (
+                        stderr_fn(items) if (stderr_fn and len(items) > 1) else "N/A"
+                    )
                 else:
-                    raise ValueError(f"Received bootstrap_iters '{bootstrap_iters}' but expected an integer. Set to 0 to turn off stderr calculations.")
+                    raise ValueError(
+                        f"Received bootstrap_iters '{bootstrap_iters}' but expected an integer. Set to 0 to turn off stderr calculations."
+                    )
 
     def calculate_clt_aggregate_metric(self) -> None:
         """Calculate CLT-based standard errors (naive and clustered)."""
@@ -153,11 +159,15 @@ class TaskOutput:
                     cluster_ids.append(x.get(cluster_key) if cluster_key else None)
             n = len(numeric_items)
             # Naive CLT stderr: std / sqrt(n)
-            self.agg_metrics[f"{metric}_stderr_clt,{filter_key}"] = np.std(numeric_items, ddof=1) / np.sqrt(n) if n > 1 else "N/A"
+            self.agg_metrics[f"{metric}_stderr_clt,{filter_key}"] = (
+                np.std(numeric_items, ddof=1) / np.sqrt(n) if n > 1 else "N/A"
+            )
             # Clustered stderr: only if cluster_ids are available and have >1 unique clusters
             valid_clusters = [c for c in cluster_ids if c is not None]
             if valid_clusters and len(set(valid_clusters)) > 1 and n > 1:
-                self.agg_metrics[f"{metric}_stderr_clustered,{filter_key}"] = clustered_stderr(numeric_items, cluster_ids)
+                self.agg_metrics[f"{metric}_stderr_clustered,{filter_key}"] = clustered_stderr(
+                    numeric_items, cluster_ids
+                )
             else:
                 self.agg_metrics[f"{metric}_stderr_clustered,{filter_key}"] = "N/A"
 
@@ -185,7 +195,9 @@ class TaskOutput:
             for sample_scores in items:
                 if not isinstance(sample_scores, list):
                     # Fallback: if not a list, skip with warning
-                    eval_logger.warning(f"Stability metrics: expected list of scores per question, " f"got {type(sample_scores)}. Skipping.")
+                    eval_logger.warning(
+                        f"Stability metrics: expected list of scores per question, got {type(sample_scores)}. Skipping."
+                    )
                     continue
 
                 question_scores = []
@@ -195,13 +207,13 @@ class TaskOutput:
                     elif isinstance(x, dict) and score_key in x:
                         question_scores.append(float(x[score_key]))
                     else:
-                        eval_logger.debug(f"Stability metrics: cannot extract score from " f"{type(x)}: {x}")
+                        eval_logger.debug(f"Stability metrics: cannot extract score from {type(x)}: {x}")
 
                 if question_scores:
                     scores_per_question.append(question_scores)
 
             if not scores_per_question:
-                eval_logger.warning(f"Stability metrics: no valid scores found for metric {metric}. " "Skipping.")
+                eval_logger.warning(f"Stability metrics: no valid scores found for metric {metric}. Skipping.")
                 continue
 
             # Calculate stability metrics
@@ -211,10 +223,17 @@ class TaskOutput:
             self.agg_metrics[f"{metric}_consistency_rate,{filter_key}"] = consistency_rate(scores_per_question)
 
     def __repr__(self):
-        return f"TaskOutput(task_name={self.task_name}, " f"group_name={self.group_name}, " f"version={self.version}, " f"n_shot={self.n_shot}, " f"task_alias={self.task_alias}, " f"group_alias={self.group_alias})"
+        return (
+            f"TaskOutput(task_name={self.task_name}, "
+            f"group_name={self.group_name}, "
+            f"version={self.version}, "
+            f"n_shot={self.n_shot}, "
+            f"task_alias={self.task_alias}, "
+            f"group_alias={self.group_alias})"
+        )
 
 
-def get_task_list(task_dict: dict) -> List[TaskOutput]:
+def get_task_list(task_dict: dict) -> list[TaskOutput]:
     outputs = []
     for task_name, task_obj in task_dict.items():
         if isinstance(task_obj, dict):
@@ -238,7 +257,9 @@ def get_subtask_list(task_dict, task_root=None, depth=0):
         if isinstance(task_obj, dict):
             _subtask_list = get_subtask_list(task_obj, task_root=group_name, depth=depth + 1)
             if task_root:
-                subtask_list.setdefault((task_root, depth), []).extend([_task for (_task, _depth) in _subtask_list.keys() if (_depth - 1) == depth])
+                subtask_list.setdefault((task_root, depth), []).extend(
+                    [_task for (_task, _depth) in _subtask_list.keys() if (_depth - 1) == depth]
+                )
 
             subtask_list = {**subtask_list, **_subtask_list}
         else:
@@ -285,7 +306,7 @@ def print_writeout(task) -> None:
             eval_logger.info(f"Request: {str(inst)}")
 
 
-def get_sample_size(task, limit: Optional[Union[int, float]]) -> Union[int, None]:
+def get_sample_size(task, limit: int | float | None) -> int | None:
     if limit is None or limit == -1:
         return None
     if limit < 0:
@@ -300,7 +321,7 @@ def prepare_print_tasks(
     results: dict,
     task_depth=0,
     group_depth=0,
-) -> Tuple[dict, dict]:
+) -> tuple[dict, dict]:
     """
     @param task_dict: Dictionary representing the group hierarchy of tasks. Each key is a group name and its
     value is a list of task names.
@@ -384,8 +405,8 @@ def prepare_print_tasks(
 
 
 def consolidate_results(
-    eval_tasks: List[TaskOutput],
-) -> Tuple[dict, dict, dict, dict, dict, dict]:
+    eval_tasks: list[TaskOutput],
+) -> tuple[dict, dict, dict, dict, dict, dict]:
     """
     @param eval_tasks: list(TaskOutput).
     @return: A tuple containing the consolidated results, samples, configs, versions, and num_fewshot.
@@ -437,7 +458,9 @@ def consolidate_results(
             metric_key = f"{metric},{filter_key}"
             results[task_output.task_name][metric_key] = task_output.agg_metrics[metric_key]
             results[task_output.task_name]["samples"] = task_output.sample_len
-            results[task_output.task_name][f"{metric}_stderr,{filter_key}"] = task_output.agg_metrics[f"{metric}_stderr,{filter_key}"]
+            results[task_output.task_name][f"{metric}_stderr,{filter_key}"] = task_output.agg_metrics[
+                f"{metric}_stderr,{filter_key}"
+            ]
             # Output CLT stderr
             clt_key = f"{metric}_stderr_clt,{filter_key}"
             if clt_key in task_output.agg_metrics:
@@ -466,7 +489,7 @@ def consolidate_group_results(
     task_root=None,
     show_group_table=False,
     task_aggregation_list=None,
-) -> Tuple[dict, dict, bool, Union[None, dict]]:
+) -> tuple[dict, dict, bool, None | dict]:
     """
     (Recursively) calculates groups' aggregated metrics and updates the results and versions dictionaries with this info.
 
@@ -527,7 +550,14 @@ def consolidate_group_results(
 
             task_list = _task_aggregation_list[group_or_task]
 
-            metric_list = list({key for task in task_list for key in results[task].keys() if "_stderr" not in key and key not in ["task", "alias", "samples"]})
+            metric_list = list(
+                {
+                    key
+                    for task in task_list
+                    for key in results[task].keys()
+                    if "_stderr" not in key and key not in ["task", "alias", "samples"]
+                }
+            )
             for metric in metric_list:
                 stderr = "_stderr,".join(metric.split(","))
 
@@ -549,7 +579,9 @@ def consolidate_group_results(
                         elif callable(metric_config["aggregation"]):
                             aggregate_fn = metric_config["aggregation"]
                         else:
-                            raise ValueError(f"Currently, only 'mean' is supported for automatically aggregating scores across groups' subtasks. Got '{metric_config['aggregation']}' for group '{group_or_task}'")
+                            raise ValueError(
+                                f"Currently, only 'mean' is supported for automatically aggregating scores across groups' subtasks. Got '{metric_config['aggregation']}' for group '{group_or_task}'"
+                            )
 
                         results[group_or_task][metric] = aggregate_fn(
                             metrics,
@@ -588,7 +620,7 @@ def find_test_root(start_path: pathlib.Path) -> pathlib.Path:
 
 
 @positional_deprecated
-def run_task_tests(task_list: List[str]):
+def run_task_tests(task_list: list[str]):
     """
     Find the package root and run the tests for the given tasks
     """
@@ -605,14 +637,16 @@ def run_task_tests(task_list: List[str]):
     sys.path.append(str(package_root))
     pytest_return_val = pytest.main(args)
     if pytest_return_val:
-        raise ValueError(f"Not all tests for the specified tasks ({task_list}) ran successfully! Error code: {pytest_return_val}")
+        raise ValueError(
+            f"Not all tests for the specified tasks ({task_list}) ran successfully! Error code: {pytest_return_val}"
+        )
 
 
 def compute_baseline_comparison(
-    current_scores: List[float],
-    baseline_scores: List[float],
+    current_scores: list[float],
+    baseline_scores: list[float],
     baseline_name: str,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Compute paired t-test comparison between current and baseline."""
     result = paired_ttest(current_scores, baseline_scores)
     result["baseline_name"] = baseline_name

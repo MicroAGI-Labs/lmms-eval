@@ -1,7 +1,5 @@
 import os
 
-from tqdm import tqdm
-
 from lmms_eval.tasks.hallusion_bench.utils import (
     assign_correctness,
     evaluate_by_chatgpt,
@@ -9,6 +7,7 @@ from lmms_eval.tasks.hallusion_bench.utils import (
     get_eval_fig,
     get_eval_pair_all,
 )
+from tqdm import tqdm
 
 cur_dir = os.path.dirname(os.path.abspath(__file__))
 output_entry = "model_prediction"
@@ -58,11 +57,23 @@ def hb_aggregation_result(results, metric, args):
     os.makedirs(path, exist_ok=True)
     save_json_path_vd = f"{path}/hallusion_output_vd_model.json"
     save_json_path_vs = f"{path}/hallusion_output_vs_model.json"
-    data_vd = evaluate_by_chatgpt(data_vd, output_entry=output_entry, correctness_entry=correctness_entry, load_json=True, save_json_path=save_json_path_vd)
+    data_vd = evaluate_by_chatgpt(
+        data_vd,
+        output_entry=output_entry,
+        correctness_entry=correctness_entry,
+        load_json=True,
+        save_json_path=save_json_path_vd,
+    )
     # data_vd = check_same_by_chatgpt(data_vd, output_entry=output_entry, load_json=True, save_json_path=save_json_path_vd)
     data_vd = assign_correctness(data_vd, correctness_entry=correctness_entry)
     eval_logger.info("Do gpt eval vs")
-    data_vs = evaluate_by_chatgpt(data_vs, output_entry=output_entry, correctness_entry=correctness_entry, load_json=True, save_json_path=save_json_path_vs)
+    data_vs = evaluate_by_chatgpt(
+        data_vs,
+        output_entry=output_entry,
+        correctness_entry=correctness_entry,
+        load_json=True,
+        save_json_path=save_json_path_vs,
+    )
     # data_vs = check_same_by_chatgpt(data_vs, output_entry=output_entry, load_json=True, save_json_path=save_json_path_vs)
     data_vs = assign_correctness(data_vs, correctness_entry=correctness_entry)
     results = data_vs + data_vd

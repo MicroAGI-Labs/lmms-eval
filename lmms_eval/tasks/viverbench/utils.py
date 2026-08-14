@@ -3,13 +3,13 @@ import json
 import re
 from collections import defaultdict
 from io import BytesIO
-from typing import Any, Optional
+from typing import Any
 
 from loguru import logger as eval_logger
 from PIL import Image
 
 
-def _coerce_bool(value: Any) -> Optional[bool]:
+def _coerce_bool(value: Any) -> bool | None:
     if isinstance(value, bool):
         return value
 
@@ -23,7 +23,7 @@ def _coerce_bool(value: Any) -> Optional[bool]:
     return None
 
 
-def _parse_bool_from_serialized(candidate: str) -> Optional[bool]:
+def _parse_bool_from_serialized(candidate: str) -> bool | None:
     candidate = candidate.strip()
     if not candidate:
         return None
@@ -46,7 +46,7 @@ def _parse_bool_from_serialized(candidate: str) -> Optional[bool]:
     return None
 
 
-def _parse_bool_from_response(response: str) -> Optional[bool]:
+def _parse_bool_from_response(response: str) -> bool | None:
     if not response:
         return None
 
@@ -90,7 +90,7 @@ def viverbench_doc_to_visual(doc: dict[str, Any]) -> list:
     return visuals
 
 
-def viverbench_doc_to_text(doc: dict[str, Any], lmms_eval_specific_kwargs: Optional[dict[str, Any]] = None) -> str:
+def viverbench_doc_to_text(doc: dict[str, Any], lmms_eval_specific_kwargs: dict[str, Any] | None = None) -> str:
     if lmms_eval_specific_kwargs is None:
         lmms_eval_specific_kwargs = {}
 

@@ -6,10 +6,9 @@ import time
 
 import numpy as np
 import requests
-from loguru import logger as eval_logger
-
 from lmms_eval.tasks._task_utils.default_template_yaml import load_default_template_yaml
 from lmms_eval.tasks._task_utils.file_utils import generate_submission_file
+from loguru import logger as eval_logger
 
 
 def air_bench_doc_to_audio(doc):
@@ -112,9 +111,19 @@ def air_bench_process_results_chat(doc, result):
         meta_info = doc["meta_info"]
 
     # Get the evaluation score 2 times: one with ourmodel as assistant 1 and the other with our model as assistant 2 to prevent position bias
-    content = eval_prompt.replace("XAudioX", meta_info).replace("XQuestionX", question).replace("XAssistant1X", answer_gt).replace("XAssistant2X", response)
+    content = (
+        eval_prompt.replace("XAudioX", meta_info)
+        .replace("XQuestionX", question)
+        .replace("XAssistant1X", answer_gt)
+        .replace("XAssistant2X", response)
+    )
     eval_answer, model_name = get_eval(max_tokens=1024, content=content)
-    content = eval_prompt.replace("XAudioX", meta_info).replace("XQuestionX", question).replace("XAssistant1X", response).replace("XAssistant2X", answer_gt)
+    content = (
+        eval_prompt.replace("XAudioX", meta_info)
+        .replace("XQuestionX", question)
+        .replace("XAssistant1X", response)
+        .replace("XAssistant2X", answer_gt)
+    )
     eval_answer2, model_name2 = get_eval(max_tokens=1024, content=content)
 
     return {
@@ -204,7 +213,9 @@ def air_bench_aggregate_results_foundation(results):
         categorical_total[result["task"]] += 1
 
     overall_accuracy = round(score / len(results), 5)
-    categorical_accuracy = {task: round(categorical_correct[task] / categorical_total[task], 5) for task in categorical_correct.keys()}
+    categorical_accuracy = {
+        task: round(categorical_correct[task] / categorical_total[task], 5) for task in categorical_correct.keys()
+    }
 
     eval_logger.info("=" * 50)
     eval_logger.info(f"Overall accuracy: {overall_accuracy}")

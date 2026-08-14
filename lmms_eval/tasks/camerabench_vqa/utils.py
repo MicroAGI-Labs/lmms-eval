@@ -3,7 +3,10 @@ import re
 
 dir_name = os.path.dirname(os.path.abspath(__file__))
 
-SUFFIX_FOR_VQA = {"yes_no": "Please answer Yes or No.", "multiple_choice": "Please output the letter corresponding to the correct option."}
+SUFFIX_FOR_VQA = {
+    "yes_no": "Please answer Yes or No.",
+    "multiple_choice": "Please output the letter corresponding to the correct option.",
+}
 
 
 def get_scores(scores):
@@ -98,7 +101,12 @@ def get_scores(scores):
             Acc += calculate_binary_score(result)
             G_Acc += calculate_group_score(result)
 
-    results = {"Q_Acc": Q_Acc / float(num_samples * 2), "I_Acc": I_Acc / float(num_samples * 2), "Acc": Acc / float(num_samples * 4), "G_Acc": G_Acc / num_samples}
+    results = {
+        "Q_Acc": Q_Acc / float(num_samples * 2),
+        "I_Acc": I_Acc / float(num_samples * 2),
+        "Acc": Acc / float(num_samples * 4),
+        "G_Acc": G_Acc / num_samples,
+    }
 
     return results
 
@@ -148,7 +156,12 @@ def extract_answer(output_string, task_type="yes_no"):
 def cambench_doc_to_visual(doc):
     try:
         default_path = os.path.join(os.getenv("HOME"), ".cache/huggingface")
-        load_path = os.path.expanduser(os.path.join(os.getenv("HF_HOME", default_path), "camerabench_vqa/datasets--chancharikm--camerabench_vqa_lmms_eval/snapshots"))
+        load_path = os.path.expanduser(
+            os.path.join(
+                os.getenv("HF_HOME", default_path),
+                "camerabench_vqa/datasets--chancharikm--camerabench_vqa_lmms_eval/snapshots",
+            )
+        )
 
         if not os.path.exists(load_path):
             raise FileNotFoundError(f"Dataset path not found: {load_path}")
@@ -213,7 +226,12 @@ def cambench_aggregate_results_G_ACC(results):
         assert int(results[i * 4 + 1]["id"]) == i * 4 + 1
         assert int(results[i * 4 + 2]["id"]) == i * 4 + 2
         assert int(results[i * 4 + 3]["id"]) == i * 4 + 3
-        answers[i] = {"q0_i0": results[i * 4]["score"], "q0_i1": results[i * 4 + 1]["score"], "q1_i0": results[i * 4 + 2]["score"], "q1_i1": results[i * 4 + 3]["score"]}
+        answers[i] = {
+            "q0_i0": results[i * 4]["score"],
+            "q0_i1": results[i * 4 + 1]["score"],
+            "q1_i0": results[i * 4 + 2]["score"],
+            "q1_i1": results[i * 4 + 3]["score"],
+        }
 
     scores = get_scores(answers)
 
@@ -237,7 +255,12 @@ def cambench_aggregate_results_Q_ACC(results):
         assert int(results[i * 4 + 1]["id"]) == i * 4 + 1
         assert int(results[i * 4 + 2]["id"]) == i * 4 + 2
         assert int(results[i * 4 + 3]["id"]) == i * 4 + 3
-        answers[i] = {"q0_i0": results[i * 4]["score"], "q0_i1": results[i * 4 + 1]["score"], "q1_i0": results[i * 4 + 2]["score"], "q1_i1": results[i * 4 + 3]["score"]}
+        answers[i] = {
+            "q0_i0": results[i * 4]["score"],
+            "q0_i1": results[i * 4 + 1]["score"],
+            "q1_i0": results[i * 4 + 2]["score"],
+            "q1_i1": results[i * 4 + 3]["score"],
+        }
 
     scores = get_scores(answers)
 
@@ -261,7 +284,12 @@ def cambench_aggregate_results_I_ACC(results):
         assert int(results[i * 4 + 1]["id"]) == i * 4 + 1
         assert int(results[i * 4 + 2]["id"]) == i * 4 + 2
         assert int(results[i * 4 + 3]["id"]) == i * 4 + 3
-        answers[i] = {"q0_i0": results[i * 4]["score"], "q0_i1": results[i * 4 + 1]["score"], "q1_i0": results[i * 4 + 2]["score"], "q1_i1": results[i * 4 + 3]["score"]}
+        answers[i] = {
+            "q0_i0": results[i * 4]["score"],
+            "q0_i1": results[i * 4 + 1]["score"],
+            "q1_i0": results[i * 4 + 2]["score"],
+            "q1_i1": results[i * 4 + 3]["score"],
+        }
 
     scores = get_scores(answers)
 
@@ -285,7 +313,12 @@ def cambench_aggregate_results_ACC(results):
         assert int(results[i * 4 + 1]["id"]) == i * 4 + 1
         assert int(results[i * 4 + 2]["id"]) == i * 4 + 2
         assert int(results[i * 4 + 3]["id"]) == i * 4 + 3
-        answers[i] = {"q0_i0": results[i * 4]["score"], "q0_i1": results[i * 4 + 1]["score"], "q1_i0": results[i * 4 + 2]["score"], "q1_i1": results[i * 4 + 3]["score"]}
+        answers[i] = {
+            "q0_i0": results[i * 4]["score"],
+            "q0_i1": results[i * 4 + 1]["score"],
+            "q1_i0": results[i * 4 + 2]["score"],
+            "q1_i1": results[i * 4 + 3]["score"],
+        }
 
     scores = get_scores(answers)
 

@@ -2,7 +2,6 @@ import random
 import re
 
 import datasets
-
 from lmms_eval.tasks._task_utils.reasoning_utils import compute_score
 
 SYSTEM_PROMPT = (
@@ -68,8 +67,13 @@ def process_results(doc, results):
     extra_info = {"question": question}
     answer = doc["answer"]
     for pred in results:
-        score_dict = compute_score(data_source="gpqa", solution_str=pred.strip(), ground_truth=answer, extra_info=extra_info)
+        score_dict = compute_score(
+            data_source="gpqa", solution_str=pred.strip(), ground_truth=answer, extra_info=extra_info
+        )
         acc_score += score_dict["acc_score"]
         format_score += score_dict.get("format_reward_score", 0.0)
 
-    return {"acc_score": acc_score / len(results) if results else 0.0, "format_score": format_score / len(results) if results else 0.0}
+    return {
+        "acc_score": acc_score / len(results) if results else 0.0,
+        "format_score": format_score / len(results) if results else 0.0,
+    }

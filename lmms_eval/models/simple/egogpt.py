@@ -4,7 +4,6 @@ import logging
 import re
 import warnings
 from datetime import timedelta
-from typing import List, Optional, Tuple, Union
 
 import numpy as np
 import PIL
@@ -12,13 +11,12 @@ import torch
 from accelerate import Accelerator, DistributedType, InitProcessGroupKwargs
 from accelerate.state import AcceleratorState
 from decord import VideoReader, cpu
-from packaging import version
-from tqdm import tqdm
-
 from lmms_eval import utils
 from lmms_eval.api.instance import Instance
 from lmms_eval.api.model import lmms
 from lmms_eval.api.registry import register_model
+from packaging import version
+from tqdm import tqdm
 
 # Suppress warnings
 warnings.filterwarnings("ignore")
@@ -75,20 +73,20 @@ class EgoGPT(lmms):
     def __init__(
         self,
         pretrained: str = "checkpoints/egogpt_IT_12k_1126_zero3",
-        truncation: Optional[bool] = True,
-        device: Optional[str] = "cuda:0",
-        batch_size: Optional[Union[int, str]] = 1,
-        model_name: Optional[str] = None,
-        attn_implementation: Optional[str] = best_fit_attn_implementation,
-        device_map: Optional[str] = "cuda:0",
-        conv_template: Optional[str] = "qwen_1_5",
-        use_cache: Optional[bool] = True,
-        truncate_context: Optional[bool] = False,  # whether to truncate the context in generation, set it False for LLaVA-1.6
-        customized_config: Optional[str] = None,  # ends in json
-        max_frames_num: Optional[int] = 32,
-        mm_spatial_pool_stride: Optional[int] = 2,
-        mm_spatial_pool_mode: Optional[str] = "bilinear",
-        token_strategy: Optional[str] = "single",  # could be "single" or "multiple", "multiple" denotes adding multiple <image> tokens for each frame
+        truncation: bool | None = True,
+        device: str | None = "cuda:0",
+        batch_size: int | str | None = 1,
+        model_name: str | None = None,
+        attn_implementation: str | None = best_fit_attn_implementation,
+        device_map: str | None = "cuda:0",
+        conv_template: str | None = "qwen_1_5",
+        use_cache: bool | None = True,
+        truncate_context: bool | None = False,  # whether to truncate the context in generation, set it False for LLaVA-1.6
+        customized_config: str | None = None,  # ends in json
+        max_frames_num: int | None = 32,
+        mm_spatial_pool_stride: int | None = 2,
+        mm_spatial_pool_mode: str | None = "bilinear",
+        token_strategy: str | None = "single",  # could be "single" or "multiple", "multiple" denotes adding multiple <image> tokens for each frame
         video_decode_backend: str = "decord",
         **kwargs,
     ) -> None:
@@ -119,7 +117,9 @@ class EgoGPT(lmms):
         self.mm_spatial_pool_mode = mm_spatial_pool_mode
         self.video_decode_backend = video_decode_backend
         # Try to load the model with the multimodal argument
-        self._tokenizer, self._model, self._max_length = load_pretrained_model(pretrained, device_map=self.device_map, **egogpt_model_args)
+        self._tokenizer, self._model, self._max_length = load_pretrained_model(
+            pretrained, device_map=self.device_map, **egogpt_model_args
+        )
         self._image_processor = self._model.get_vision_tower().image_processor
         self._config = self._model.config
         self.model.eval()
@@ -131,7 +131,11 @@ class EgoGPT(lmms):
         assert self.batch_size_per_gpu == 1
 
         if accelerator.num_processes > 1:
-            assert accelerator.distributed_type in [DistributedType.FSDP, DistributedType.MULTI_GPU, DistributedType.DEEPSPEED], "Unsupported distributed type provided. Only DDP and FSDP are supported."
+            assert accelerator.distributed_type in [
+                DistributedType.FSDP,
+                DistributedType.MULTI_GPU,
+                DistributedType.DEEPSPEED,
+            ], "Unsupported distributed type provided. Only DDP and FSDP are supported."
             # If you want to use DistributedType.DEEPSPEED, you have to run accelerate config before using the model
             # Also, you have to select zero stage 0 (equivalent to DDP) in order to make the prepare model works
             # I tried to set different parameters in the kwargs to let default zero 2 stage works, but it didn't work.
@@ -141,9 +145,14 @@ class EgoGPT(lmms):
                     "train_batch_size": self.batch_size_per_gpu * accelerator.num_processes,
                 }
                 AcceleratorState().deepspeed_plugin.deepspeed_config_process(must_match=True, **kwargs)
-                eval_logger.info("Detected that you are using DistributedType.DEEPSPEED. Make sure you run `accelerate config` and set zero stage to 0")
+                eval_logger.info(
+                    "Detected that you are using DistributedType.DEEPSPEED. Make sure you run `accelerate config` and set zero stage to 0"
+                )
 
-            if accelerator.distributed_type == DistributedType.FSDP or accelerator.distributed_type == DistributedType.DEEPSPEED:
+            if (
+                accelerator.distributed_type == DistributedType.FSDP
+                or accelerator.distributed_type == DistributedType.DEEPSPEED
+            ):
                 self._model = accelerator.prepare(self.model)
             else:
                 self._model = accelerator.prepare_model(self.model, evaluation_mode=True)
@@ -214,7 +223,7 @@ class EgoGPT(lmms):
     def world_size(self):
         return self._world_size
 
-    def tok_encode(self, string: str, left_truncate_len=None, add_special_tokens=None) -> List[int]:
+    def tok_encode(self, string: str, left_truncate_len=None, add_special_tokens=None) -> list[int]:
         """ """
         add_special_tokens = False if add_special_tokens is None else add_special_tokens
         encoding = self.tokenizer.encode(string, add_special_tokens=add_special_tokens)
@@ -229,7 +238,7 @@ class EgoGPT(lmms):
         except:
             return self.tokenizer.decode([tokens])
 
-    def loglikelihood(self, requests: List[Instance]) -> List[Tuple[float, bool]]:
+    def loglikelihood(self, requests: list[Instance]) -> list[tuple[float, bool]]:
         raise NotImplementedError("Loglikelihood is not implemented for EgoGPT")
 
     def flatten(self, input):
@@ -277,7 +286,7 @@ class EgoGPT(lmms):
         video = vr.get_batch(frame_idx).asnumpy()
         return video, speech, speech_lengths
 
-    def generate_until(self, requests: List[Instance]) -> List[str]:
+    def generate_until(self, requests: list[Instance]) -> list[str]:
         res = []
 
         def _collate(x):
@@ -296,16 +305,24 @@ class EgoGPT(lmms):
         metadata = requests[0].metadata
         re_ords = utils.Collator([reg.args for reg in requests], _collate, grouping=True)
         chunks = re_ords.get_batched(n=self.batch_size, batch_fn=None)
-        num_iters = len(requests) // self.batch_size if len(requests) % self.batch_size == 0 else len(requests) // self.batch_size + 1
+        num_iters = (
+            len(requests) // self.batch_size
+            if len(requests) % self.batch_size == 0
+            else len(requests) // self.batch_size + 1
+        )
         pbar = tqdm(total=num_iters, disable=(self.rank != 0), desc="Model Responding")
 
         origin_image_aspect_ratio = getattr(self._config, "image_aspect_ratio", None)
 
         for chunk in chunks:
-            batched_contexts, all_gen_kwargs, batched_doc_to_visual, batched_doc_id, batched_task, batched_split = zip(*chunk)
+            batched_contexts, all_gen_kwargs, batched_doc_to_visual, batched_doc_id, batched_task, batched_split = zip(
+                *chunk
+            )
             task = batched_task[0]
             split = batched_split[0]
-            batched_visuals = [batched_doc_to_visual[0](self.task_dict[task][split][ids]) for ids in batched_doc_id]  # [B, N]
+            batched_visuals = [
+                batched_doc_to_visual[0](self.task_dict[task][split][ids]) for ids in batched_doc_id
+            ]  # [B, N]
             assert len(batched_visuals) == 1
 
             # we assume all gen kwargs in the batch are the same
@@ -317,7 +334,10 @@ class EgoGPT(lmms):
             question_input = []
             # import ipdb; ipdb.set_trace()
             for visual, context in zip(batched_visuals, batched_contexts):
-                if origin_image_aspect_ratio is not None and self._config.image_aspect_ratio != origin_image_aspect_ratio:
+                if (
+                    origin_image_aspect_ratio is not None
+                    and self._config.image_aspect_ratio != origin_image_aspect_ratio
+                ):
                     self._config.image_aspect_ratio = origin_image_aspect_ratio
                     eval_logger.info(f"Resetting image aspect ratio to {origin_image_aspect_ratio}")
 
@@ -327,11 +347,17 @@ class EgoGPT(lmms):
                     placeholder_count = 0
                     image_tensor = None
                 else:
-                    if len(visual) > 1 or "image_aspect_ratio" not in self._config.__dict__:  # for multi image case, we treat per image aspect ratio as "pad" by default.
+                    if (
+                        len(visual) > 1 or "image_aspect_ratio" not in self._config.__dict__
+                    ):  # for multi image case, we treat per image aspect ratio as "pad" by default.
                         self._config.image_aspect_ratio = getattr(gen_kwargs, "image_aspect_ratio", "pad")
-                        eval_logger.info(f"In Multi-Image setting, image aspect ratio: {self._config.image_aspect_ratio}")
+                        eval_logger.info(
+                            f"In Multi-Image setting, image aspect ratio: {self._config.image_aspect_ratio}"
+                        )
 
-                    if "task_type" in metadata and metadata["task_type"] == "video" and "sample_frames" in metadata:  # overwrite logic for video task with multiple static image frames
+                    if (
+                        "task_type" in metadata and metadata["task_type"] == "video" and "sample_frames" in metadata
+                    ):  # overwrite logic for video task with multiple static image frames
                         assert type(visual) == list, "sample_frames must be specified for video task"
                         sample_indices = np.linspace(0, len(visual) - 1, metadata["sample_frames"], dtype=int)
                         visual = [visual[i] for i in sample_indices]
@@ -339,7 +365,9 @@ class EgoGPT(lmms):
 
                         image_tensor = process_images(visual, self._image_processor, self._config)
                         if type(image_tensor) is list:
-                            image_tensor = [_image.to(dtype=torch.float16, device=self.device) for _image in image_tensor]
+                            image_tensor = [
+                                _image.to(dtype=torch.float16, device=self.device) for _image in image_tensor
+                            ]
                         else:
                             image_tensor = image_tensor.to(dtype=torch.float16, device=self.device)
                         image_tensor = [image_tensor]
@@ -351,7 +379,9 @@ class EgoGPT(lmms):
                         speech = torch.zeros(3000, 128)
                         speech_lengths = torch.LongTensor([3000])
                         if type(image_tensor) is list:
-                            image_tensor = [_image.to(dtype=torch.float16, device=self.device) for _image in image_tensor]
+                            image_tensor = [
+                                _image.to(dtype=torch.float16, device=self.device) for _image in image_tensor
+                            ]
                         else:
                             image_tensor = image_tensor.to(dtype=torch.float16, device=self.device)
 
@@ -366,10 +396,16 @@ class EgoGPT(lmms):
                                     task_name = "egoplan"
                                 else:
                                     task_name = None
-                                frames, speech, speech_lengths = self.load_video(video_path=visual[0], max_frames_num=self.max_frames_num, task_name=task_name)
+                                frames, speech, speech_lengths = self.load_video(
+                                    video_path=visual[0], max_frames_num=self.max_frames_num, task_name=task_name
+                                )
                             else:
                                 raise NotImplementedError("Only decord backend is supported for video task")
-                            processed_frames = self._image_processor.preprocess(frames, return_tensors="pt")["pixel_values"].half().cuda()
+                            processed_frames = (
+                                self._image_processor.preprocess(frames, return_tensors="pt")["pixel_values"]
+                                .half()
+                                .cuda()
+                            )
                             processed_frames = processed_frames.half()
                             image_tensor.append(processed_frames)
                             image_sizes = [frames[0].size]
@@ -431,7 +467,9 @@ class EgoGPT(lmms):
 
             input_ids = torch.tensor(input_ids, dtype=torch.long).unsqueeze(0).to(self.device)
             input_ids_list = [input_ids]
-            pad_token_ids = self.tokenizer.pad_token_id if self.tokenizer.pad_token_id is not None else self.tokenizer.eos_token_id
+            pad_token_ids = (
+                self.tokenizer.pad_token_id if self.tokenizer.pad_token_id is not None else self.tokenizer.eos_token_id
+            )
             input_ids = self.pad_sequence(input_ids_list, batch_first=True, padding_value=pad_token_ids).to(self.device)
             attention_masks = input_ids.ne(pad_token_ids).to(self.device)
             input_ids = torch.tensor(input_ids, dtype=torch.long).squeeze(0).to(self.device)
@@ -449,7 +487,9 @@ class EgoGPT(lmms):
                 gen_kwargs.pop("image_aspect_ratio")
             try:
                 with torch.inference_mode():
-                    cont = self.model.generate(input_ids, images=image_tensor, speech=speech, speech_lengths=speech_lengths, **gen_kwargs)
+                    cont = self.model.generate(
+                        input_ids, images=image_tensor, speech=speech, speech_lengths=speech_lengths, **gen_kwargs
+                    )
 
                 text_outputs = self.tokenizer.batch_decode(cont, skip_special_tokens=True)
             except Exception as e:
@@ -465,5 +505,5 @@ class EgoGPT(lmms):
         pbar.close()
         return res
 
-    def generate_until_multi_round(self, requests: List[Instance]) -> List[str]:
+    def generate_until_multi_round(self, requests: list[Instance]) -> list[str]:
         raise NotImplementedError("generate_until_multi_round is not implemented for EgoGPT")

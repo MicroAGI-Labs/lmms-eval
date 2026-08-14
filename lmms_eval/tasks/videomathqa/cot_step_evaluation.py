@@ -95,14 +95,24 @@ def prepare_input(sample, matched):
     gt_steps = sample["steps"]
     options = sample["options"]
     prediction = matched["resps"][0][0] if isinstance(matched["resps"][0], list) else matched["resps"][0]
-    input = {"qid": qid, "category": sample["category"], "question": question, "options": options, "gt_answer": gt_answer, "gt_steps": gt_steps, "prediction": prediction}
+    input = {
+        "qid": qid,
+        "category": sample["category"],
+        "question": question,
+        "options": options,
+        "gt_answer": gt_answer,
+        "gt_steps": gt_steps,
+        "prediction": prediction,
+    }
     return input
 
 
 def prepare_batch_prompts(batch):
     prompts = []
     for sample in batch:
-        prompt = get_user_prompt(sample["question"], sample["options"], sample["gt_steps"], sample["gt_answer"], sample["prediction"])
+        prompt = get_user_prompt(
+            sample["question"], sample["options"], sample["gt_steps"], sample["gt_answer"], sample["prediction"]
+        )
         prompts.append(prompt)
     return prompts
 
@@ -122,7 +132,10 @@ def compute_score(gt_data, res_data, res_file, tokenizer, llm, sampling_params, 
         if len(batch) == bs:
             batch_prompt = prepare_batch_prompts(batch)
             messages = [{"role": "user", "content": p} for p in batch_prompt]
-            texts = [tokenizer.apply_chat_template([msg], tokenize=False, add_generation_prompt=True, enable_thinking=True) for msg in messages]
+            texts = [
+                tokenizer.apply_chat_template([msg], tokenize=False, add_generation_prompt=True, enable_thinking=True)
+                for msg in messages
+            ]
             outputs = llm.generate(texts, sampling_params=sampling_params)
 
             for input_sample, output in zip(batch, outputs):
@@ -133,7 +146,12 @@ def compute_score(gt_data, res_data, res_file, tokenizer, llm, sampling_params, 
                     parsed_reply = raw_reply.split("SCORE_CARD: ")[-1]
                     result = safe_parse_response(parsed_reply)
                     if result is not None:
-                        score_dict = {"matched_steps": result.get("matched_steps", ""), "final_answer_correct": result.get("final_answer_correct", 0), "critique": result.get("critique", "").strip(), "score": int(result.get("score", 0))}
+                        score_dict = {
+                            "matched_steps": result.get("matched_steps", ""),
+                            "final_answer_correct": result.get("final_answer_correct", 0),
+                            "critique": result.get("critique", "").strip(),
+                            "score": int(result.get("score", 0)),
+                        }
                         raw_reply = None
 
                 except Exception as e:
@@ -161,7 +179,12 @@ def compute_score(gt_data, res_data, res_file, tokenizer, llm, sampling_params, 
 
 def main():
     parser = argparse.ArgumentParser(description="Compute step evaluation score for CoT evaluation.")
-    parser.add_argument("--model_path", type=str, default="Qwen/Qwen3-4B", help="Path to the model or model identifier (default: Qwen/Qwen3-4B)")
+    parser.add_argument(
+        "--model_path",
+        type=str,
+        default="Qwen/Qwen3-4B",
+        help="Path to the model or model identifier (default: Qwen/Qwen3-4B)",
+    )
     parser.add_argument("--gt_file", type=str, required=True, help="Path to ground truth file (Parquet format)")
     parser.add_argument("--res_file", type=str, required=True, help="Path to results file (JSONL format)")
 
@@ -185,7 +208,7 @@ def main():
         return
     print(f"Processing {args.res_file} ...")
     res_data = []
-    with open(args.res_file, "r", encoding="utf-8") as f:
+    with open(args.res_file, encoding="utf-8") as f:
         for line in f:
             res_data.append(json.loads(line))
 

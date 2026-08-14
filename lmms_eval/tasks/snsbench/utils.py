@@ -12,7 +12,6 @@ SNS-Bench-VL: Benchmarking Multimodal Large Language Models in Social Networking
 """
 
 import pandas as pd
-
 from lmms_eval.tasks.snsbench import metrics
 
 metrics_map = {
@@ -40,14 +39,12 @@ metrics_map = {
 
 
 def doc_to_visual(doc):
-
     # list of images
     images = doc["images"]
     return images
 
 
 def doc_to_text(doc, lmms_eval_specific_kwargs=None):
-
     if "format" in lmms_eval_specific_kwargs and lmms_eval_specific_kwargs["format"] == "qwen3_vl":
         return doc_to_text_qwen3vl(doc, lmms_eval_specific_kwargs)
 
@@ -82,7 +79,16 @@ def process_results(doc, results):
 
     metric_func = getattr(metrics, metrics_map[category])
     score = metric_func(pred, gt)
-    return {category: {"question": doc["question"], "prediction": pred, "ground_truth": gt, "score": score}, "average": {"question": doc["question"], "prediction": pred, "ground_truth": gt, "score": score, "category": category}}
+    return {
+        category: {"question": doc["question"], "prediction": pred, "ground_truth": gt, "score": score},
+        "average": {
+            "question": doc["question"],
+            "prediction": pred,
+            "ground_truth": gt,
+            "score": score,
+            "category": category,
+        },
+    }
 
 
 def sns_aggregate_results(results):
@@ -92,7 +98,6 @@ def sns_aggregate_results(results):
 
 
 if __name__ == "__main__":
-
     from datasets import load_dataset
 
     ds = load_dataset("morpheushoc/SNS-Bench-VL")["test"]

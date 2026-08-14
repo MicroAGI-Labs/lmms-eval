@@ -19,7 +19,9 @@ def extract_main_content(html):
         element.decompose()
 
     # Try to find the main content area (assuming it uses <main> tag or id/class containing "content")
-    main_content = soup.find("main") or soup.find(id=re.compile("content", re.I)) or soup.find(class_=re.compile("content", re.I))
+    main_content = (
+        soup.find("main") or soup.find(id=re.compile("content", re.I)) or soup.find(class_=re.compile("content", re.I))
+    )
 
     if main_content:
         text = main_content.get_text(separator="\n", strip=True)

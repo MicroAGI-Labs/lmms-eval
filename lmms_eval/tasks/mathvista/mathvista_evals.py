@@ -5,9 +5,8 @@ from pathlib import Path
 
 import yaml
 from Levenshtein import distance
-from loguru import logger as eval_logger
-
 from lmms_eval.llm_judge import Request, ServerConfig, get_server
+from loguru import logger as eval_logger
 
 # pids: 799, 681, 615
 shot_examples = [
@@ -147,7 +146,7 @@ Model response: The correct answer is (B) 8/11.
 Extracted answer: B
 """
 
-with open(Path(__file__).parent / "mathvista.yaml", "r") as f:
+with open(Path(__file__).parent / "mathvista.yaml") as f:
     raw_data = f.readlines()
     safe_data = []
     for i, line in enumerate(raw_data):
@@ -163,7 +162,9 @@ class MathVistaEvaluator:
     gpt_model = os.getenv("MODEL_VERSION", "gpt-4o-2024-11-20")
 
     # Initialize llm_judge server
-    server_config = ServerConfig(model_name=gpt_model, temperature=0.0, max_tokens=256, timeout=60, num_retries=5, retry_delay=10)
+    server_config = ServerConfig(
+        model_name=gpt_model, temperature=0.0, max_tokens=256, timeout=60, num_retries=5, retry_delay=10
+    )
     server = get_server(server_name=API_TYPE, config=server_config)
 
     def __init__(self, quick_extract=False):
@@ -171,7 +172,14 @@ class MathVistaEvaluator:
 
     def get_chat_response(self, prompt, temperature=0, max_tokens=256, n=1, patience=5, sleep_time=0):
         # Create a custom server config for this specific request with different parameters
-        request_config = ServerConfig(model_name=self.gpt_model, temperature=temperature, max_tokens=max_tokens, timeout=60, num_retries=patience, retry_delay=sleep_time)
+        request_config = ServerConfig(
+            model_name=self.gpt_model,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            timeout=60,
+            num_retries=patience,
+            retry_delay=sleep_time,
+        )
 
         while patience > 0:
             patience -= 1
@@ -344,10 +352,12 @@ class MathVistaEvaluator:
             total_pd = res_pd[res_pd[key] == value]
 
         correct_pd = total_pd[total_pd["true_false"] == True]
-        acc = "{:.2f}".format(len(correct_pd) / len(total_pd) * 100) if len(total_pd) > 0 else "0.00"
+        acc = f"{len(correct_pd) / len(total_pd) * 100:.2f}" if len(total_pd) > 0 else "0.00"
         return len(correct_pd), len(total_pd), acc
 
-    def create_one_query(self, problem, shot_type, examples=shot_examples, shot_num=0, use_caption=False, use_ocr=False):
+    def create_one_query(
+        self, problem, shot_type, examples=shot_examples, shot_num=0, use_caption=False, use_ocr=False
+    ):
         ### [1] Demo prompt
         if shot_num == 0:
             demo_prompt = ""
@@ -364,7 +374,7 @@ class MathVistaEvaluator:
                 if "choices" in example:
                     texts = ["Choices:"]
                     for i, choice in enumerate(example["choices"]):
-                        texts.append(f"({chr(ord('A')+i)}) {choice}")
+                        texts.append(f"({chr(ord('A') + i)}) {choice}")
                     prompt += "\n" + "\n".join(texts)
 
                 # caption
@@ -483,9 +493,7 @@ class MathVistaEvaluator:
                     hint_text = "First perform reasoning, then finally answer the question requiring an integer answer and provide the final value, e.g., 1, 2, 3, at the end in the following format: Answer: xxx."
 
                 elif answer_type == "float" and precision == 1:
-                    hint_text = (
-                        "First perform reasoning, then finally answer the question requiring a floating-point number with one decimal place and provide the final value, e.g., 1.2, 1.3, 1.4, at the end in the following format: Answer: xxx."
-                    )
+                    hint_text = "First perform reasoning, then finally answer the question requiring a floating-point number with one decimal place and provide the final value, e.g., 1.2, 1.3, 1.4, at the end in the following format: Answer: xxx."
 
                 elif answer_type == "float" and precision == 2:
                     hint_text = "First perform reasoning, then finally answer the question requiring a floating-point number with two decimal places and provide the final value, e.g., 1.23, 1.34, 1.45, at the end in the following format: Answer: xxx."
@@ -511,13 +519,13 @@ class MathVistaEvaluator:
             if shot_type == "format-prompt":
                 texts = []
                 for i, choice in enumerate(choices):
-                    texts.append(f"{chr(ord('A')+i)}. {choice}")
+                    texts.append(f"{chr(ord('A') + i)}. {choice}")
                 choices_text = "\n".join(texts)
             else:
                 # choices: (A) 1.2 (B) 1.3 (C) 1.4 (D) 1.5
                 texts = ["Choices:"]
                 for i, choice in enumerate(choices):
-                    texts.append(f"({chr(ord('A')+i)}) {choice}")
+                    texts.append(f"({chr(ord('A') + i)}) {choice}")
                 choices_text = "\n".join(texts)
         else:
             choices_text = ""

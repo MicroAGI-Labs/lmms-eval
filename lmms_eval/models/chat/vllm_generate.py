@@ -1,10 +1,6 @@
 import os
 import time
 from concurrent.futures import ThreadPoolExecutor
-from typing import List, Optional, Tuple
-
-from tqdm import tqdm
-from transformers import AutoProcessor
 
 from lmms_eval.api.instance import GenerationResult, Instance, TokenCounts
 from lmms_eval.api.registry import register_model
@@ -12,6 +8,8 @@ from lmms_eval.imports import optional_import
 from lmms_eval.models.chat.vllm import VLLM as VLLMChat
 from lmms_eval.models.model_utils.gen_metrics import log_metrics
 from lmms_eval.protocol import ChatMessages
+from tqdm import tqdm
+from transformers import AutoProcessor
 
 LLM, _ = optional_import("vllm", "LLM")
 SamplingParams, _ = optional_import("vllm", "SamplingParams")
@@ -50,8 +48,8 @@ class VLLMGenerate(VLLMChat):
         chat_template=None,
         max_pixels: int = 1605632,
         min_image_pixels=28,
-        fps: Optional[int] = None,
-        nframes: Optional[int] = 32,
+        fps: int | None = None,
+        nframes: int | None = 32,
         max_new_tokens: int = 4096,
         **kwargs,
     ):
@@ -73,11 +71,11 @@ class VLLMGenerate(VLLMChat):
         )
         self.processor = AutoProcessor.from_pretrained(model)
         if self.chat_template is not None:
-            with open(self.chat_template, "r") as f:
+            with open(self.chat_template) as f:
                 chat_template = f.read()
                 self.processor.chat_template = chat_template
 
-    def make_one_request(self, request: Instance) -> Tuple[list[dict], dict]:
+    def make_one_request(self, request: Instance) -> tuple[list[dict], dict]:
         """
         Build OpenAI-style messages and per-request sampling params from an Instance.
         Returns (messages, params_dict). Does not mutate input.
@@ -149,14 +147,14 @@ class VLLMGenerate(VLLMChat):
 
         return vllm_inputs, params
 
-    def generate_until(self, requests) -> List[GenerationResult]:
+    def generate_until(self, requests) -> list[GenerationResult]:
         res = []
         pbar = tqdm(total=len(requests), disable=(self.rank != 0), desc="Model Responding")
 
         batch_size = self.batch_size_per_gpu
         batched_requests = [requests[i : i + batch_size] for i in range(0, len(requests), batch_size)]
         total_elapsed_time = 0
-        sample_token_counts: Optional[TokenCounts] = None
+        sample_token_counts: TokenCounts | None = None
         for batch_requests in batched_requests:
             batched_vllm_inputs = []
             with ThreadPoolExecutor(max_workers=WORKERS) as executor:
@@ -179,7 +177,9 @@ class VLLMGenerate(VLLMChat):
             total_elapsed_time += end_time - start_time
 
             assert len(response_text) == len(batch_requests)
-            res.extend([GenerationResult(text=resp_text, token_counts=sample_token_counts) for resp_text in response_text])
+            res.extend(
+                [GenerationResult(text=resp_text, token_counts=sample_token_counts) for resp_text in response_text]
+            )
             pbar.update(len(batch_requests))
 
         if not self.disable_log_stats:
@@ -201,11 +201,11 @@ class VLLMGenerate(VLLMChat):
         pbar.close()
         return res
 
-    def loglikelihood(self, requests: List[Instance]) -> List[Tuple[float, bool]]:
+    def loglikelihood(self, requests: list[Instance]) -> list[tuple[float, bool]]:
         # TODO
         assert False, "GPT4V not support"
 
-    def generate_until_multi_round(self, requests) -> List[str]:
+    def generate_until_multi_round(self, requests) -> list[str]:
         raise NotImplementedError("TODO: Implement multi-round generation")
 
     def get_format_metrics(self):

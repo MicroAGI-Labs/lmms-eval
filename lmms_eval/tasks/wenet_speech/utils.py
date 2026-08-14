@@ -1,9 +1,8 @@
 import os
 import re
 
-from loguru import logger as eval_logger
-
 from lmms_eval.llm_judge import ServerConfig, get_server
+from loguru import logger as eval_logger
 
 API_TYPE = os.getenv("API_TYPE", "openai")
 # Use JUDGE_MODEL_VERSION instead of MODEL_VERSION

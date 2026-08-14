@@ -18,8 +18,12 @@ def _parse_args():
     parser.add_argument("--local-video-dir", type=Path, default=None, help="Required for local mode")
     parser.add_argument("--lance-uri", type=str, default=None, help="Required for lance mode")
     parser.add_argument("--lance-cache-dir", type=Path, default=None, help="Optional Lance cache dir")
-    parser.add_argument("--sample-unique-video", action="store_true", help="Sample unique video_id rows before limiting")
-    parser.add_argument("--allow-fallback", action="store_true", help="Allow fallback paths (not recommended for perf claims)")
+    parser.add_argument(
+        "--sample-unique-video", action="store_true", help="Sample unique video_id rows before limiting"
+    )
+    parser.add_argument(
+        "--allow-fallback", action="store_true", help="Allow fallback paths (not recommended for perf claims)"
+    )
     return parser.parse_args()
 
 
@@ -120,7 +124,9 @@ def main():
     _configure_env(args)
     minerva_utils._LANCE_RESOLVER = None
 
-    docs = _sample_docs(_load_docs(args.metadata_json), limit=args.limit, seed=args.seed, sample_unique_video=args.sample_unique_video)
+    docs = _sample_docs(
+        _load_docs(args.metadata_json), limit=args.limit, seed=args.seed, sample_unique_video=args.sample_unique_video
+    )
 
     startup_ms = None
     if args.mode == "lance":

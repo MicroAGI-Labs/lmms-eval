@@ -1,29 +1,33 @@
 import json
 import logging
 import re
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 eval_logger = logging.getLogger("lmms-eval")
 _NUM_TOKEN = r"-?\d+(?:\.\d+)?%?"
 
 
-def _get_image(doc: Dict[str, Any]):
+def _get_image(doc: dict[str, Any]):
     image = doc.get("image")
     if image is None:
         raise ValueError("ScreenSpot-Pro sample does not contain 'image'")
     return image.convert("RGB")
 
 
-def screenspot_pro_doc_to_visual(doc: Dict[str, Any]) -> List[Any]:
+def screenspot_pro_doc_to_visual(doc: dict[str, Any]) -> list[Any]:
     return [_get_image(doc)]
 
 
-def screenspot_pro_doc_to_text(doc: Dict[str, Any], lmms_eval_specific_kwargs=None) -> str:
+def screenspot_pro_doc_to_text(doc: dict[str, Any], lmms_eval_specific_kwargs=None) -> str:
     instruction = doc.get("instruction", "")
-    return "Identify the UI element for the instruction and output exactly one click point as [x, y] in normalized coordinates within [0, 1]. " "Do not output a bounding box.\n" f"Instruction: {instruction}"
+    return (
+        "Identify the UI element for the instruction and output exactly one click point as [x, y] in normalized coordinates within [0, 1]. "
+        "Do not output a bounding box.\n"
+        f"Instruction: {instruction}"
+    )
 
 
-def screenspot_pro_doc_to_messages(doc: Dict[str, Any], lmms_eval_specific_kwargs=None):
+def screenspot_pro_doc_to_messages(doc: dict[str, Any], lmms_eval_specific_kwargs=None):
     text = screenspot_pro_doc_to_text(doc, lmms_eval_specific_kwargs=lmms_eval_specific_kwargs)
     return [{"role": "user", "content": [{"type": "image", "url": _get_image(doc)}, {"type": "text", "text": text}]}]
 
@@ -35,7 +39,7 @@ def _token_to_float(token: str) -> float:
     return float(token)
 
 
-def _parse_point(prediction: str) -> Optional[Tuple[float, float]]:
+def _parse_point(prediction: str) -> tuple[float, float] | None:
     bbox_tag_match = re.search(r"<\s*bbox[^>]*>(.*?)<\s*/\s*bbox\s*>", prediction, flags=re.IGNORECASE | re.DOTALL)
     if bbox_tag_match:
         bbox_tokens = re.findall(_NUM_TOKEN, bbox_tag_match.group(1))
@@ -47,7 +51,11 @@ def _parse_point(prediction: str) -> Optional[Tuple[float, float]]:
     if point_match:
         return _token_to_float(point_match.group(1)), _token_to_float(point_match.group(2))
 
-    xy_match = re.search(r"['\"]?x['\"]?\s*[:=]\s*(-?\d+(?:\.\d+)?%?).*?['\"]?y['\"]?\s*[:=]\s*(-?\d+(?:\.\d+)?%?)", prediction, flags=re.IGNORECASE | re.DOTALL)
+    xy_match = re.search(
+        r"['\"]?x['\"]?\s*[:=]\s*(-?\d+(?:\.\d+)?%?).*?['\"]?y['\"]?\s*[:=]\s*(-?\d+(?:\.\d+)?%?)",
+        prediction,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
     if xy_match:
         return _token_to_float(xy_match.group(1)), _token_to_float(xy_match.group(2))
 
@@ -62,7 +70,7 @@ def _parse_point(prediction: str) -> Optional[Tuple[float, float]]:
     return None
 
 
-def _normalize_xyxy(bbox_xyxy: List[float], width: int, height: int) -> List[float]:
+def _normalize_xyxy(bbox_xyxy: list[float], width: int, height: int) -> list[float]:
     if len(bbox_xyxy) != 4:
         return [0.0, 0.0, 0.0, 0.0]
     if bbox_xyxy[2] <= 1 and bbox_xyxy[3] <= 1:
@@ -70,7 +78,7 @@ def _normalize_xyxy(bbox_xyxy: List[float], width: int, height: int) -> List[flo
     return [bbox_xyxy[0] / width, bbox_xyxy[1] / height, bbox_xyxy[2] / width, bbox_xyxy[3] / height]
 
 
-def _parse_bbox(value: Any) -> List[float]:
+def _parse_bbox(value: Any) -> list[float]:
     if isinstance(value, list):
         return [float(v) for v in value]
     if isinstance(value, str):
@@ -85,7 +93,7 @@ def _parse_bbox(value: Any) -> List[float]:
     return [0.0, 0.0, 0.0, 0.0]
 
 
-def _parse_img_size(value: Any) -> Optional[Tuple[int, int]]:
+def _parse_img_size(value: Any) -> tuple[int, int] | None:
     if isinstance(value, list) and len(value) == 2:
         w, h = int(value[0]), int(value[1])
         if w > 0 and h > 0:
@@ -106,7 +114,7 @@ def _parse_img_size(value: Any) -> Optional[Tuple[int, int]]:
     return None
 
 
-def _point_in_box(point_xy: Tuple[float, float], box_xyxy: List[float]) -> bool:
+def _point_in_box(point_xy: tuple[float, float], box_xyxy: list[float]) -> bool:
     return box_xyxy[0] <= point_xy[0] <= box_xyxy[2] and box_xyxy[1] <= point_xy[1] <= box_xyxy[3]
 
 
@@ -136,7 +144,7 @@ def screenspot_pro_process_results(doc, result):
     }
 
 
-def _aggregate(results: List[Dict[str, Any]], target_type: Optional[str] = None) -> float:
+def _aggregate(results: list[dict[str, Any]], target_type: str | None = None) -> float:
     filtered = [r for r in results if target_type is None or r.get("ui_type") == target_type]
     if not filtered:
         return 0.0

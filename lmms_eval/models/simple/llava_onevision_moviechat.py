@@ -5,7 +5,6 @@ import math
 import os
 import warnings
 from datetime import timedelta
-from typing import List, Optional, Tuple, Union
 
 import av
 import numpy as np
@@ -14,16 +13,15 @@ import torch
 from accelerate import Accelerator, DistributedType, InitProcessGroupKwargs
 from accelerate.state import AcceleratorState
 from decord import VideoReader, cpu
+from lmms_eval import utils
+from lmms_eval.api.instance import Instance
+from lmms_eval.api.model import lmms
+from lmms_eval.api.registry import register_model
 from moviepy.video.io.VideoFileClip import VideoFileClip
 from packaging import version
 from PIL import Image
 from tqdm import tqdm
 from transformers import AutoConfig
-
-from lmms_eval import utils
-from lmms_eval.api.instance import Instance
-from lmms_eval.api.model import lmms
-from lmms_eval.api.registry import register_model
 
 # Suppress warnings
 warnings.filterwarnings("ignore")
@@ -52,7 +50,9 @@ try:
     )
     from llava.model.builder import load_pretrained_model
 except ImportError as e:
-    eval_logger.debug(f"LLaVA_NeXT is not installed. Please install llava from `https://github.com/rese1f/MovieChat.git` to use this model.\nError: {e}")
+    eval_logger.debug(
+        f"LLaVA_NeXT is not installed. Please install llava from `https://github.com/rese1f/MovieChat.git` to use this model.\nError: {e}"
+    )
 
 
 # Determine best attention implementation
@@ -72,24 +72,24 @@ class Llava_OneVision_MovieChat(lmms):
     def __init__(
         self,
         pretrained: str = "lmms-lab/llava-onevision-qwen2-7b-ov",
-        truncation: Optional[bool] = True,
-        device: Optional[str] = "cuda:0",
-        batch_size: Optional[Union[int, str]] = 1,
+        truncation: bool | None = True,
+        device: str | None = "cuda:0",
+        batch_size: int | str | None = 1,
         model_name: str = "llava_qwen",
-        attn_implementation: Optional[str] = best_fit_attn_implementation,
-        device_map: Optional[str] = "cuda:0",
-        conv_template: Optional[str] = "qwen_1_5",
-        use_cache: Optional[bool] = True,
-        truncate_context: Optional[bool] = False,  # whether to truncate the context in generation, set it False for LLaVA-1.6
-        customized_config: Optional[str] = None,  # ends in json
-        short_memory_length: Optional[int] = 18,
-        long_memory_length: Optional[int] = 64,
-        sliding_window_length: Optional[int] = 8,
-        merge_frame_length: Optional[int] = 2,
-        tmp_folder: Optional[str] = "tmp/",
-        mm_spatial_pool_stride: Optional[int] = 2,
-        mm_spatial_pool_mode: Optional[str] = "bilinear",
-        token_strategy: Optional[str] = "single",  # could be "single" or "multiple", "multiple" denotes adding multiple <image> tokens for each frame
+        attn_implementation: str | None = best_fit_attn_implementation,
+        device_map: str | None = "cuda:0",
+        conv_template: str | None = "qwen_1_5",
+        use_cache: bool | None = True,
+        truncate_context: bool | None = False,  # whether to truncate the context in generation, set it False for LLaVA-1.6
+        customized_config: str | None = None,  # ends in json
+        short_memory_length: int | None = 18,
+        long_memory_length: int | None = 64,
+        sliding_window_length: int | None = 8,
+        merge_frame_length: int | None = 2,
+        tmp_folder: str | None = "tmp/",
+        mm_spatial_pool_stride: int | None = 2,
+        mm_spatial_pool_mode: str | None = "bilinear",
+        token_strategy: str | None = "single",  # could be "single" or "multiple", "multiple" denotes adding multiple <image> tokens for each frame
         video_decode_backend: str = "decord",
         **kwargs,
     ) -> None:
@@ -130,7 +130,9 @@ class Llava_OneVision_MovieChat(lmms):
         self.long_memory_length = long_memory_length
         self.merge_frame_length = merge_frame_length
         self.sliding_window_length = sliding_window_length
-        self.num_clips = (self.long_memory_length // self.merge_frame_length) * ((self.short_memory_length - self.merge_frame_length) // self.sliding_window_length)
+        self.num_clips = (self.long_memory_length // self.merge_frame_length) * (
+            (self.short_memory_length - self.merge_frame_length) // self.sliding_window_length
+        )
         self.tmp_folder = tmp_folder
 
         overwrite_config = {}
@@ -138,7 +140,9 @@ class Llava_OneVision_MovieChat(lmms):
         overwrite_config["mm_spatial_pool_mode"] = self.mm_spatial_pool_mode
         cfg_pretrained = AutoConfig.from_pretrained(self.pretrained)
 
-        if cfg_pretrained.architectures[0] == "LlavaLlamaForCausalLM":  # Ugly code, only used in  vicuna that needs ROPE
+        if (
+            cfg_pretrained.architectures[0] == "LlavaLlamaForCausalLM"
+        ):  # Ugly code, only used in  vicuna that needs ROPE
             if "224" in cfg_pretrained.mm_vision_tower:
                 least_token_number = self.max_frames_num * (16 // self.mm_spatial_pool_stride) ** 2 + 1000
             else:
@@ -155,11 +159,15 @@ class Llava_OneVision_MovieChat(lmms):
 
         try:
             # Try to load the model with the multimodal argument
-            self._tokenizer, self._model, self._image_processor, self._max_length = load_pretrained_model(pretrained, None, model_name, device_map=self.device_map, **llava_model_args)
+            self._tokenizer, self._model, self._image_processor, self._max_length = load_pretrained_model(
+                pretrained, None, model_name, device_map=self.device_map, **llava_model_args
+            )
         except TypeError:
             # for older versions of LLaVA that don't have multimodal argument
             llava_model_args.pop("multimodal", None)
-            self._tokenizer, self._model, self._image_processor, self._max_length = load_pretrained_model(pretrained, None, model_name, device_map=self.device_map, **llava_model_args)
+            self._tokenizer, self._model, self._image_processor, self._max_length = load_pretrained_model(
+                pretrained, None, model_name, device_map=self.device_map, **llava_model_args
+            )
 
         self._config = self._model.config
         self.model.eval()
@@ -168,10 +176,16 @@ class Llava_OneVision_MovieChat(lmms):
         self.conv_template = conv_template
         self.use_cache = use_cache
         self.truncate_context = truncate_context
-        assert self.batch_size_per_gpu == 1, "Llava currently does not support batched generation. See https://github.com/haotian-liu/LLaVA/issues/754. HF Llava also has this issue."
+        assert self.batch_size_per_gpu == 1, (
+            "Llava currently does not support batched generation. See https://github.com/haotian-liu/LLaVA/issues/754. HF Llava also has this issue."
+        )
 
         if accelerator.num_processes > 1:
-            assert accelerator.distributed_type in [DistributedType.FSDP, DistributedType.MULTI_GPU, DistributedType.DEEPSPEED], "Unsupported distributed type provided. Only DDP and FSDP are supported."
+            assert accelerator.distributed_type in [
+                DistributedType.FSDP,
+                DistributedType.MULTI_GPU,
+                DistributedType.DEEPSPEED,
+            ], "Unsupported distributed type provided. Only DDP and FSDP are supported."
             # If you want to use DistributedType.DEEPSPEED, you have to run accelerate config before using the model
             # Also, you have to select zero stage 0 (equivalent to DDP) in order to make the prepare model works
             # I tried to set different parameters in the kwargs to let default zero 2 stage works, but it didn't work.
@@ -181,9 +195,14 @@ class Llava_OneVision_MovieChat(lmms):
                     "train_batch_size": self.batch_size_per_gpu * accelerator.num_processes,
                 }
                 AcceleratorState().deepspeed_plugin.deepspeed_config_process(must_match=True, **kwargs)
-                eval_logger.info("Detected that you are using DistributedType.DEEPSPEED. Make sure you run `accelerate config` and set zero stage to 0")
+                eval_logger.info(
+                    "Detected that you are using DistributedType.DEEPSPEED. Make sure you run `accelerate config` and set zero stage to 0"
+                )
 
-            if accelerator.distributed_type == DistributedType.FSDP or accelerator.distributed_type == DistributedType.DEEPSPEED:
+            if (
+                accelerator.distributed_type == DistributedType.FSDP
+                or accelerator.distributed_type == DistributedType.DEEPSPEED
+            ):
                 self._model = accelerator.prepare(self.model)
             else:
                 self._model = accelerator.prepare_model(self.model, evaluation_mode=True)
@@ -254,7 +273,7 @@ class Llava_OneVision_MovieChat(lmms):
     def world_size(self):
         return self._world_size
 
-    def tok_encode(self, string: str, left_truncate_len=None, add_special_tokens=None) -> List[int]:
+    def tok_encode(self, string: str, left_truncate_len=None, add_special_tokens=None) -> list[int]:
         """ """
         add_special_tokens = False if add_special_tokens is None else add_special_tokens
         encoding = self.tokenizer.encode(string, add_special_tokens=add_special_tokens)
@@ -269,7 +288,7 @@ class Llava_OneVision_MovieChat(lmms):
         except:
             return self.tokenizer.decode([tokens])
 
-    def loglikelihood(self, requests: List[Instance]) -> List[Tuple[float, bool]]:
+    def loglikelihood(self, requests: list[Instance]) -> list[tuple[float, bool]]:
         # TODO
         raise NotImplementedError("MovieChat only supports generation.")
 
@@ -323,7 +342,7 @@ class Llava_OneVision_MovieChat(lmms):
         video_frames = [Image.fromarray(x) for x in video]
         return video_frames
 
-    def generate_until(self, requests: List[Instance]) -> List[str]:
+    def generate_until(self, requests: list[Instance]) -> list[str]:
         res = []
 
         def _collate(x):
@@ -342,13 +361,21 @@ class Llava_OneVision_MovieChat(lmms):
         metadata = requests[0].metadata
         re_ords = utils.Collator([reg.args for reg in requests], _collate, grouping=True)
         chunks = re_ords.get_batched(n=self.batch_size, batch_fn=None)
-        num_iters = len(requests) // self.batch_size if len(requests) % self.batch_size == 0 else len(requests) // self.batch_size + 1
+        num_iters = (
+            len(requests) // self.batch_size
+            if len(requests) % self.batch_size == 0
+            else len(requests) // self.batch_size + 1
+        )
         pbar = tqdm(total=num_iters, disable=(self.rank != 0), desc="Model Responding")
         for chunk in chunks:
-            batched_contexts, all_gen_kwargs, batched_doc_to_visual, batched_doc_id, batched_task, batched_split = zip(*chunk)
+            batched_contexts, all_gen_kwargs, batched_doc_to_visual, batched_doc_id, batched_task, batched_split = zip(
+                *chunk
+            )
             task = batched_task[0]
             split = batched_split[0]
-            batched_visuals = [batched_doc_to_visual[0](self.task_dict[task][split][ids]) for ids in batched_doc_id]  # [B, N]
+            batched_visuals = [
+                batched_doc_to_visual[0](self.task_dict[task][split][ids]) for ids in batched_doc_id
+            ]  # [B, N]
             assert len(batched_visuals) == 1
 
             # we assume all gen kwargs in the batch are the same
@@ -360,10 +387,16 @@ class Llava_OneVision_MovieChat(lmms):
             question_input = []
 
             for visual, context in zip(batched_visuals, batched_contexts):
-                if len(visual) > 1 or "image_aspect_ratio" not in self._config.__dict__:  # for multi image case, we treat per image aspect ratio as "pad" by default.
+                if (
+                    len(visual) > 1 or "image_aspect_ratio" not in self._config.__dict__
+                ):  # for multi image case, we treat per image aspect ratio as "pad" by default.
                     self._config.image_aspect_ratio = getattr(gen_kwargs, "image_aspect_ratio", "pad")
                     eval_logger.info(f"Setting image aspect ratio: {self._config.image_aspect_ratio}")
-                if type(visual[0]) == PIL.Image.Image and "task_type" not in metadata and "sample_frames" not in metadata:  # For image task
+                if (
+                    type(visual[0]) == PIL.Image.Image
+                    and "task_type" not in metadata
+                    and "sample_frames" not in metadata
+                ):  # For image task
                     raise NotImplementedError("MovieChat only supports video inputs.")
 
                 elif "task_type" in metadata and metadata["task_type"] == "video" and "sample_frames" in metadata:
@@ -384,9 +417,17 @@ class Llava_OneVision_MovieChat(lmms):
                             start_time = i * clip_duration
                             end_time = start_time + clip_duration
                             # uniformly sample self.sliding_window_length frames from the video from start_time to end_time
-                            frames = list(video.subclip(start_time, end_time).iter_frames(fps=self.sliding_window_length / clip_duration))[: self.sliding_window_length]
+                            frames = list(
+                                video.subclip(start_time, end_time).iter_frames(
+                                    fps=self.sliding_window_length / clip_duration
+                                )
+                            )[: self.sliding_window_length]
                             frames = [Image.fromarray(frame).convert("RGB") for frame in frames]
-                            preprocess_frames = self._image_processor.preprocess(frames, return_tensors="pt")["pixel_values"].half().cuda()
+                            preprocess_frames = (
+                                self._image_processor.preprocess(frames, return_tensors="pt")["pixel_values"]
+                                .half()
+                                .cuda()
+                            )
                             encoded_window = self.model.encode_images(preprocess_frames)  # [frames, 729,3584]
 
                             for frame in encoded_window:
@@ -402,19 +443,26 @@ class Llava_OneVision_MovieChat(lmms):
                                 # merge short_memory_frames
                                 similar_list = []
                                 for frame_i in range(len(self.short_memory_buffer) - 1):
-                                    scores = self.short_memory_buffer[frame_i] @ self.short_memory_buffer[frame_i + 1].transpose(-1, -2)
+                                    scores = self.short_memory_buffer[frame_i] @ self.short_memory_buffer[
+                                        frame_i + 1
+                                    ].transpose(-1, -2)
                                     frame_silimar = torch.mean(scores)
                                     similar_list.append(frame_silimar)
 
                                 while len(self.short_memory_buffer) > self.merge_frame_length:
                                     max_value = max(similar_list)
                                     max_index = similar_list.index(max_value)
-                                    new_frame_feature = (self.short_memory_buffer[max_index].cpu() + self.short_memory_buffer[max_index + 1].cpu()) / 2
+                                    new_frame_feature = (
+                                        self.short_memory_buffer[max_index].cpu()
+                                        + self.short_memory_buffer[max_index + 1].cpu()
+                                    ) / 2
                                     self.short_memory_buffer[max_index] = new_frame_feature.cuda()
                                     del self.short_memory_buffer[max_index + 1]
                                     similar_list = []
                                     for frame_i in range(len(self.short_memory_buffer) - 1):
-                                        scores = self.short_memory_buffer[frame_i] @ self.short_memory_buffer[frame_i + 1].transpose(-1, -2)
+                                        scores = self.short_memory_buffer[frame_i] @ self.short_memory_buffer[
+                                            frame_i + 1
+                                        ].transpose(-1, -2)
                                         frame_silimar = torch.mean(scores)
                                         similar_list.append(frame_silimar)
 
@@ -483,8 +531,13 @@ class Llava_OneVision_MovieChat(lmms):
             if "num_beams" not in gen_kwargs:
                 gen_kwargs["num_beams"] = 1
 
-            input_ids_list = [tokenizer_image_token(prompt, self.tokenizer, IMAGE_TOKEN_INDEX, return_tensors="pt") for prompt in question_input]
-            pad_token_ids = self.tokenizer.pad_token_id if self.tokenizer.pad_token_id is not None else self.tokenizer.eos_token_id
+            input_ids_list = [
+                tokenizer_image_token(prompt, self.tokenizer, IMAGE_TOKEN_INDEX, return_tensors="pt")
+                for prompt in question_input
+            ]
+            pad_token_ids = (
+                self.tokenizer.pad_token_id if self.tokenizer.pad_token_id is not None else self.tokenizer.eos_token_id
+            )
             input_ids = self.pad_sequence(input_ids_list, batch_first=True, padding_value=pad_token_ids).to(self.device)
             attention_masks = input_ids.ne(pad_token_ids).to(self.device)
 
@@ -506,7 +559,14 @@ class Llava_OneVision_MovieChat(lmms):
             try:
                 with torch.inference_mode():
                     gen_kwargs.pop("modalities")
-                    cont = self.model.generate_moviechat(input_ids, attention_mask=attention_masks, pad_token_id=pad_token_ids, image_features=image_features, use_cache=self.use_cache, **gen_kwargs)
+                    cont = self.model.generate_moviechat(
+                        input_ids,
+                        attention_mask=attention_masks,
+                        pad_token_id=pad_token_ids,
+                        image_features=image_features,
+                        use_cache=self.use_cache,
+                        **gen_kwargs,
+                    )
                 text_outputs = self.tokenizer.batch_decode(cont, skip_special_tokens=True)
                 text_outputs = [response.strip() for response in text_outputs]
             except Exception as e:

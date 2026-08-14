@@ -31,21 +31,18 @@ Example Usage:
         --batch_size 1
 """
 
-from typing import List, Optional, Tuple, Union
 
 import librosa
 import numpy as np
 import torch
 from accelerate import Accelerator, DistributedType
-from loguru import logger as eval_logger
-from PIL import Image
-from tqdm import tqdm
-
 from lmms_eval import utils
 from lmms_eval.api.instance import Instance
 from lmms_eval.api.model import lmms
 from lmms_eval.api.registry import register_model
-from lmms_eval.models.model_utils.audio_processing import split_audio
+from loguru import logger as eval_logger
+from PIL import Image
+from tqdm import tqdm
 
 try:
     from transformers import AutoModel, AutoTokenizer
@@ -67,7 +64,7 @@ except ImportError:
 MAX_NUM_FRAMES = 64
 
 
-def encode_video(video_path: str, max_frames: int = MAX_NUM_FRAMES) -> List[Image.Image]:
+def encode_video(video_path: str, max_frames: int = MAX_NUM_FRAMES) -> list[Image.Image]:
     """Extract frames from video file."""
     if VideoReader is None:
         raise ImportError("decord is required for video processing. Install with: pip install decord")
@@ -98,9 +95,9 @@ class MiniCPM_O(lmms):
     def __init__(
         self,
         pretrained: str = "openbmb/MiniCPM-o-2_6",
-        device: Optional[str] = "cuda",
-        device_map: Optional[str] = "auto",
-        batch_size: Optional[Union[int, str]] = 1,
+        device: str | None = "cuda",
+        device_map: str | None = "auto",
+        batch_size: int | str | None = 1,
         use_cache: bool = True,
         attn_implementation: str = "sdpa",
         init_vision: bool = True,
@@ -220,7 +217,7 @@ class MiniCPM_O(lmms):
     def world_size(self):
         return self._world_size
 
-    def loglikelihood(self, requests: List[Instance]) -> List[Tuple[float, bool]]:
+    def loglikelihood(self, requests: list[Instance]) -> list[tuple[float, bool]]:
         raise NotImplementedError("Loglikelihood is not implemented for MiniCPM_O")
 
     def flatten(self, input_list):
@@ -340,7 +337,7 @@ class MiniCPM_O(lmms):
             return any(isinstance(v, dict) or type(v).__name__ == "AudioDecoder" for v in visual)
         return False
 
-    def generate_until(self, requests: List[Instance]) -> List[str]:
+    def generate_until(self, requests: list[Instance]) -> list[str]:
         res = []
 
         def _collate(x):
@@ -366,7 +363,9 @@ class MiniCPM_O(lmms):
                 if isinstance(until, str):
                     until = [until]
                 elif not isinstance(until, list):
-                    raise ValueError(f"Expected `gen_kwargs['until']` to be of type " f"Union[str,list] but got {type(until)}")
+                    raise ValueError(
+                        f"Expected `gen_kwargs['until']` to be of type Union[str,list] but got {type(until)}"
+                    )
 
             for i, context in enumerate(contexts):
                 visual = visuals[i] if i < len(visuals) else None
@@ -425,5 +424,5 @@ class MiniCPM_O(lmms):
         pbar.close()
         return res
 
-    def generate_until_multi_round(self, requests) -> List[str]:
+    def generate_until_multi_round(self, requests) -> list[str]:
         raise NotImplementedError("Multi-round generation is not implemented")

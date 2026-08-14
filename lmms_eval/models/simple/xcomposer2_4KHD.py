@@ -1,19 +1,17 @@
 import re
 from datetime import timedelta
-from typing import List, Optional, Tuple, Union
 
 import numpy as np
 import torch
 import torchvision.transforms as transforms
 from accelerate import Accelerator, DistributedType, InitProcessGroupKwargs
 from accelerate.state import AcceleratorState
-from PIL import Image
-from tqdm import tqdm
-from transformers import AutoModel, AutoTokenizer
-
 from lmms_eval.api.instance import Instance
 from lmms_eval.api.model import lmms
 from lmms_eval.api.registry import register_model
+from PIL import Image
+from tqdm import tqdm
+from transformers import AutoModel, AutoTokenizer
 
 pattern = re.compile(r"[A-Z]")
 
@@ -33,8 +31,8 @@ class XComposer2_4KHD(lmms):
     def __init__(
         self,
         pretrained: str = "internlm/internlm-xcomposer2-4khd-7b",
-        device: Optional[str] = "cuda:0",
-        batch_size: Optional[Union[int, str]] = 1,
+        device: str | None = "cuda:0",
+        batch_size: int | str | None = 1,
         device_map="cuda:0",
         need_bos: bool = True,
         padding: bool = False,
@@ -64,7 +62,11 @@ class XComposer2_4KHD(lmms):
         self.batch_size_per_gpu = batch_size
 
         if accelerator.num_processes > 1:
-            assert accelerator.distributed_type in [DistributedType.FSDP, DistributedType.MULTI_GPU, DistributedType.DEEPSPEED], "Unsupported distributed type provided. Only DDP and FSDP are supported."
+            assert accelerator.distributed_type in [
+                DistributedType.FSDP,
+                DistributedType.MULTI_GPU,
+                DistributedType.DEEPSPEED,
+            ], "Unsupported distributed type provided. Only DDP and FSDP are supported."
             # If you want to use DistributedType.DEEPSPEED, you have to run accelerate config before using the model
             # Also, you have to select zero stage 0 (equivalent to DDP) in order to make the prepare model works
             # I tried to set different parameters in the kwargs to let default zero 2 stage works, but it didn't work.
@@ -74,8 +76,13 @@ class XComposer2_4KHD(lmms):
                     "train_batch_size": self.batch_size_per_gpu * accelerator.num_processes,
                 }
                 AcceleratorState().deepspeed_plugin.deepspeed_config_process(must_match=True, **kwargs)
-                eval_logger.info("Detected that you are using DistributedType.DEEPSPEED. Make sure you run `accelerate config` and set zero stage to 0")
-            if accelerator.distributed_type == DistributedType.FSDP or accelerator.distributed_type == DistributedType.DEEPSPEED:
+                eval_logger.info(
+                    "Detected that you are using DistributedType.DEEPSPEED. Make sure you run `accelerate config` and set zero stage to 0"
+                )
+            if (
+                accelerator.distributed_type == DistributedType.FSDP
+                or accelerator.distributed_type == DistributedType.DEEPSPEED
+            ):
                 self._model = accelerator.prepare(self.model)
             else:
                 self._model = accelerator.prepare_model(self.model, evaluation_mode=True)
@@ -134,7 +141,7 @@ class XComposer2_4KHD(lmms):
                 new_list.append(j)
         return new_list
 
-    def generate_until(self, requests) -> List[str]:
+    def generate_until(self, requests) -> list[str]:
         res = []
         pbar = tqdm(total=len(requests), disable=(self.rank != 0), desc="Model Responding")
 
@@ -223,10 +230,10 @@ class XComposer2_4KHD(lmms):
         pbar.close()
         return res
 
-    def loglikelihood(self, requests: List[Instance]) -> List[Tuple[float, bool]]:
+    def loglikelihood(self, requests: list[Instance]) -> list[tuple[float, bool]]:
         return super().loglikelihood(requests)
 
-    def generate_until_multi_round(self, requests) -> List[str]:
+    def generate_until_multi_round(self, requests) -> list[str]:
         raise NotImplementedError("TODO: Implement multi-round generation")
 
 
@@ -287,7 +294,9 @@ def DATASET_TYPE(dataset):
         return "Y/N"
     elif "coco" in dataset:
         return "Caption"
-    elif listinstr(["ocrvqa", "textvqa", "chartqa", "mathvista", "docvqa", "infovqa", "llavabench", "mmvet", "ocrbench"], dataset):
+    elif listinstr(
+        ["ocrvqa", "textvqa", "chartqa", "mathvista", "docvqa", "infovqa", "llavabench", "mmvet", "ocrbench"], dataset
+    ):
         return "VQA"
     else:
         return "QA"

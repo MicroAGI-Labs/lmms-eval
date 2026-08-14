@@ -1,17 +1,16 @@
 # seephys_utils.py
-from typing import Any, Dict, List
+from typing import Any
 
 import numpy as np
+from lmms_eval.tasks.seephys.seephys_evals import SeephysEvaluator, load_seephys_config
 from loguru import logger as eval_logger
 from PIL import Image
-
-from lmms_eval.tasks.seephys.seephys_evals import SeephysEvaluator, load_seephys_config
 
 config = load_seephys_config()
 seephys_evaluator = SeephysEvaluator()
 
 
-def seephys_doc_to_visual(doc: Dict[str, Any]) -> List[Image.Image]:
+def seephys_doc_to_visual(doc: dict[str, Any]) -> list[Image.Image]:
     if "images" not in doc or not doc["images"]:
         eval_logger.warning(f"Document index {doc.get('index', 'N/A')} has no 'images' field or it is empty.")
         return []
@@ -19,12 +18,16 @@ def seephys_doc_to_visual(doc: Dict[str, Any]) -> List[Image.Image]:
     image_list = doc["images"]
 
     if not isinstance(image_list, list):
-        raise TypeError(f"Expected 'images' field to be a list, but got {type(image_list)} for index {doc.get('index', 'N/A')}")
+        raise TypeError(
+            f"Expected 'images' field to be a list, but got {type(image_list)} for index {doc.get('index', 'N/A')}"
+        )
 
     processed_images = []
     for i, image in enumerate(image_list):
         if not isinstance(image, Image.Image):
-            raise TypeError(f"Expected item {i} in 'images' list to be PIL.Image, but got {type(image)} for index {doc.get('index', 'N/A')}")
+            raise TypeError(
+                f"Expected item {i} in 'images' list to be PIL.Image, but got {type(image)} for index {doc.get('index', 'N/A')}"
+            )
 
         if image.mode != "RGB":
             image = image.convert("RGB")
@@ -33,7 +36,7 @@ def seephys_doc_to_visual(doc: Dict[str, Any]) -> List[Image.Image]:
     return processed_images
 
 
-def seephys_doc_to_text(doc: Dict[str, Any], lmms_eval_specific_kwargs: Dict = None) -> str:
+def seephys_doc_to_text(doc: dict[str, Any], lmms_eval_specific_kwargs: dict = None) -> str:
     question = doc.get("question", "")
     if not isinstance(question, str) or question.lower() == "nan":
         question = ""
@@ -59,7 +62,7 @@ def seephys_doc_to_text(doc: Dict[str, Any], lmms_eval_specific_kwargs: Dict = N
     return question
 
 
-def seephys_process_results(doc: Dict[str, Any], results: List[str]) -> Dict[str, Any]:
+def seephys_process_results(doc: dict[str, Any], results: list[str]) -> dict[str, Any]:
     """
     results: list of strings returned by the model generation for this doc (usually one item)
     This function will:
@@ -108,7 +111,7 @@ def seephys_process_results(doc: Dict[str, Any], results: List[str]) -> Dict[str
     return {"eval_results": eval_result}
 
 
-def seephys_aggregate_results(results: List[Dict[str, Any]]) -> float:
+def seephys_aggregate_results(results: list[dict[str, Any]]) -> float:
     if not results:
         eval_logger.warning("Aggregating empty results list. Returning 0.0")
         return 0.0

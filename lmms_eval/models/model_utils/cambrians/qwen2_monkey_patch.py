@@ -1,4 +1,3 @@
-from typing import Optional, Tuple
 
 import torch
 from transformers.cache_utils import Cache
@@ -31,12 +30,12 @@ class Qwen2SdpaAttention(Qwen2Attention):
     def forward(
         self,
         hidden_states: torch.Tensor,
-        attention_mask: Optional[torch.Tensor] = None,
-        position_ids: Optional[torch.LongTensor] = None,
-        past_key_value: Optional[Cache] = None,
+        attention_mask: torch.Tensor | None = None,
+        position_ids: torch.LongTensor | None = None,
+        past_key_value: Cache | None = None,
         output_attentions: bool = False,
         use_cache: bool = False,
-    ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[Tuple[torch.Tensor]]]:
+    ) -> tuple[torch.Tensor, torch.Tensor | None, tuple[torch.Tensor] | None]:
         if output_attentions:
             return super().forward(
                 hidden_states=hidden_states,
@@ -73,14 +72,20 @@ class Qwen2SdpaAttention(Qwen2Attention):
             del self.use_retrieval
             del self.retrieval_topk
 
-            img_mask = torch.tensor([1 if item == "I" else 0 for item in self.cache_modalities], dtype=torch.long, device=query_states.device)
+            img_mask = torch.tensor(
+                [1 if item == "I" else 0 for item in self.cache_modalities],
+                dtype=torch.long,
+                device=query_states.device,
+            )
             cache_lengths = list(self.cache_lengths) + [query_states.size(2)]
             split_key_states = torch.split(repeat_kv(key_states, self.num_key_value_groups), cache_lengths, dim=2)[:-1]
             sub_key_reprs = torch.cat([state.mean(dim=2).flatten(1, 2) for state in split_key_states], dim=0)
             query_repr = query_states.mean(dim=2).flatten(1, 2)
 
             query_subkey_sims = torch.cosine_similarity(query_repr, sub_key_reprs, dim=-1) * img_mask
-            topk_indices = torch.topk(query_subkey_sims, min(retrieval_topk, query_subkey_sims.size(0)), dim=-1).indices.tolist()
+            topk_indices = torch.topk(
+                query_subkey_sims, min(retrieval_topk, query_subkey_sims.size(0)), dim=-1
+            ).indices.tolist()
 
             split_key_states = torch.split(key_states, cache_lengths, dim=2)
             split_value_states = torch.split(value_states, cache_lengths, dim=2)

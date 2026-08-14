@@ -67,7 +67,9 @@ def ovo_back_real_doc_to_text(doc, lmms_eval_specific_kwargs=None):
 
 
 # prepare for multiround generation
-def ovo_forward_doc_to_text(doc, lmms_eval_specific_kwargs=None, previous_output=None, round_idx=None, previous_round_info=None):
+def ovo_forward_doc_to_text(
+    doc, lmms_eval_specific_kwargs=None, previous_output=None, round_idx=None, previous_round_info=None
+):
     """Assemble the prompt/visual payloads for forward tasks, one round at a time."""
     if round_idx is None:
         prompt = build_prompt(doc, index=0)
@@ -90,12 +92,12 @@ def ovo_doc_to_visual(doc, lmms_eval_specific_kwargs):
     assert lmms_eval_specific_kwargs["data_dir"] is not None
     if "round_idx" in lmms_eval_specific_kwargs:
         i = lmms_eval_specific_kwargs["round_idx"]
-        chunk_video_path = os.path.join(lmms_eval_specific_kwargs["data_dir"], f'{doc["id"]}_{i}.mp4')
+        chunk_video_path = os.path.join(lmms_eval_specific_kwargs["data_dir"], f"{doc['id']}_{i}.mp4")
     elif is_forward_task(doc):
         # cause of logic of sending lmms_eval_specific_kwargs to doc_to_visual at initial round in multi round generation
-        chunk_video_path = os.path.join(lmms_eval_specific_kwargs["data_dir"], f'{doc["id"]}_{0}.mp4')
+        chunk_video_path = os.path.join(lmms_eval_specific_kwargs["data_dir"], f"{doc['id']}_{0}.mp4")
     else:
-        chunk_video_path = os.path.join(lmms_eval_specific_kwargs["data_dir"], f'{doc["id"]}.mp4')
+        chunk_video_path = os.path.join(lmms_eval_specific_kwargs["data_dir"], f"{doc['id']}.mp4")
     assert os.path.exists(chunk_video_path), f"Video chunk path does not exists:{chunk_video_path} !"
 
     return [chunk_video_path]
@@ -107,7 +109,13 @@ def ovo_back_real_process_results(doc, results):
         response = results[0][0].strip()
     else:
         response = results[0].strip()
-    result = {"id": doc["id"], "task": doc["task"], "question": doc["question"], "response": response, "ground_truth": chr(65 + doc["gt"])}
+    result = {
+        "id": doc["id"],
+        "task": doc["task"],
+        "question": doc["question"],
+        "response": response,
+        "ground_truth": chr(65 + doc["gt"]),
+    }
     return {"back_real_acc": result}
 
 

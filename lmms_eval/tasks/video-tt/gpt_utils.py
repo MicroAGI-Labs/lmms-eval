@@ -146,7 +146,13 @@ def gpt_score_process(doc, result):
         scores = ["no", 0]
         # data_dict = {"video_id": doc["video_id"], "capability": capability, "pred_answer": pred_ans, "answer": doc["answer"]}
 
-    data_dict = {"video_id": doc["video_id"], "capability": doc["capability"], "scores": scores, "correctness": scores[1], "answer": answer}
+    data_dict = {
+        "video_id": doc["video_id"],
+        "capability": doc["capability"],
+        "scores": scores,
+        "correctness": scores[1],
+        "answer": answer,
+    }
 
     return {"videott_open_ended_score": data_dict}
 

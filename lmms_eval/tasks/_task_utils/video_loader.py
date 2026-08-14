@@ -19,7 +19,11 @@ def _get_video_file(prefix: str, video_name: str, suffix: str):
 
 
 def get_video(prefix: str, video_name: str, suffix: str = "mp4"):
-    tried = [os.path.abspath(_get_video_file(prefix, video_name, suffix)), os.path.abspath(_get_video_file(prefix, video_name, suffix.upper())), os.path.abspath(_get_video_file(prefix, video_name, suffix.lower()))]
+    tried = [
+        os.path.abspath(_get_video_file(prefix, video_name, suffix)),
+        os.path.abspath(_get_video_file(prefix, video_name, suffix.upper())),
+        os.path.abspath(_get_video_file(prefix, video_name, suffix.lower())),
+    ]
     for video_path in tried:
         if os.path.exists(video_path):
             return video_path

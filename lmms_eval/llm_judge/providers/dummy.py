@@ -1,4 +1,3 @@
-from typing import Optional
 
 from ..base import ServerInterface
 from ..protocol import Request, Response, ServerConfig
@@ -7,7 +6,7 @@ from ..protocol import Request, Response, ServerConfig
 class DummyProvider(ServerInterface):
     """OpenAI API implementation of the Judge interface"""
 
-    def __init__(self, config: Optional[ServerConfig] = None):
+    def __init__(self, config: ServerConfig | None = None):
         super().__init__(config)
 
     def is_available(self) -> bool:

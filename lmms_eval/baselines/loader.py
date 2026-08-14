@@ -8,7 +8,7 @@ Supports loading baseline results from:
 
 import json
 import os
-from typing import Any, Dict, Optional, Tuple
+from typing import Any
 
 from lmms_eval.baselines.registry import BASELINE_REGISTRY
 
@@ -20,7 +20,7 @@ except ImportError:
     eval_logger = logging.getLogger(__name__)
 
 
-def load_baseline(baseline_arg: str, task_name: str) -> Tuple[Dict[int, Any], Optional[Dict[str, Any]]]:
+def load_baseline(baseline_arg: str, task_name: str) -> tuple[dict[int, Any], dict[str, Any] | None]:
     """Load baseline results from local path, HF URL, or preset name.
 
     Args:
@@ -52,17 +52,21 @@ def load_baseline(baseline_arg: str, task_name: str) -> Tuple[Dict[int, Any], Op
     if os.path.exists(baseline_arg):
         return _load_baseline_from_local(baseline_arg, task_name)
 
-    raise ValueError(f"Cannot load baseline '{baseline_arg}'. " f"Available presets: {list(BASELINE_REGISTRY.keys())}")
+    raise ValueError(f"Cannot load baseline '{baseline_arg}'. Available presets: {list(BASELINE_REGISTRY.keys())}")
 
 
-def _load_from_registry(model_name: str, task_name: str, baseline_arg: str) -> Tuple[Dict[int, Any], Optional[Dict[str, Any]]]:
+def _load_from_registry(
+    model_name: str, task_name: str, baseline_arg: str
+) -> tuple[dict[int, Any], dict[str, Any] | None]:
     """Load baseline from registry by model and task name."""
     model_entry = BASELINE_REGISTRY[model_name]
 
     # Check if task exists for this model
     if task_name not in model_entry:
         available_tasks = [k for k in model_entry.keys() if not k.startswith("_")]
-        raise ValueError(f"No baseline for model '{model_name}' on task '{task_name}'. " f"Available tasks: {available_tasks}")
+        raise ValueError(
+            f"No baseline for model '{model_name}' on task '{task_name}'. Available tasks: {available_tasks}"
+        )
 
     task_entry = model_entry[task_name]
     eval_logger.info(f"[Baseline] Using preset '{model_name}' for task '{task_name}'")
@@ -75,11 +79,11 @@ def _load_from_registry(model_name: str, task_name: str, baseline_arg: str) -> T
         raise ValueError(f"Preset '{baseline_arg}' has no 'hf_url' or 'path'")
 
 
-def _load_baseline_from_local(path: str, task_name: str) -> Tuple[Dict[int, Any], Optional[Dict[str, Any]]]:
+def _load_baseline_from_local(path: str, task_name: str) -> tuple[dict[int, Any], dict[str, Any] | None]:
     """Load baseline from local JSONL file."""
     eval_logger.info(f"[Baseline] Loading from: {path}")
     doc_id_to_scores = {}
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         for line in f:
             if not line.strip():
                 continue
@@ -100,12 +104,12 @@ def _load_baseline_from_local(path: str, task_name: str) -> Tuple[Dict[int, Any]
     if len(parts) == 2:
         results_path = os.path.join(dir_path, parts[0] + "_results.json")
         if os.path.exists(results_path):
-            with open(results_path, "r") as f:
+            with open(results_path) as f:
                 agg_results = json.load(f)
     return doc_id_to_scores, agg_results
 
 
-def _load_baseline_from_hf(hf_path: str, task_name: str) -> Tuple[Dict[int, Any], Optional[Dict[str, Any]]]:
+def _load_baseline_from_hf(hf_path: str, task_name: str) -> tuple[dict[int, Any], dict[str, Any] | None]:
     """Load baseline from HuggingFace Hub."""
     from huggingface_hub import hf_hub_download, list_repo_files
 
@@ -133,7 +137,7 @@ def _load_baseline_from_hf(hf_path: str, task_name: str) -> Tuple[Dict[int, Any]
     return _load_baseline_from_local(local_path, task_name)
 
 
-def _extract_score_from_sample(sample: Dict[str, Any], task_name: str) -> Optional[float]:
+def _extract_score_from_sample(sample: dict[str, Any], task_name: str) -> float | None:
     """Extract score from a sample dict."""
     # Try task-specific score key
     for key in sample:

@@ -18,7 +18,6 @@ import copy
 from functools import partial
 
 import pytest
-
 from lmms_eval.api.instance import Instance
 
 # ---------------------------------------------------------------------------

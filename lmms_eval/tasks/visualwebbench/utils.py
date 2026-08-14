@@ -132,7 +132,9 @@ def eval_web_caption(preds, golds, **kwargs):
 
     rouge = Rouge(metrics=["rouge-1", "rouge-2", "rouge-l"])
     scores = rouge.get_scores(preds, golds, avg=True)
-    return dict(rouge_1=scores["rouge-1"]["f"] * 100, rouge_2=scores["rouge-2"]["f"] * 100, rouge_l=scores["rouge-l"]["f"] * 100)
+    return dict(
+        rouge_1=scores["rouge-1"]["f"] * 100, rouge_2=scores["rouge-2"]["f"] * 100, rouge_l=scores["rouge-l"]["f"] * 100
+    )
 
 
 def eval_heading_ocr(preds, golds, **kwargs):
@@ -143,7 +145,9 @@ def eval_heading_ocr(preds, golds, **kwargs):
 
     rouge = Rouge(metrics=["rouge-1", "rouge-2", "rouge-l"])
     scores = rouge.get_scores(preds, golds, avg=True)
-    return dict(rouge_1=scores["rouge-1"]["f"] * 100, rouge_2=scores["rouge-2"]["f"] * 100, rouge_l=scores["rouge-l"]["f"] * 100)
+    return dict(
+        rouge_1=scores["rouge-1"]["f"] * 100, rouge_2=scores["rouge-2"]["f"] * 100, rouge_l=scores["rouge-l"]["f"] * 100
+    )
 
 
 def eval_element_ocr(preds, golds, **kwargs):
@@ -154,7 +158,9 @@ def eval_element_ocr(preds, golds, **kwargs):
 
     rouge = Rouge()
     scores = rouge.get_scores(preds, golds, avg=True)
-    return dict(rouge_1=scores["rouge-1"]["f"] * 100, rouge_2=scores["rouge-2"]["f"] * 100, rouge_l=scores["rouge-l"]["f"] * 100)
+    return dict(
+        rouge_1=scores["rouge-1"]["f"] * 100, rouge_2=scores["rouge-2"]["f"] * 100, rouge_l=scores["rouge-l"]["f"] * 100
+    )
 
 
 def eval_action_prediction(preds, golds, **kwargs):

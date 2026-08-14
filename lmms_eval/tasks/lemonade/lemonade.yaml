@@ -1,8 +1,9 @@
 dataset_path: amathislab/LEMONADE
 dataset_kwargs:
   video: true
-  cache_dir: lemonade_data
+  cache_dir: lemonade_data_68634661cafa9a76e2a7518173834179975a15bd
   force_unzip: true
+  revision: 68634661cafa9a76e2a7518173834179975a15bd
 task: "lemonade"
 test_split: test
 output_type: generate_until

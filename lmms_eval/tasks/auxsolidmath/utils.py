@@ -7,12 +7,12 @@ Dataset: https://huggingface.co/datasets/shasha/AuxSolidMath
 """
 
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from PIL import Image
 
 
-def _extract_answer_from_response(response: str) -> Optional[str]:
+def _extract_answer_from_response(response: str) -> str | None:
     """Extract the final answer from model response."""
     if not response:
         return None
@@ -86,7 +86,7 @@ def _compare_math_answers(pred: str, gt: str, tolerance: float = 0.01) -> bool:
     return pred_norm in gt_norm or gt_norm in pred_norm
 
 
-def auxsolidmath_doc_to_visual(doc: Dict[str, Any]) -> List[Image.Image]:
+def auxsolidmath_doc_to_visual(doc: dict[str, Any]) -> list[Image.Image]:
     """Extract visual input (original diagram) from document."""
     original_image = doc.get("original_image")
     if original_image is not None:
@@ -96,8 +96,8 @@ def auxsolidmath_doc_to_visual(doc: Dict[str, Any]) -> List[Image.Image]:
 
 
 def auxsolidmath_doc_to_text(
-    doc: Dict[str, Any],
-    lmms_eval_specific_kwargs: Optional[Dict[str, Any]] = None,
+    doc: dict[str, Any],
+    lmms_eval_specific_kwargs: dict[str, Any] | None = None,
 ) -> str:
     """Build prompt for solid geometry problem."""
     question = doc.get("question", "")
@@ -129,15 +129,15 @@ Instructions:
 Please think step by step, starting with the auxiliary line construction."""
 
 
-def auxsolidmath_doc_to_target(doc: Dict[str, Any]) -> str:
+def auxsolidmath_doc_to_target(doc: dict[str, Any]) -> str:
     """Get target answer from document."""
     return doc.get("answer", "")
 
 
 def auxsolidmath_process_results(
-    doc: Dict[str, Any],
-    results: List[str],
-) -> Dict[str, Any]:
+    doc: dict[str, Any],
+    results: list[str],
+) -> dict[str, Any]:
     """Process results and compute accuracy using string matching."""
     response = results[0] if results else ""
     gt_answer = doc.get("answer", "")
@@ -159,7 +159,7 @@ def auxsolidmath_process_results(
     }
 
 
-def auxsolidmath_aggregate_accuracy(results: List[float]) -> float:
+def auxsolidmath_aggregate_accuracy(results: list[float]) -> float:
     """Aggregate accuracy scores."""
     valid_results = [r for r in results if r is not None]
     if not valid_results:

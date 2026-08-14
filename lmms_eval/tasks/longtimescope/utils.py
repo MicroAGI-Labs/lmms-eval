@@ -23,7 +23,7 @@ hf_home = os.getenv("HF_HOME", "~/.cache/huggingface/")
 # cache_dir = os.path.join(hf_home, cache_dir)
 # base_cache_dir = config["dataset_kwargs"]["cache_dir"]
 base_cache_dir = os.path.expanduser(hf_home)
-with open(Path(__file__).parent / "longtimescope.yaml", "r") as f:
+with open(Path(__file__).parent / "longtimescope.yaml") as f:
     raw_data = f.readlines()
     safe_data = []
     for i, line in enumerate(raw_data):
@@ -60,8 +60,8 @@ def extract_characters_regex(s):
         "The correct answer is",
         "The answer is",
         "The answer",
-        "The best option is" "The correct option is",
-        "Best answer:" "Best option:",
+        "The best option isThe correct option is",
+        "Best answer:Best option:",
     ]
     for answer_prefix in answer_prefixes:
         s = s.replace(answer_prefix, "")
@@ -88,7 +88,15 @@ def timescope_process_results(doc, results):
     pred_ans = extract_characters_regex(pred)
     length = doc["length"]
     video = doc["video"]
-    data_dict = {"id": doc["id"], "length": length, "video": video, "task_type": task_type, "pred_answer": pred_ans, "pred": pred, "answer": doc["answer"]}
+    data_dict = {
+        "id": doc["id"],
+        "length": length,
+        "video": video,
+        "task_type": task_type,
+        "pred_answer": pred_ans,
+        "pred": pred,
+        "answer": doc["answer"],
+    }
 
     return {"timescope_perception_score": data_dict}
 
@@ -116,7 +124,9 @@ def timescope_aggregate_results(results):
 
     for cur_key in category2score:
         length, task_type = cur_key.split("_")
-        eval_logger.info(f"Evaluation on Video Length: {str(length)} and Task: {task_type}: {100 * category2score[cur_key]['correct'] / category2score[cur_key]['answered'] if category2score[cur_key]['answered'] > 0 else 0 : .1f}%")
+        eval_logger.info(
+            f"Evaluation on Video Length: {str(length)} and Task: {task_type}: {100 * category2score[cur_key]['correct'] / category2score[cur_key]['answered'] if category2score[cur_key]['answered'] > 0 else 0: .1f}%"
+        )
     for cur_length in lengths:
         total_correct = 0
         total_answered = 0
@@ -124,7 +134,9 @@ def timescope_aggregate_results(results):
             if str(cur_length) == k.split("_")[0]:
                 total_correct += v["correct"]
                 total_answered += v["answered"]
-        eval_logger.info(f"Evaluation on Video Length: {str(cur_length)}: {100 * total_correct / total_answered if total_answered > 0 else 0 : .1f}%")
+        eval_logger.info(
+            f"Evaluation on Video Length: {str(cur_length)}: {100 * total_correct / total_answered if total_answered > 0 else 0: .1f}%"
+        )
 
     total_correct = 0
     total_answered = 0

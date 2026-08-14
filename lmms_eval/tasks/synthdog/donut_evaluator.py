@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Union
+from typing import Any
 
 from loguru import logger as eval_logger
 from nltk import edit_distance
@@ -84,7 +84,7 @@ class JSONParseEvaluator:
         else:
             return 1
 
-    def normalize_dict(self, data: Union[Dict, List, Any]):
+    def normalize_dict(self, data: dict | list | Any):
         """
         Sort by value, while iterate over element if data is list
         """
@@ -114,7 +114,7 @@ class JSONParseEvaluator:
 
         return new_data
 
-    def cal_f1(self, preds: List[dict], answers: List[dict]):
+    def cal_f1(self, preds: list[dict], answers: list[dict]):
         """
         Calculate global F1 accuracy score (field-level, micro-averaged) by counting all true positives, false negatives and false positives
         """
@@ -130,7 +130,7 @@ class JSONParseEvaluator:
             total_fn_or_fp += len(answer)
         return total_tp / (total_tp + total_fn_or_fp / 2)
 
-    def construct_tree_from_dict(self, data: Union[Dict, List], node_name: str = None):
+    def construct_tree_from_dict(self, data: dict | list, node_name: str = None):
         """
         Convert Dictionary into Tree
 

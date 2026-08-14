@@ -1,17 +1,15 @@
 import warnings
-from typing import List, Optional, Tuple, Union
 
 import torch
 from accelerate import Accelerator, DistributedType
 from accelerate.state import AcceleratorState
-from tqdm import tqdm
-from transformers import AutoModelForCausalLM, AutoProcessor
-
 from lmms_eval import utils
 from lmms_eval.api.instance import Instance
 from lmms_eval.api.model import lmms
 from lmms_eval.api.registry import register_model
 from lmms_eval.models.model_utils.audio_processing import downsample_audio
+from tqdm import tqdm
+from transformers import AutoModelForCausalLM, AutoProcessor
 
 warnings.filterwarnings("ignore")
 
@@ -43,12 +41,12 @@ class Aero(lmms):
         pretrained: str = "lmms-lab/Aero-1-Audio",
         revision: str = "main",
         device: str = "cuda",
-        dtype: Optional[Union[str, torch.dtype]] = "auto",
+        dtype: str | torch.dtype | None = "auto",
         batch_size: int = 1,
-        trust_remote_code: Optional[bool] = True,
-        attn_implementation: Optional[str] = None,
+        trust_remote_code: bool | None = True,
+        attn_implementation: str | None = None,
         device_map: str = "",
-        chat_template: Optional[str] = None,
+        chat_template: str | None = None,
         use_cache: bool = True,
         eos_token_id: int = 151645,
         pad_token_id: int = 151643,
@@ -68,9 +66,18 @@ class Aero(lmms):
         if isinstance(dtype, str) and dtype != "auto":
             dtype = getattr(torch, dtype)
 
-        self._model = AutoModelForCausalLM.from_pretrained(pretrained, revision=revision, torch_dtype=dtype, device_map=self.device_map, trust_remote_code=trust_remote_code, attn_implementation=attn_implementation)
+        self._model = AutoModelForCausalLM.from_pretrained(
+            pretrained,
+            revision=revision,
+            torch_dtype=dtype,
+            device_map=self.device_map,
+            trust_remote_code=trust_remote_code,
+            attn_implementation=attn_implementation,
+        )
         self.pretrained = pretrained
-        self._processor = AutoProcessor.from_pretrained(pretrained, revision=revision, trust_remote_code=trust_remote_code)
+        self._processor = AutoProcessor.from_pretrained(
+            pretrained, revision=revision, trust_remote_code=trust_remote_code
+        )
         # Pad from left for batched generation: https://huggingface.co/docs/transformers/v4.39.3/en/model_doc/llava#usage-tips
         self._processor.tokenizer.padding_side = "left"
         self._tokenizer = self._processor.tokenizer
@@ -81,7 +88,11 @@ class Aero(lmms):
         self.eos_token_id = eos_token_id
         self.pad_token_id = pad_token_id
         if accelerator.num_processes > 1 and device_map == "":
-            assert accelerator.distributed_type in [DistributedType.FSDP, DistributedType.MULTI_GPU, DistributedType.DEEPSPEED], "Unsupported distributed type provided. Only DDP and FSDP are supported."
+            assert accelerator.distributed_type in [
+                DistributedType.FSDP,
+                DistributedType.MULTI_GPU,
+                DistributedType.DEEPSPEED,
+            ], "Unsupported distributed type provided. Only DDP and FSDP are supported."
             # If you want to use DistributedType.DEEPSPEED, you have to run accelerate config before using the model
             # Also, you have to select zero stage 0 (equivalent to DDP) in order to make the prepare model works
             # I tried to set different parameters in the kwargs to let default zero 2 stage works, but it didn't work.
@@ -91,8 +102,13 @@ class Aero(lmms):
                     "train_batch_size": self.batch_size_per_gpu * accelerator.num_processes,
                 }
                 AcceleratorState().deepspeed_plugin.deepspeed_config_process(must_match=True, **kwargs)
-                eval_logger.info("Detected that you are using DistributedType.DEEPSPEED. Make sure you run `accelerate config` and set zero stage to 0")
-            if accelerator.distributed_type == DistributedType.FSDP or accelerator.distributed_type == DistributedType.DEEPSPEED:
+                eval_logger.info(
+                    "Detected that you are using DistributedType.DEEPSPEED. Make sure you run `accelerate config` and set zero stage to 0"
+                )
+            if (
+                accelerator.distributed_type == DistributedType.FSDP
+                or accelerator.distributed_type == DistributedType.DEEPSPEED
+            ):
                 self._model = accelerator.prepare(self.model)
             else:
                 self._model = accelerator.prepare_model(self.model, evaluation_mode=True)
@@ -162,7 +178,7 @@ class Aero(lmms):
     def world_size(self):
         return self._world_size
 
-    def tok_encode(self, string: str, left_truncate_len=None, add_special_tokens=None) -> List[int]:
+    def tok_encode(self, string: str, left_truncate_len=None, add_special_tokens=None) -> list[int]:
         """ """
         add_special_tokens = False if add_special_tokens is None else add_special_tokens
         encoding = self.tokenizer.encode(string, add_special_tokens=add_special_tokens)
@@ -174,7 +190,7 @@ class Aero(lmms):
     def tok_decode(self, tokens):
         return self.tokenizer.decode(tokens)
 
-    def loglikelihood(self, requests: List[Instance]) -> List[Tuple[float, bool]]:
+    def loglikelihood(self, requests: list[Instance]) -> list[tuple[float, bool]]:
         raise NotImplementedError("TODO: Implement loglikelihood for Kino")
 
     def flatten(self, input):
@@ -184,7 +200,7 @@ class Aero(lmms):
                 new_list.append(j)
         return new_list
 
-    def generate_until(self, requests: List[Instance]) -> List[str]:
+    def generate_until(self, requests: list[Instance]) -> list[str]:
         res = []
 
         def _collate(x):
@@ -202,7 +218,11 @@ class Aero(lmms):
         # in the same batch.
         re_ords = utils.Collator([reg.args for reg in requests], _collate, grouping=True)
         chunks = re_ords.get_batched(n=self.batch_size, batch_fn=None)
-        num_iters = len(requests) // self.batch_size if len(requests) % self.batch_size == 0 else len(requests) // self.batch_size + 1
+        num_iters = (
+            len(requests) // self.batch_size
+            if len(requests) % self.batch_size == 0
+            else len(requests) // self.batch_size + 1
+        )
         pbar = tqdm(total=num_iters, disable=(self.rank != 0), desc="Model Responding")
         for chunk in chunks:
             contexts, all_gen_kwargs, doc_to_visual, doc_id, task, split = zip(*chunk)
@@ -216,7 +236,11 @@ class Aero(lmms):
                 messages = [{"role": "user", "content": []}]
                 for visual in visuals:
                     if isinstance(visual, dict) and "array" in visual:
-                        splited_video_audio = self.split_audio(downsample_audio(visual["array"], visual["sampling_rate"], self._processor.audio_processor.sampling_rate))
+                        splited_video_audio = self.split_audio(
+                            downsample_audio(
+                                visual["array"], visual["sampling_rate"], self._processor.audio_processor.sampling_rate
+                            )
+                        )
                         audios.extend(splited_video_audio)
                         for _ in range(len(splited_video_audio)):
                             messages[0]["content"].append({"type": "audio", "audio_url": "<placeholder>"})
@@ -237,7 +261,13 @@ class Aero(lmms):
             if len(audios) == 0:
                 audios = None
 
-            inputs = self._processor(audios=audios, text=text, sampling_rate=self._processor.audio_processor.sampling_rate, return_tensors="pt", padding=True).to(self._device, self.model.dtype)
+            inputs = self._processor(
+                audios=audios,
+                text=text,
+                sampling_rate=self._processor.audio_processor.sampling_rate,
+                return_tensors="pt",
+                padding=True,
+            ).to(self._device, self.model.dtype)
             if "max_new_tokens" not in gen_kwargs:
                 gen_kwargs["max_new_tokens"] = 1024
             if "temperature" not in gen_kwargs:
@@ -281,5 +311,5 @@ class Aero(lmms):
         pbar.close()
         return res
 
-    def generate_until_multi_round(self, requests) -> List[str]:
+    def generate_until_multi_round(self, requests) -> list[str]:
         raise NotImplementedError("TODO: Implement multi-round generation for LLaVAHF")

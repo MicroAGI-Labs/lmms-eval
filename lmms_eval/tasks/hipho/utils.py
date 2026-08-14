@@ -2,7 +2,8 @@ import ast
 import json
 import re
 from collections import defaultdict
-from typing import Any, Sequence
+from collections.abc import Sequence
+from typing import Any
 
 from loguru import logger as eval_logger
 

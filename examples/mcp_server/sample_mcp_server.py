@@ -1,7 +1,6 @@
 # server.py
 import base64
 import io
-from typing import List
 
 from mcp.server.fastmcp import FastMCP
 from mcp.types import ImageContent
@@ -10,8 +9,11 @@ from PIL import Image
 app = FastMCP("demo")
 
 
-@app.tool(name="image_zoom_in_tool", description="Zoom in on a specific region of an image by cropping it based on a bounding box (bbox) and an optional object label.")
-def image_zoom_in_tool(image_path: str, bbox: List[float]):
+@app.tool(
+    name="image_zoom_in_tool",
+    description="Zoom in on a specific region of an image by cropping it based on a bounding box (bbox) and an optional object label.",
+)
+def image_zoom_in_tool(image_path: str, bbox: list[float]):
     """
     Zoom in on a specific region of an image by cropping it based on a bounding box (bbox) and an optional object label.
 

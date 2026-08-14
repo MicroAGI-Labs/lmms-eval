@@ -1,4 +1,3 @@
-import os
 import re
 
 import numpy as np
@@ -187,7 +186,9 @@ def dream_tts_mcq_process_results(doc, results):
     # Calculate failure rate (unable to extract valid answer)
     failure = 1 if predicted_answer is None else 0
 
-    eval_logger.debug(f"Ground truth raw: {ground_truth_raw}, extracted: {ground_truth}, Predicted: {predicted_answer}, Correct: {correct}")
+    eval_logger.debug(
+        f"Ground truth raw: {ground_truth_raw}, extracted: {ground_truth}, Predicted: {predicted_answer}, Correct: {correct}"
+    )
 
     return {"accuracy": correct, "failure_rate": failure}
 

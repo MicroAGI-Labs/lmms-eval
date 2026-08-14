@@ -2,7 +2,7 @@ import json
 import logging
 import math
 import re
-from typing import Any, Dict, List
+from typing import Any
 
 eval_logger = logging.getLogger("lmms-eval")
 
@@ -65,7 +65,9 @@ REC_METRICS = [
 ]
 
 
-def smart_resize_mimo(height: int, width: int, factor: int = 28, min_pixels: int = 28 * 28 * 8, max_pixels: int = 28 * 28 * 4096):
+def smart_resize_mimo(
+    height: int, width: int, factor: int = 28, min_pixels: int = 28 * 28 * 8, max_pixels: int = 28 * 28 * 4096
+):
     """Resize image for MIMO models with factor-divisible dimensions and pixel constraints."""
     if max(height, width) < 10:
         raise ValueError(f"At least one dimension must be larger than 10 pixels, got height:{height}, width:{width}")
@@ -77,7 +79,9 @@ def smart_resize_mimo(height: int, width: int, factor: int = 28, min_pixels: int
             width = factor
             height = int(height * (factor / width))
     elif max(height, width) / min(height, width) > 200:
-        raise ValueError(f"absolute aspect ratio must be smaller than 200, got {max(height, width) / min(height, width)}")
+        raise ValueError(
+            f"absolute aspect ratio must be smaller than 200, got {max(height, width) / min(height, width)}"
+        )
     h_bar = round(height / factor) * factor
     w_bar = round(width / factor) * factor
     if h_bar * w_bar > max_pixels:
@@ -91,10 +95,14 @@ def smart_resize_mimo(height: int, width: int, factor: int = 28, min_pixels: int
     return h_bar, w_bar
 
 
-def smart_resize_qwen(height: int, width: int, factor: int = 28, min_pixels: int = 4 * 28 * 28, max_pixels: int = 16384 * 28 * 28):
+def smart_resize_qwen(
+    height: int, width: int, factor: int = 28, min_pixels: int = 4 * 28 * 28, max_pixels: int = 16384 * 28 * 28
+):
     """Resize image for Qwen models with factor-divisible dimensions and pixel constraints."""
     if max(height, width) / min(height, width) > 200:
-        raise ValueError(f"absolute aspect ratio must be smaller than {200}, got {max(height, width) / min(height, width)}")
+        raise ValueError(
+            f"absolute aspect ratio must be smaller than {200}, got {max(height, width) / min(height, width)}"
+        )
     h_bar = max(factor, int(round(height / factor) * factor))
     w_bar = max(factor, int(round(width / factor) * factor))
     if h_bar * w_bar > max_pixels:
@@ -108,7 +116,7 @@ def smart_resize_qwen(height: int, width: int, factor: int = 28, min_pixels: int
     return h_bar, w_bar
 
 
-def _normalize_bbox(bbox: List[float], width: int, height: int) -> List[float]:
+def _normalize_bbox(bbox: list[float], width: int, height: int) -> list[float]:
     """Normalize bbox from either [0, 1] or [0, 999] range to pixel coordinates."""
     if all(coord <= 1 for coord in bbox):
         return [bbox[0] * width, bbox[1] * height, bbox[2] * width, bbox[3] * height]
@@ -116,19 +124,29 @@ def _normalize_bbox(bbox: List[float], width: int, height: int) -> List[float]:
         return [bbox[0] / 999 * width, bbox[1] / 999 * height, bbox[2] / 999 * width, bbox[3] / 999 * height]
 
 
-def convert_bbox_from_mimo(bbox: List[float], width: int, height: int) -> List[float]:
+def convert_bbox_from_mimo(bbox: list[float], width: int, height: int) -> list[float]:
     """Convert bbox coordinates from MIMO resized space to original image space."""
     mimo_width, mimo_height = smart_resize_mimo(height, width)
-    return [bbox[0] / mimo_width * width, bbox[1] / mimo_height * height, bbox[2] / mimo_width * width, bbox[3] / mimo_height * height]
+    return [
+        bbox[0] / mimo_width * width,
+        bbox[1] / mimo_height * height,
+        bbox[2] / mimo_width * width,
+        bbox[3] / mimo_height * height,
+    ]
 
 
-def convert_bbox_from_qwen(bbox: List[float], width: int, height: int) -> List[float]:
+def convert_bbox_from_qwen(bbox: list[float], width: int, height: int) -> list[float]:
     """Convert bbox coordinates from Qwen resized space to original image space."""
     qwen_width, qwen_height = smart_resize_qwen(height, width)
-    return [bbox[0] / qwen_width * width, bbox[1] / qwen_height * height, bbox[2] / qwen_width * width, bbox[3] / qwen_height * height]
+    return [
+        bbox[0] / qwen_width * width,
+        bbox[1] / qwen_height * height,
+        bbox[2] / qwen_width * width,
+        bbox[3] / qwen_height * height,
+    ]
 
 
-def groundingme_doc_to_visual(doc: Dict[str, Any]) -> List[Any]:
+def groundingme_doc_to_visual(doc: dict[str, Any]) -> list[Any]:
     """Convert document to visual input for model evaluation."""
     return [doc["image"].convert("RGB")]
 
@@ -136,13 +154,13 @@ def groundingme_doc_to_visual(doc: Dict[str, Any]) -> List[Any]:
 PROMPT = "All spatial relationships are defined from the viewer's perspective, where 'front' means closer to the viewer and 'back' means farther from the viewer. Please provide the bounding box coordinate of the object the following statement describes:\n{description}\nEnsure that all details mentioned about the object are accurate. Provide at most one bounding box. If a matching object is found, provide its bounding box as a JSON in the format {{\"bbox_2d\": [x1, y1, x2, y2]}}. If no matching object is found, output {{\"bbox_2d\": null}}."
 
 
-def groundingme_doc_to_text(doc: Dict[str, Any]) -> str:
+def groundingme_doc_to_text(doc: dict[str, Any]) -> str:
     """Convert document to text prompt for model evaluation."""
     assert isinstance(doc["description"], str), "Answer must be a string"
     return PROMPT.format(description=doc["description"])
 
 
-def parse_bbox(input_str: str) -> List[float]:
+def parse_bbox(input_str: str) -> list[float]:
     """Extract bounding box from JSON format: {"bbox_2d": [x1, y1, x2, y2]} or {"bbox_2d": null}."""
     try:
         match = re.search(r'\{.*"bbox_2d".*\}', input_str, re.DOTALL)

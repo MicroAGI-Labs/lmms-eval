@@ -15,7 +15,7 @@ import yaml
 eval_logger = logging.getLogger("lmms-eval")
 
 
-with open(Path(__file__).parent / "live_bench.yaml", "r") as f:
+with open(Path(__file__).parent / "live_bench.yaml") as f:
     raw_data = f.readlines()
     safe_data = []
     for i, line in enumerate(raw_data):
@@ -79,10 +79,14 @@ Your response should be in the JSON format:
 
 
 def format_prompt(question, ground_truth_answer, answer, criteria):
-    return _PROMPT_WITH_IMAGE.format(prompt=question, generation=answer, reference=ground_truth_answer, criteria=criteria)
+    return _PROMPT_WITH_IMAGE.format(
+        prompt=question, generation=answer, reference=ground_truth_answer, criteria=criteria
+    )
 
 
-def get_chat_response(gpt_model_name, base64_images, question, ground_truth_answer, answer, criteria, max_retries=5, wait_time=10):
+def get_chat_response(
+    gpt_model_name, base64_images, question, ground_truth_answer, answer, criteria, max_retries=5, wait_time=10
+):
     # client = openai.OpenAI(api_key=API_KEY)
 
     content = []
@@ -112,7 +116,13 @@ def get_chat_response(gpt_model_name, base64_images, question, ground_truth_answ
 
     for attempt in range(max_retries):
         try:
-            response = client.chat.completions.create(model=gpt_model_name, messages=messages, max_tokens=1024, response_format={"type": "json_object"}, temperature=0.0)
+            response = client.chat.completions.create(
+                model=gpt_model_name,
+                messages=messages,
+                max_tokens=1024,
+                response_format={"type": "json_object"},
+                temperature=0.0,
+            )
             response_data = response.choices[0].message.content
             # print(response_data)
             response_data = json.loads(response_data)
@@ -163,11 +173,34 @@ def livebench_process_results_for_name(doc, results, model, eval_name):
     criteria = doc["criteria"]
     if not results or results[0] == "":
         return {eval_name: {"rating": 0, "explanation": "No response", "model_name": "N/A", "subtask": subtask}}
-    rating, explanation, model_name = get_chat_response(gpt_model_name=model, base64_images=base64_images, question=doc["question"], ground_truth_answer=doc["answer"], answer=results[0] if results else "", criteria=criteria)
+    rating, explanation, model_name = get_chat_response(
+        gpt_model_name=model,
+        base64_images=base64_images,
+        question=doc["question"],
+        ground_truth_answer=doc["answer"],
+        answer=results[0] if results else "",
+        criteria=criteria,
+    )
     if rating >= 0:
-        return {eval_name: {"rating": rating, "explanation": explanation, "model_name": model_name, "subtask": subtask, "id": doc["id"]}}
+        return {
+            eval_name: {
+                "rating": rating,
+                "explanation": explanation,
+                "model_name": model_name,
+                "subtask": subtask,
+                "id": doc["id"],
+            }
+        }
     else:
-        return {eval_name: {"rating": -1, "explanation": explanation, "model_name": "N/A", "subtask": subtask, "id": doc["id"]}}
+        return {
+            eval_name: {
+                "rating": -1,
+                "explanation": explanation,
+                "model_name": "N/A",
+                "subtask": subtask,
+                "id": doc["id"],
+            }
+        }
 
 
 def livebench_process_results_4o(doc, results):

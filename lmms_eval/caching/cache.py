@@ -45,7 +45,9 @@ def save_to_cache(file_name, obj):
 
     for item in obj:
         for subitem in item:
-            if hasattr(subitem, "arguments"):  # we need to handle the arguments specially since doc_to_visual is callable method and not serializable
+            if hasattr(
+                subitem, "arguments"
+            ):  # we need to handle the arguments specially since doc_to_visual is callable method and not serializable
                 serializable_arguments = tuple(arg if not callable(arg) else None for arg in subitem.arguments)
                 subitem.arguments = serializable_arguments
 
@@ -55,7 +57,14 @@ def save_to_cache(file_name, obj):
             file.write(dill.dumps(serializable_obj))
     except (pickle.PickleError, dill.PicklingError, TypeError, AttributeError):
         with open(file_path, "wb") as file:
-            file.write(dill.dumps([[subitem if is_serializable(subitem) else _handle_non_serializable(subitem) for subitem in item] for item in obj]))
+            file.write(
+                dill.dumps(
+                    [
+                        [subitem if is_serializable(subitem) else _handle_non_serializable(subitem) for subitem in item]
+                        for item in obj
+                    ]
+                )
+            )
 
 
 # NOTE the "key" param is to allow for flexibility

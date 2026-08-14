@@ -2,7 +2,9 @@ from abc import ABC, abstractmethod
 
 
 class BaseLauncher(ABC):
-    def __init__(self, port: int = 8000, host: str = "localhost", timeout: int = 1200, model: str = "Qwen/Qwen3-8B", **kwargs):
+    def __init__(
+        self, port: int = 8000, host: str = "localhost", timeout: int = 1200, model: str = "Qwen/Qwen3-8B", **kwargs
+    ):
         super().__init__()
         self.port = port
         self.host = host

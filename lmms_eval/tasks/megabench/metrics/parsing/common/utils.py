@@ -109,7 +109,9 @@ def drop_additional_text(result):
         result_first_paragraph,
     )
 
-    only_return_first_paragraph = potential_ans_in_single_line and result_first_paragraph.strip() != "" and not _is_multiline_answer(result)
+    only_return_first_paragraph = (
+        potential_ans_in_single_line and result_first_paragraph.strip() != "" and not _is_multiline_answer(result)
+    )
 
     if only_return_first_paragraph:
         return result_first_paragraph

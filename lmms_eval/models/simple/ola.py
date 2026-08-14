@@ -14,7 +14,6 @@ os.environ["USE_SPEECH"] = "1"
 import logging
 from datetime import timedelta
 from pathlib import Path
-from typing import List, Optional, Tuple, Union
 
 import librosa
 import numpy as np
@@ -23,13 +22,12 @@ import torch
 from accelerate import Accelerator, DistributedType, InitProcessGroupKwargs
 from accelerate.state import AcceleratorState
 from decord import VideoReader, cpu
-from tqdm import tqdm
-from transformers import AutoConfig
-
 from lmms_eval import utils
 from lmms_eval.api.instance import Instance
 from lmms_eval.api.model import lmms
 from lmms_eval.api.registry import register_model
+from tqdm import tqdm
+from transformers import AutoConfig
 
 eval_logger = logging.getLogger("lmms-eval")
 
@@ -118,9 +116,9 @@ class Ola(lmms):
     def __init__(
         self,
         pretrained: str = "THUdyh/Ola-7b",
-        truncation: Optional[bool] = True,
-        device: Optional[str] = "cuda:0",
-        batch_size: Optional[Union[int, str]] = 1,
+        truncation: bool | None = True,
+        device: str | None = "cuda:0",
+        batch_size: int | str | None = 1,
         attn_implementation=(
             "sdpa" if torch.__version__ >= "2.1.2" else "eager"
         ),  # inference implementation for attention, can be "sdpa", "eager", "flash_attention_2". Seems FA2 is not effective during inference: https://discuss.huggingface.co/t/flash-attention-has-no-effect-on-inference/73453/5
@@ -163,7 +161,9 @@ class Ola(lmms):
 
             cfg_pretrained = AutoConfig.from_pretrained(self.pretrained)
 
-            self._tokenizer, self._model, self._image_processor, self._max_length = load_pretrained_model(pretrained, None, device=self.device_map)
+            self._tokenizer, self._model, self._image_processor, self._max_length = load_pretrained_model(
+                pretrained, None, device=self.device_map
+            )
         else:
             self._tokenizer, self._model, self._image_processor, self._max_length = load_pretrained_model(
                 pretrained,
@@ -180,7 +180,11 @@ class Ola(lmms):
         self.use_cache = use_cache
         self.truncate_context = truncate_context
         if accelerator.num_processes > 1:
-            assert accelerator.distributed_type in [DistributedType.FSDP, DistributedType.MULTI_GPU, DistributedType.DEEPSPEED], "Unsupported distributed type provided. Only DDP and FSDP are supported."
+            assert accelerator.distributed_type in [
+                DistributedType.FSDP,
+                DistributedType.MULTI_GPU,
+                DistributedType.DEEPSPEED,
+            ], "Unsupported distributed type provided. Only DDP and FSDP are supported."
             # If you want to use DistributedType.DEEPSPEED, you have to run accelerate config before using the model
             # Also, you have to select zero stage 0 (equivalent to DDP) in order to make the prepare model works
             # I tried to set different parameters in the kwargs to let default zero 2 stage works, but it didn't work.
@@ -190,8 +194,13 @@ class Ola(lmms):
                     "train_batch_size": self.batch_size_per_gpu * accelerator.num_processes,
                 }
                 AcceleratorState().deepspeed_plugin.deepspeed_config_process(must_match=True, **kwargs)
-                eval_logger.info("Detected that you are using DistributedType.DEEPSPEED. Make sure you run `accelerate config` and set zero stage to 0")
-            if accelerator.distributed_type == DistributedType.FSDP or accelerator.distributed_type == DistributedType.DEEPSPEED:
+                eval_logger.info(
+                    "Detected that you are using DistributedType.DEEPSPEED. Make sure you run `accelerate config` and set zero stage to 0"
+                )
+            if (
+                accelerator.distributed_type == DistributedType.FSDP
+                or accelerator.distributed_type == DistributedType.DEEPSPEED
+            ):
                 self._model = accelerator.prepare(self.model)
             else:
                 self._model = accelerator.prepare_model(self.model, evaluation_mode=True)
@@ -260,7 +269,7 @@ class Ola(lmms):
     def world_size(self):
         return self._world_size
 
-    def tok_encode(self, string: str, left_truncate_len=None, add_special_tokens=None) -> List[int]:
+    def tok_encode(self, string: str, left_truncate_len=None, add_special_tokens=None) -> list[int]:
         """ """
         add_special_tokens = False if add_special_tokens is None else add_special_tokens
         encoding = self.tokenizer.encode(string, add_special_tokens=add_special_tokens)
@@ -284,7 +293,7 @@ class Ola(lmms):
     def tok_decode(self, tokens):
         return self.tokenizer.decode(tokens)
 
-    def loglikelihood(self, requests: List[Instance]) -> List[Tuple[float, bool]]:
+    def loglikelihood(self, requests: list[Instance]) -> list[tuple[float, bool]]:
         res = []
         pbar = tqdm(total=len(requests), disable=(self.rank != 0), desc="Model Responding")
 
@@ -299,7 +308,11 @@ class Ola(lmms):
             videos = []
             for visual in visuals:
                 video = self.load_video(visual, self.max_frames_num)
-                video = self._image_processor.preprocess(video, return_tensors="pt")["pixel_values"].bfloat16().to(self.device)
+                video = (
+                    self._image_processor.preprocess(video, return_tensors="pt")["pixel_values"]
+                    .bfloat16()
+                    .to(self.device)
+                )
                 videos.append(video)
 
             qs = contexts
@@ -313,14 +326,22 @@ class Ola(lmms):
             conv.append_message(conv.roles[1], None)
             prompt = conv.get_prompt()
 
-            contxt_id = tokenizer_image_token(prompt, self.tokenizer, IMAGE_TOKEN_INDEX, return_tensors="pt").unsqueeze(0).to(self.device)
+            contxt_id = (
+                tokenizer_image_token(prompt, self.tokenizer, IMAGE_TOKEN_INDEX, return_tensors="pt")
+                .unsqueeze(0)
+                .to(self.device)
+            )
 
             conv = conv_templates[self.conv_template].copy()
             conv.append_message(conv.roles[0], qs)
             conv.append_message(conv.roles[1], continuation)
             prompt = conv.get_prompt()
 
-            input_ids = tokenizer_image_token(prompt, self.tokenizer, IMAGE_TOKEN_INDEX, return_tensors="pt").unsqueeze(0).to(self.device)
+            input_ids = (
+                tokenizer_image_token(prompt, self.tokenizer, IMAGE_TOKEN_INDEX, return_tensors="pt")
+                .unsqueeze(0)
+                .to(self.device)
+            )
 
             labels = input_ids.clone()
             # Context part no need to calculate for loss
@@ -435,7 +456,7 @@ class Ola(lmms):
         speech_chunks = torch.LongTensor([mels.shape[0]])
         return mels, speech_length, speech_chunks, speech_wavs
 
-    def generate_until(self, requests) -> List[str]:
+    def generate_until(self, requests) -> list[str]:
         MODALITY = None
         res = []
 
@@ -454,7 +475,11 @@ class Ola(lmms):
         # in the same batch.
         re_ords = utils.Collator([reg.args for reg in requests], _collate, grouping=True)
         chunks = re_ords.get_batched(n=self.batch_size, batch_fn=None)
-        num_iters = len(requests) // self.batch_size if len(requests) % self.batch_size == 0 else len(requests) // self.batch_size + 1
+        num_iters = (
+            len(requests) // self.batch_size
+            if len(requests) % self.batch_size == 0
+            else len(requests) // self.batch_size + 1
+        )
         pbar = tqdm(total=num_iters, disable=(self.rank != 0), desc="Model Responding")
         for chunk in chunks:
             contexts, all_gen_kwargs, doc_to_visual, doc_id, task, split = zip(*chunk)
@@ -522,15 +547,21 @@ class Ola(lmms):
                 elif isinstance(visual, dict) and "array" in visual:  # For Audio
                     if MODALITY is None:
                         MODALITY = "AUDIO"
-                    mels, speech_length, speech_chunk, speech_wav = self.process_audio(visual["array"], visual["sampling_rate"])
+                    mels, speech_length, speech_chunk, speech_wav = self.process_audio(
+                        visual["array"], visual["sampling_rate"]
+                    )
                     speechs.append(mels.bfloat16().to(self.device))
                     speech_lengths.append(speech_length.to(self.device))
                     speech_chunks.append(speech_chunk.to(self.device))
                     speech_wavs.append(speech_wav.to(self.device))
 
                     # Processing dummy images, as required by model
-                    images.append(torch.zeros(1, 3, 224, 224).to(dtype=torch.bfloat16, device=self.device, non_blocking=True))
-                    images_highres.append(torch.zeros(1, 3, 224, 224).to(dtype=torch.bfloat16, device=self.device, non_blocking=True))
+                    images.append(
+                        torch.zeros(1, 3, 224, 224).to(dtype=torch.bfloat16, device=self.device, non_blocking=True)
+                    )
+                    images_highres.append(
+                        torch.zeros(1, 3, 224, 224).to(dtype=torch.bfloat16, device=self.device, non_blocking=True)
+                    )
                     image_sizes.append((224, 224))
 
             if not video_processed and MODALITY == "VIDEO":
@@ -571,7 +602,9 @@ class Ola(lmms):
                 if isinstance(until, str):
                     until = [until]
                 elif not isinstance(until, list):
-                    raise ValueError(f"Expected `gen_kwargs['until']` to be of type Union[str,list] but got {type(until)}")
+                    raise ValueError(
+                        f"Expected `gen_kwargs['until']` to be of type Union[str,list] but got {type(until)}"
+                    )
             assert self.batch_size_per_gpu == 1, "Do not support batch_size_per_gpu > 1 for now"
             # Okay be I am assuming bs always == 1
             qs = list(contexts)[0]
@@ -581,7 +614,14 @@ class Ola(lmms):
                 elif MODALITY == "IMAGE":
                     qs = DEFAULT_IM_START_TOKEN + DEFAULT_IMAGE_TOKEN + DEFAULT_IM_END_TOKEN + "\n" + qs
                 elif MODALITY == "VIDEO":
-                    qs = DEFAULT_IM_START_TOKEN + DEFAULT_SPEECH_TOKEN + DEFAULT_IMAGE_TOKEN + DEFAULT_IM_END_TOKEN + "\n" + qs
+                    qs = (
+                        DEFAULT_IM_START_TOKEN
+                        + DEFAULT_SPEECH_TOKEN
+                        + DEFAULT_IMAGE_TOKEN
+                        + DEFAULT_IM_END_TOKEN
+                        + "\n"
+                        + qs
+                    )
             else:
                 if MODALITY == "AUDIO":
                     qs = DEFAULT_SPEECH_TOKEN + "\n" + qs
@@ -599,11 +639,23 @@ class Ola(lmms):
                 eval_logger.debug(f"Prompt for doc ID {doc_id[0]}:\n\n{prompt}\n")
 
             if MODALITY == "AUDIO":
-                input_ids = tokenizer_speech_token(prompt, self.tokenizer, SPEECH_TOKEN_INDEX, return_tensors="pt").unsqueeze(0).to(self.device)
+                input_ids = (
+                    tokenizer_speech_token(prompt, self.tokenizer, SPEECH_TOKEN_INDEX, return_tensors="pt")
+                    .unsqueeze(0)
+                    .to(self.device)
+                )
             elif MODALITY == "IMAGE":
-                input_ids = tokenizer_image_token(prompt, self.tokenizer, IMAGE_TOKEN_INDEX, return_tensors="pt").unsqueeze(0).to(self.device)
+                input_ids = (
+                    tokenizer_image_token(prompt, self.tokenizer, IMAGE_TOKEN_INDEX, return_tensors="pt")
+                    .unsqueeze(0)
+                    .to(self.device)
+                )
             elif MODALITY == "VIDEO":
-                input_ids = tokenizer_speech_image_token(prompt, self.tokenizer, IMAGE_TOKEN_INDEX, return_tensors="pt").unsqueeze(0).to(self.device)
+                input_ids = (
+                    tokenizer_speech_image_token(prompt, self.tokenizer, IMAGE_TOKEN_INDEX, return_tensors="pt")
+                    .unsqueeze(0)
+                    .to(self.device)
+                )
             pad_token_ids = 151643
             attention_masks = input_ids.ne(pad_token_ids).long().to(self.device)
 
@@ -701,5 +753,5 @@ class Ola(lmms):
         pbar.close()
         return res
 
-    def generate_until_multi_round(self, requests) -> List[str]:
+    def generate_until_multi_round(self, requests) -> list[str]:
         raise NotImplementedError("TODO: Implement multi-round generation")

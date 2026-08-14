@@ -1,5 +1,5 @@
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from PIL import Image
 
@@ -78,7 +78,7 @@ def _make_montage(source_imgs: list, choice_imgs: list) -> Image.Image:
     Layout: source images in top row, choice images A/B/C/D in bottom row.
     Each cell is resized to a common size for uniformity.
     """
-    from PIL import ImageDraw, ImageFont
+    from PIL import ImageDraw
 
     CELL = 384  # px per cell
     PAD = 4
@@ -102,7 +102,7 @@ def _make_montage(source_imgs: list, choice_imgs: list) -> Image.Image:
     y0 = PAD
     for i, img in enumerate(all_sources):
         x = PAD + i * (CELL + PAD)
-        draw.text((x + 2, y0), f"Source {i+1}" if n_src > 1 else "Source", fill=(0, 0, 0))
+        draw.text((x + 2, y0), f"Source {i + 1}" if n_src > 1 else "Source", fill=(0, 0, 0))
         canvas.paste(img, (x, y0 + LABEL_H))
 
     # Row 1: choice images with A/B/C/D labels
@@ -142,7 +142,7 @@ def wm_abench_doc_to_visual(doc: dict) -> list:
     return source_imgs if source_imgs else [Image.new("RGB", (224, 224))]
 
 
-def wm_abench_doc_to_text(doc: dict, lmms_eval_specific_kwargs: Optional[dict] = None) -> str:
+def wm_abench_doc_to_text(doc: dict, lmms_eval_specific_kwargs: dict | None = None) -> str:
     """Build the text prompt for the model.
 
     Image-choice configs: append instructions referencing choice images by letter.
@@ -158,7 +158,12 @@ def wm_abench_doc_to_text(doc: dict, lmms_eval_specific_kwargs: Optional[dict] =
         n_choices = len(doc["image_choices"])
         choice_labels = ", ".join(chr(65 + i) for i in range(n_choices))
 
-        text = f"{prompt}\n\n" f"The image shows the source (top row) and answer options {choice_labels} (bottom row). " f"Which option correctly shows what happens next?" f"{IMAGE_CHOICE_PROMPT_SUFFIX}"
+        text = (
+            f"{prompt}\n\n"
+            f"The image shows the source (top row) and answer options {choice_labels} (bottom row). "
+            f"Which option correctly shows what happens next?"
+            f"{IMAGE_CHOICE_PROMPT_SUFFIX}"
+        )
         return text
 
     if _has_letter_choices(doc):
@@ -172,7 +177,7 @@ def wm_abench_doc_to_text(doc: dict, lmms_eval_specific_kwargs: Optional[dict] =
         if not base_prompt:
             base_prompt = prompt
 
-        text = f"{base_prompt}\n{choices_letter}\n" f"Answer with the option's letter from the given choices directly."
+        text = f"{base_prompt}\n{choices_letter}\nAnswer with the option's letter from the given choices directly."
         return text
 
     # Open-ended: use prompt as-is
@@ -217,7 +222,7 @@ def _is_safety_blocked(text: str) -> bool:
     return text.startswith("[SAFETY_BLOCKED:")
 
 
-def wm_abench_process_results(doc: dict, results: List[str]) -> Dict[str, Any]:
+def wm_abench_process_results(doc: dict, results: list[str]) -> dict[str, Any]:
     """Process model output and compare to ground truth."""
     pred_raw = results[0].strip()
     gt = _normalize_answer(doc)
@@ -249,7 +254,7 @@ def wm_abench_process_results(doc: dict, results: List[str]) -> Dict[str, Any]:
     }
 
 
-def wm_abench_aggregate_results(results: List[Dict]) -> float:
+def wm_abench_aggregate_results(results: list[dict]) -> float:
     """Compute overall accuracy."""
     if not results:
         return 0.0
@@ -263,7 +268,7 @@ def wm_abench_aggregate_results(results: List[Dict]) -> float:
     return correct / total
 
 
-def wm_abench_aggregate_results_clean(results: List[Dict]) -> float:
+def wm_abench_aggregate_results_clean(results: list[dict]) -> float:
     """Compute accuracy excluding safety-blocked samples."""
     if not results:
         return 0.0
@@ -274,7 +279,7 @@ def wm_abench_aggregate_results_clean(results: List[Dict]) -> float:
     return correct / len(clean)
 
 
-def wm_abench_aggregate_blocked_rate(results: List[Dict]) -> float:
+def wm_abench_aggregate_blocked_rate(results: list[dict]) -> float:
     """Compute fraction of samples that were safety-blocked."""
     if not results:
         return 0.0

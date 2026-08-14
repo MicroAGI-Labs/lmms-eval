@@ -5,10 +5,10 @@ Provides consistent file reading/writing interfaces across the project.
 
 import json
 import os
-from typing import Any, Dict, List
+from typing import Any
 
 
-def load_jsonl(file_path: str) -> List[Dict[str, Any]]:
+def load_jsonl(file_path: str) -> list[dict[str, Any]]:
     """Load data from a JSONL file.
 
     Args:
@@ -19,7 +19,7 @@ def load_jsonl(file_path: str) -> List[Dict[str, Any]]:
 
     """
     data = []
-    with open(file_path, "r", encoding="utf-8") as f:
+    with open(file_path, encoding="utf-8") as f:
         for line in f:
             line = line.strip()
             if line:
@@ -27,7 +27,7 @@ def load_jsonl(file_path: str) -> List[Dict[str, Any]]:
     return data
 
 
-def save_jsonl(data: List[Dict[str, Any]], file_path: str) -> None:
+def save_jsonl(data: list[dict[str, Any]], file_path: str) -> None:
     """Save data to a JSONL file.
 
     Args:
@@ -41,7 +41,7 @@ def save_jsonl(data: List[Dict[str, Any]], file_path: str) -> None:
             f.write(json.dumps(item, ensure_ascii=False) + "\n")
 
 
-def load_json(file_path: str) -> Dict[str, Any]:
+def load_json(file_path: str) -> dict[str, Any]:
     """Load data from a JSON file.
 
     Args:
@@ -51,11 +51,11 @@ def load_json(file_path: str) -> Dict[str, Any]:
         Dictionary from the JSON file
 
     """
-    with open(file_path, "r", encoding="utf-8") as f:
+    with open(file_path, encoding="utf-8") as f:
         return json.load(f)
 
 
-def save_json(data: Dict[str, Any], file_path: str, indent: int = 2) -> None:
+def save_json(data: dict[str, Any], file_path: str, indent: int = 2) -> None:
     """Save data to a JSON file.
 
     Args:

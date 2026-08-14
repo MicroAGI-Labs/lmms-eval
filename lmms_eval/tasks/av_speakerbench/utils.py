@@ -2,7 +2,7 @@ import ast
 import os
 import re
 from collections import defaultdict
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any
 
 import librosa
 import numpy as np
@@ -15,7 +15,7 @@ HF_HOME = os.getenv("HF_HOME", "~/.cache/huggingface")
 CACHE_ROOT = os.path.expanduser(os.getenv("AV_SPEAKERBENCH_CACHE", os.path.join(HF_HOME, "AV-SpeakerBench")))
 
 
-def _parse_choices(raw_choices: Union[str, List, Tuple]) -> Tuple[List[str], List[str], Dict[str, str]]:
+def _parse_choices(raw_choices: str | list | tuple) -> tuple[list[str], list[str], dict[str, str]]:
     """
     Args:
         raw_choices: A Python list literal or list/tuple from the CSV, e.g., ["A. foo", "B. bar"].
@@ -43,12 +43,14 @@ def _parse_choices(raw_choices: Union[str, List, Tuple]) -> Tuple[List[str], Lis
     return normalized_choices, labels, index2ans
 
 
-def av_speakerbench_doc_to_target(doc: Dict[str, Any]) -> str:
+def av_speakerbench_doc_to_target(doc: dict[str, Any]) -> str:
     """Return the ground-truth answer letter (A/B/C/D) from the doc."""
     return str(doc["answer"]).strip().upper()
 
 
-def _build_prompt(doc: Dict[str, Any], modality_instruction: str, lmms_eval_specific_kwargs: Optional[Dict[str, Any]] = None) -> str:
+def _build_prompt(
+    doc: dict[str, Any], modality_instruction: str, lmms_eval_specific_kwargs: dict[str, Any] | None = None
+) -> str:
     """
     Build the textual prompt: modality instruction + question + choices + post_prompt.
     """
@@ -71,25 +73,40 @@ def _build_prompt(doc: Dict[str, Any], modality_instruction: str, lmms_eval_spec
     return "".join(prompt_parts).strip()
 
 
-def av_speakerbench_doc_to_text_av(doc: Dict[str, Any], lmms_eval_specific_kwargs: Optional[Dict[str, Any]] = None) -> str:
+def av_speakerbench_doc_to_text_av(
+    doc: dict[str, Any], lmms_eval_specific_kwargs: dict[str, Any] | None = None
+) -> str:
     """Prompt for audiovisual mode."""
-    modality_instruction = "Select the best answer to the following multiple-choice question based on the audiovisual clip. " "Respond with only the letter (A, B, C, or D) of the correct option.\n"
+    modality_instruction = (
+        "Select the best answer to the following multiple-choice question based on the audiovisual clip. "
+        "Respond with only the letter (A, B, C, or D) of the correct option.\n"
+    )
     return _build_prompt(doc, modality_instruction, lmms_eval_specific_kwargs)
 
 
-def av_speakerbench_doc_to_text_audio(doc: Dict[str, Any], lmms_eval_specific_kwargs: Optional[Dict[str, Any]] = None) -> str:
+def av_speakerbench_doc_to_text_audio(
+    doc: dict[str, Any], lmms_eval_specific_kwargs: dict[str, Any] | None = None
+) -> str:
     """Prompt for audio-only mode."""
-    modality_instruction = "Select the best answer to the following multiple-choice question based on the audio clip. " "Focus on the audio and respond with only the letter (A, B, C, or D).\n"
+    modality_instruction = (
+        "Select the best answer to the following multiple-choice question based on the audio clip. "
+        "Focus on the audio and respond with only the letter (A, B, C, or D).\n"
+    )
     return _build_prompt(doc, modality_instruction, lmms_eval_specific_kwargs)
 
 
-def av_speakerbench_doc_to_text_visual(doc: Dict[str, Any], lmms_eval_specific_kwargs: Optional[Dict[str, Any]] = None) -> str:
+def av_speakerbench_doc_to_text_visual(
+    doc: dict[str, Any], lmms_eval_specific_kwargs: dict[str, Any] | None = None
+) -> str:
     """Prompt for visual-only mode."""
-    modality_instruction = "Select the best answer to the following multiple-choice question based on the silent visual clip. " "Rely on the visuals only and respond with the letter (A, B, C, or D).\n"
+    modality_instruction = (
+        "Select the best answer to the following multiple-choice question based on the silent visual clip. "
+        "Rely on the visuals only and respond with the letter (A, B, C, or D).\n"
+    )
     return _build_prompt(doc, modality_instruction, lmms_eval_specific_kwargs)
 
 
-def av_speakerbench_doc_to_audiovisual(doc: Dict[str, Any]) -> List[str]:
+def av_speakerbench_doc_to_audiovisual(doc: dict[str, Any]) -> list[str]:
     """Return the audiovisual clip path, joined with CACHE_ROOT."""
     path = doc.get("audio_visual_path") or doc.get("audiovisual_path") or doc.get("video_path")
     if not path:
@@ -99,7 +116,7 @@ def av_speakerbench_doc_to_audiovisual(doc: Dict[str, Any]) -> List[str]:
     return [path]
 
 
-def av_speakerbench_doc_to_audio(doc: Dict[str, Any]) -> List[Union[Dict[str, Any], str]]:
+def av_speakerbench_doc_to_audio(doc: dict[str, Any]) -> list[dict[str, Any] | str]:
     """
     Return audio as a dict with waveform and sampling_rate for unified audio handling.
     Falls back to the absolute path if loading fails.
@@ -116,7 +133,7 @@ def av_speakerbench_doc_to_audio(doc: Dict[str, Any]) -> List[Union[Dict[str, An
         return [abs_path]
 
 
-def av_speakerbench_doc_to_visual(doc: Dict[str, Any]) -> List[str]:
+def av_speakerbench_doc_to_visual(doc: dict[str, Any]) -> list[str]:
     """Return the visual-only clip path, joined with CACHE_ROOT."""
     path = doc.get("visual_path") or doc.get("video_path")
     if not path:
@@ -126,7 +143,7 @@ def av_speakerbench_doc_to_visual(doc: Dict[str, Any]) -> List[str]:
     return [path]
 
 
-def parse_multi_choice_response(response: Optional[str], all_choices: List[str]) -> str:
+def parse_multi_choice_response(response: str | None, all_choices: list[str]) -> str:
     """
     Parse the model text into a choice label.
 
@@ -171,7 +188,7 @@ def parse_multi_choice_response(response: Optional[str], all_choices: List[str])
     return all_choices[0]
 
 
-def av_speakerbench_process_results(doc: Dict[str, Any], results: List[str]) -> Dict[str, Dict[str, Any]]:
+def av_speakerbench_process_results(doc: dict[str, Any], results: list[str]) -> dict[str, dict[str, Any]]:
     """
     Compare model prediction with ground truth.
 
@@ -197,7 +214,7 @@ def av_speakerbench_process_results(doc: Dict[str, Any], results: List[str]) -> 
     }
 
 
-def av_speakerbench_aggregate_results(results: List[Dict[str, Any]]) -> float:
+def av_speakerbench_aggregate_results(results: list[dict[str, Any]]) -> float:
     """
     Aggregate per-sample scores into per-task_id accuracy and overall accuracy.
 

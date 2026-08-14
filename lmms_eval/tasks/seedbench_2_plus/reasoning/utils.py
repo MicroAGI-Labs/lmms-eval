@@ -17,7 +17,11 @@ def seed_doc_to_visual(doc):
 def seed_doc_to_text(doc, lmms_eval_specific_kwargs=None):
     question = doc["question"]
     img_token = lmms_eval_specific_kwargs.get("img_token", "<image>") if lmms_eval_specific_kwargs else "<image>"
-    post_prompt = lmms_eval_specific_kwargs.get("post_prompt", "Answer with the option's letter from the given choices directly.") if lmms_eval_specific_kwargs else "Answer with the option's letter from the given choices directly."
+    post_prompt = (
+        lmms_eval_specific_kwargs.get("post_prompt", "Answer with the option's letter from the given choices directly.")
+        if lmms_eval_specific_kwargs
+        else "Answer with the option's letter from the given choices directly."
+    )
 
     question.replace("<img>", img_token)
     question += "\n" + f"A. {parse_choice_img(doc['choice_A'], img_token)}\n"

@@ -1,10 +1,15 @@
 import re
-from typing import List, Optional, Tuple, Union
 
 import decord
 import numpy as np
 import torch
 from accelerate import Accelerator, DistributedType
+from lmms_eval import utils
+from lmms_eval.api.instance import Instance
+from lmms_eval.api.model import lmms
+from lmms_eval.api.registry import register_model
+from lmms_eval.imports import optional_import
+from lmms_eval.models.model_utils.media_encoder import encode_image_to_data_url
 from loguru import logger as eval_logger
 from PIL import Image
 from tqdm import tqdm
@@ -13,13 +18,6 @@ from transformers import (
     AutoTokenizer,
     Qwen2_5_VLForConditionalGeneration,
 )
-
-from lmms_eval import utils
-from lmms_eval.api.instance import Instance
-from lmms_eval.api.model import lmms
-from lmms_eval.api.registry import register_model
-from lmms_eval.imports import optional_import
-from lmms_eval.models.model_utils.media_encoder import encode_image_to_data_url
 
 process_vision_info, _has_qwen_vl = optional_import("qwen_vl_utils", "process_vision_info")
 if not _has_qwen_vl:
@@ -36,18 +34,18 @@ class Qwen2_5_VL(lmms):
     def __init__(
         self,
         pretrained: str = "Qwen/Qwen2.5-VL-3B-Instruct",
-        device: Optional[str] = "cuda",
-        device_map: Optional[str] = "auto",
-        batch_size: Optional[Union[int, str]] = 1,
+        device: str | None = "cuda",
+        device_map: str | None = "auto",
+        batch_size: int | str | None = 1,
         use_cache=True,
-        attn_implementation: Optional[str] = None,
+        attn_implementation: str | None = None,
         min_pixels: int = 256 * 28 * 28,
         max_pixels: int = 1605632,
         max_num_frames: int = 32,
-        fps: Optional[float] = None,
-        system_prompt: Optional[str] = "You are a helpful assistant.",
-        interleave_visuals: Optional[bool] = False,
-        reasoning_prompt: Optional[str] = None,
+        fps: float | None = None,
+        system_prompt: str | None = "You are a helpful assistant.",
+        interleave_visuals: bool | None = False,
+        reasoning_prompt: str | None = None,
         **kwargs,
     ) -> None:
         super().__init__()
@@ -57,7 +55,9 @@ class Qwen2_5_VL(lmms):
         # Validate attention implementation
         valid_attn_implementations = [None, "flash_attention_2", "sdpa", "eager"]
         if attn_implementation not in valid_attn_implementations:
-            raise ValueError(f"attn_implementation must be one of {valid_attn_implementations}, got {attn_implementation}")
+            raise ValueError(
+                f"attn_implementation must be one of {valid_attn_implementations}, got {attn_implementation}"
+            )
 
         accelerator = Accelerator()
         self.accelerator = accelerator
@@ -157,7 +157,7 @@ class Qwen2_5_VL(lmms):
     def world_size(self):
         return self._world_size
 
-    def loglikelihood(self, requests: List[Instance]) -> List[Tuple[float, bool]]:
+    def loglikelihood(self, requests: list[Instance]) -> list[tuple[float, bool]]:
         raise NotImplementedError("Loglikelihood is not implemented for Qwen2.5_VL")
 
     def flatten(self, input):
@@ -176,7 +176,7 @@ class Qwen2_5_VL(lmms):
             quality=85,
         )
 
-    def generate_until(self, requests: List[Instance]) -> List[str]:
+    def generate_until(self, requests: list[Instance]) -> list[str]:
         res = []
 
         def _collate(x):
@@ -208,7 +208,9 @@ class Qwen2_5_VL(lmms):
             if isinstance(until, str):
                 until = [until]
             elif not isinstance(until, list):
-                raise ValueError(f"Expected `gen_kwargs['until']` to be of type Union[str, list], but got {type(until)}")
+                raise ValueError(
+                    f"Expected `gen_kwargs['until']` to be of type Union[str, list], but got {type(until)}"
+                )
 
             # Avoid using '\n\n' as a stopper for Qwen2.5VL to prevent truncation, which can lead to incorrect results
             until = [item for item in until if item != "\n\n"]
@@ -368,7 +370,7 @@ class Qwen2_5_VL(lmms):
         pbar.close()
         return res
 
-    def generate_until_multi_round(self, requests: List[Instance]) -> List[str]:
+    def generate_until_multi_round(self, requests: list[Instance]) -> list[str]:
         res = []
 
         def _collate(x):
@@ -378,7 +380,11 @@ class Qwen2_5_VL(lmms):
         metadata = requests[0].metadata
         re_ords = utils.Collator([reg.args for reg in requests], _collate, grouping=True)
         chunks = re_ords.get_batched(n=self.batch_size, batch_fn=None)
-        num_iters = len(requests) // self.batch_size if len(requests) % self.batch_size == 0 else len(requests) // self.batch_size + 1
+        num_iters = (
+            len(requests) // self.batch_size
+            if len(requests) % self.batch_size == 0
+            else len(requests) // self.batch_size + 1
+        )
         pbar = tqdm(total=num_iters, disable=(self.rank != 0), desc="Model Responding")
 
         for chunk in chunks:
@@ -421,7 +427,9 @@ class Qwen2_5_VL(lmms):
                                     self.task_dict[task][split][ids],
                                     previous_output=[round_res[ids_idx] for round_res in batched_round_res],
                                     round_idx=round_idx,
-                                    previous_round_info=batched_previous_round_info[ids_idx] if batched_previous_round_info is not None else None,
+                                    previous_round_info=batched_previous_round_info[ids_idx]
+                                    if batched_previous_round_info is not None
+                                    else None,
                                 )
                                 for ids_idx, ids in enumerate(batched_doc_id)
                             ]
@@ -503,7 +511,10 @@ class Qwen2_5_VL(lmms):
 
                     batched_messages.append(message)
 
-                texts = [self.processor.apply_chat_template(msg, tokenize=False, add_generation_prompt=True) for msg in batched_messages]
+                texts = [
+                    self.processor.apply_chat_template(msg, tokenize=False, add_generation_prompt=True)
+                    for msg in batched_messages
+                ]
                 image_inputs, video_inputs = process_vision_info(batched_messages)
                 if video_inputs is not None:
                     total_frames = video_inputs[0].shape[0]

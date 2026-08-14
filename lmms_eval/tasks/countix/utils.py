@@ -61,7 +61,9 @@ def _get_lance_resolver(dataset_uri):
 
         id_column = os.getenv("COUNTIX_LANCE_VIDEO_ID_COLUMN", "video_id").strip() or "video_id"
         blob_column = os.getenv("COUNTIX_LANCE_VIDEO_BLOB_COLUMN", "video_blob").strip() or "video_blob"
-        cache_dir = Path(os.path.expanduser(os.getenv("COUNTIX_LANCE_CACHE_DIR", "~/.cache/lmms_eval/countix_lance_videos")))
+        cache_dir = Path(
+            os.path.expanduser(os.getenv("COUNTIX_LANCE_CACHE_DIR", "~/.cache/lmms_eval/countix_lance_videos"))
+        )
 
         resolver = LanceVideoBlobResolver(
             dataset_uri=dataset_uri,
@@ -131,12 +133,18 @@ def countix_doc_to_visual(doc):
     for key in ["video", "video_path", "media_path", "clip_path", "file", "path", "Video_Name", "video_name"]:
         value = doc.get(key)
         if value:
-            return [resolve_media_reference(value, media_type="video", cache_dir="countix", env_vars=("COUNTIX_VIDEO_DIR",))]
+            return [
+                resolve_media_reference(value, media_type="video", cache_dir="countix", env_vars=("COUNTIX_VIDEO_DIR",))
+            ]
 
     for key in ["clip_id", "video_id", "id"]:
         value = doc.get(key)
         if value:
-            return [resolve_media_reference(str(value), media_type="video", cache_dir="countix", env_vars=("COUNTIX_VIDEO_DIR",))]
+            return [
+                resolve_media_reference(
+                    str(value), media_type="video", cache_dir="countix", env_vars=("COUNTIX_VIDEO_DIR",)
+                )
+            ]
     return []
 
 

@@ -2,7 +2,6 @@ import json
 import os
 import sys
 from pathlib import Path
-from typing import List, Optional, Tuple
 
 import numpy as np
 import torch
@@ -12,13 +11,12 @@ from accelerate import (
     init_empty_weights,
     load_checkpoint_and_dispatch,
 )
-from loguru import logger as eval_logger
-from PIL import Image
-from tqdm import tqdm
-
 from lmms_eval.api.instance import Instance
 from lmms_eval.api.model import lmms
 from lmms_eval.api.registry import register_model
+from loguru import logger as eval_logger
+from PIL import Image
+from tqdm import tqdm
 
 # Add Bagel repository to Python path
 # Expected: lmms-eval/Bagel/ directory at project root
@@ -28,7 +26,10 @@ if os.path.exists(bagel_path):
     sys.path.append(bagel_path)
     eval_logger.info(f"Added Bagel path to sys.path: {bagel_path}")
 else:
-    eval_logger.warning(f"Bagel repository not found at {bagel_path}. " f"Please clone it: cd {wd} && git clone https://github.com/ByteDance-Seed/Bagel.git")
+    eval_logger.warning(
+        f"Bagel repository not found at {bagel_path}. "
+        f"Please clone it: cd {wd} && git clone https://github.com/ByteDance-Seed/Bagel.git"
+    )
 
 
 @register_model("bagel_unig2u")
@@ -60,7 +61,7 @@ class BagelUniG2U(lmms):
         mode: str = "generation",
         load_in_4bit: bool = False,
         load_in_8bit: bool = False,
-        output_image_dir: Optional[str] = None,
+        output_image_dir: str | None = None,
         show_thinking: bool = False,
         cfg_text_scale: float = 4.0,
         cfg_interval: float = 0.4,
@@ -75,14 +76,16 @@ class BagelUniG2U(lmms):
         seed: int = 0,
         image_ratio: str = "1:1",
         continual_mode: bool = True,
-        response_persistent_folder: Optional[str] = None,
+        response_persistent_folder: str | None = None,
         # Visual CoT parameters (used when auto-detected from [GEN_PROMPT] tags)
         stage2_max_new_tokens: int = 16384,
         stage2_temperature: float = 0.0,
         stage2_do_sample: bool = False,
-        generation_prompt_template: str = ("Generate a detailed visual diagram or illustration " "to help answer this question: {question}"),
+        generation_prompt_template: str = (
+            "Generate a detailed visual diagram or illustration to help answer this question: {question}"
+        ),
         save_intermediate: bool = False,
-        intermediate_dir: Optional[str] = None,
+        intermediate_dir: str | None = None,
         fail_gracefully: bool = True,
         **kwargs,
     ) -> None:
@@ -220,7 +223,7 @@ class BagelUniG2U(lmms):
             self.response_persistent_file = os.path.join(self.response_persistent_folder, "bagel_response.json")
 
             if os.path.exists(self.response_persistent_file):
-                with open(self.response_persistent_file, "r") as f:
+                with open(self.response_persistent_file) as f:
                     self.response_cache = json.load(f)
                 self.cache_mode = "resume"
                 eval_logger.info(f"Loaded cache: {len(self.response_cache)} records")
@@ -229,7 +232,9 @@ class BagelUniG2U(lmms):
         accelerator = Accelerator()
         if accelerator.num_processes > 1:
             if self.continual_mode:
-                eval_logger.warning("Continual mode is not supported for distributed inference. " "Automatically disabling continual_mode.")
+                eval_logger.warning(
+                    "Continual mode is not supported for distributed inference. Automatically disabling continual_mode."
+                )
                 self.continual_mode = False
             self.accelerator = accelerator
             self._rank = self.accelerator.local_process_index
@@ -298,7 +303,15 @@ class BagelUniG2U(lmms):
         )
 
         # Ensure certain modules are on the same device
-        same_device_modules = ["language_model.model.embed_tokens", "time_embedder", "latent_pos_embed", "vae2llm", "llm2vae", "connector", "vit_pos_embed"]
+        same_device_modules = [
+            "language_model.model.embed_tokens",
+            "time_embedder",
+            "latent_pos_embed",
+            "vae2llm",
+            "llm2vae",
+            "connector",
+            "vit_pos_embed",
+        ]
 
         if torch.cuda.device_count() == 1:
             first_device = device_map.get(same_device_modules[0], "cuda:0")
@@ -334,7 +347,12 @@ class BagelUniG2U(lmms):
                     load_and_quantize_model,
                 )
 
-                bnb_quantization_config = BnbQuantizationConfig(load_in_4bit=True, bnb_4bit_compute_dtype=torch.bfloat16, bnb_4bit_use_double_quant=False, bnb_4bit_quant_type="nf4")
+                bnb_quantization_config = BnbQuantizationConfig(
+                    load_in_4bit=True,
+                    bnb_4bit_compute_dtype=torch.bfloat16,
+                    bnb_4bit_use_double_quant=False,
+                    bnb_4bit_quant_type="nf4",
+                )
                 model = load_and_quantize_model(
                     model,
                     weights_location=checkpoint_path,
@@ -344,7 +362,7 @@ class BagelUniG2U(lmms):
                 ).eval()
                 eval_logger.info("Loaded model in 4-bit (NF4) quantization")
             except ImportError:
-                raise ImportError("4-bit quantization requires bitsandbytes. " "Install it with: pip install bitsandbytes")
+                raise ImportError("4-bit quantization requires bitsandbytes. Install it with: pip install bitsandbytes")
 
         elif self.precision_mode == "8bit":
             # INT8: 8-bit quantization
@@ -364,7 +382,7 @@ class BagelUniG2U(lmms):
                 ).eval()
                 eval_logger.info("Loaded model in 8-bit (INT8) quantization")
             except ImportError:
-                raise ImportError("8-bit quantization requires bitsandbytes. " "Install it with: pip install bitsandbytes")
+                raise ImportError("8-bit quantization requires bitsandbytes. Install it with: pip install bitsandbytes")
 
         else:
             raise ValueError(f"Unknown precision mode: {self.precision_mode}")
@@ -441,7 +459,7 @@ class BagelUniG2U(lmms):
         output_text = result.get("text", "")
         return output_text
 
-    def generate_text_and_image(self, prompt: str, doc_id: str, task: str, image=None) -> Tuple[str, List[str]]:
+    def generate_text_and_image(self, prompt: str, doc_id: str, task: str, image=None) -> tuple[str, list[str]]:
         """
         Generate text and image from prompt (optionally conditioned on input image)
 
@@ -493,13 +511,13 @@ class BagelUniG2U(lmms):
 
     def generate_uni_mmmu_interleaved(
         self,
-        input_images: List,
+        input_images: list,
         prompt: str,
         doc_id: str,
         task: str,
         interleaved_config: dict,
         doc: dict = None,
-    ) -> Tuple[str, List[str]]:
+    ) -> tuple[str, list[str]]:
         """
         Uni-MMMU interleaved generation aligned with original benchmark.
 
@@ -559,7 +577,9 @@ class BagelUniG2U(lmms):
             for img in input_images:
                 if img is not None:
                     img_transformed = self.inferencer.vae_transform.resize_transform(self.pil_img2rgb(img))
-                    gen_context = self.inferencer.update_context_image(img_transformed, gen_context, vae=False, vit=True)
+                    gen_context = self.inferencer.update_context_image(
+                        img_transformed, gen_context, vae=False, vit=True
+                    )
 
             # Add initial prompt to context
             cfg_text_context = deepcopy(gen_context)
@@ -624,7 +644,9 @@ class BagelUniG2U(lmms):
                 for idx, img in enumerate(input_images):
                     if img is not None:
                         img_transformed = self.inferencer.vae_transform.resize_transform(self.pil_img2rgb(img))
-                        gen_context = self.inferencer.update_context_image(img_transformed, gen_context, vae=False, vit=True)
+                        gen_context = self.inferencer.update_context_image(
+                            img_transformed, gen_context, vae=False, vit=True
+                        )
 
                 # Re-add initial prompt
                 gen_context = self.inferencer.update_context_text(prompt, gen_context)
@@ -641,7 +663,10 @@ class BagelUniG2U(lmms):
                 gen_context = self.inferencer.update_context_text("COMPLETED WITH CANDIDATE 1:", gen_context)
 
                 # Final answer
-                final_suffix = 'Now output EXACTLY ONE <FINAL_ANSWER_JSON>{"choice": 0 or 1, "rationale": "≤30 words"}</FINAL_ANSWER_JSON>\n' "Do not output any additional images."
+                final_suffix = (
+                    'Now output EXACTLY ONE <FINAL_ANSWER_JSON>{"choice": 0 or 1, "rationale": "≤30 words"}</FINAL_ANSWER_JSON>\n'
+                    "Do not output any additional images."
+                )
                 gen_context = self.inferencer.update_context_text(final_suffix, gen_context)
 
                 final_text = self.inferencer.gen_text(
@@ -716,7 +741,9 @@ class BagelUniG2U(lmms):
                 for idx, img in enumerate(input_images):
                     if img is not None:
                         img_transformed = self.inferencer.vae_transform.resize_transform(self.pil_img2rgb(img))
-                        gen_context = self.inferencer.update_context_image(img_transformed, gen_context, vae=False, vit=True)
+                        gen_context = self.inferencer.update_context_image(
+                            img_transformed, gen_context, vae=False, vit=True
+                        )
 
                 # Re-add initial prompt
                 gen_context = self.inferencer.update_context_text(prompt, gen_context)
@@ -726,10 +753,15 @@ class BagelUniG2U(lmms):
                     gen_context = self.inferencer.update_context_text(plan_text, gen_context)
                     gen_context = self.inferencer.update_context_text(f"Image for step {i}:", gen_context)
                     img_transformed = self.inferencer.vae_transform.resize_transform(self.pil_img2rgb(step_img))
-                    gen_context = self.inferencer.update_context_image(img_transformed, gen_context, vae=False, vit=True)
+                    gen_context = self.inferencer.update_context_image(
+                        img_transformed, gen_context, vae=False, vit=True
+                    )
 
                 # Final answer
-                final_suffix = "After the images, emit EXACTLY ONE LINE containing ONLY the final move list " "as <ANSWER_JSON>[...]</ANSWER_JSON>. No other text."
+                final_suffix = (
+                    "After the images, emit EXACTLY ONE LINE containing ONLY the final move list "
+                    "as <ANSWER_JSON>[...]</ANSWER_JSON>. No other text."
+                )
                 gen_context = self.inferencer.update_context_text(final_suffix, gen_context)
                 final_text = self.inferencer.gen_text(
                     gen_context,
@@ -741,12 +773,18 @@ class BagelUniG2U(lmms):
 
         return final_text, generated_images
 
-    def format_output(self, text: str, images: List[str]) -> str:
+    def format_output(self, text: str, images: list[str]) -> str:
         """Format output as JSON string"""
-        eval_logger.debug(f"[FORMAT OUTPUT] Input: text type={type(text).__name__}, text value={repr(text)}, images count={len(images) if images else 0}")
+        eval_logger.debug(
+            f"[FORMAT OUTPUT] Input: text type={type(text).__name__}, text value={repr(text)}, images count={len(images) if images else 0}"
+        )
         output_dict = {"text": text, "images": images}
         result = json.dumps(output_dict, ensure_ascii=False)
-        eval_logger.debug(f"[FORMAT OUTPUT] Output JSON: {result[:200]}..." if len(result) > 200 else f"[FORMAT OUTPUT] Output JSON: {result}")
+        eval_logger.debug(
+            f"[FORMAT OUTPUT] Output JSON: {result[:200]}..."
+            if len(result) > 200
+            else f"[FORMAT OUTPUT] Output JSON: {result}"
+        )
         return result
 
     def flatten(self, input_list):
@@ -761,7 +799,9 @@ class BagelUniG2U(lmms):
 
     # ── Visual CoT methods ──────────────────────────────────────────────
 
-    def _vcot_stage1_generate_image(self, generation_prompt: str, doc_id: str, task: str, original_image=None) -> Tuple[str, List[str]]:
+    def _vcot_stage1_generate_image(
+        self, generation_prompt: str, doc_id: str, task: str, original_image=None
+    ) -> tuple[str, list[str]]:
         """Stage 1: Generate auxiliary visualization image from prompt."""
         eval_logger.debug(f"Visual CoT Stage 1 - Generating image for doc {doc_id}")
         try:
@@ -831,7 +871,7 @@ class BagelUniG2U(lmms):
         task: str,
         generation_prompt: str,
         stage1_text: str,
-        generated_images: List[str],
+        generated_images: list[str],
         question: str,
         stage2_answer: str,
     ) -> None:
@@ -855,11 +895,11 @@ class BagelUniG2U(lmms):
 
     # ── Main inference ──────────────────────────────────────────────────
 
-    def generate_visual_cot(self, requests: List[Instance]) -> List[str]:
+    def generate_visual_cot(self, requests: list[Instance]) -> list[str]:
         """Visual CoT (GtA) generation — delegates to generate_until which auto-detects GtA from prompt tags."""
         return self.generate_until(requests)
 
-    def generate_until(self, requests: List[Instance]) -> List[str]:
+    def generate_until(self, requests: list[Instance]) -> list[str]:
         """
         Main inference method. Auto-detects mode:
         - [GEN_PROMPT] tags → Visual CoT two-stage pipeline
@@ -897,7 +937,9 @@ class BagelUniG2U(lmms):
                 if doc_to_visual is not None:
                     visuals = [doc_to_visual(doc)]
                     input_images = self.flatten(visuals)
-                output_text, output_images = self.generate_uni_mmmu_interleaved(input_images, prompt, str(doc_id), task, bagel_interleaved, doc)
+                output_text, output_images = self.generate_uni_mmmu_interleaved(
+                    input_images, prompt, str(doc_id), task, bagel_interleaved, doc
+                )
                 formatted_output = self.format_output(output_text, output_images)
 
             # ── Route: Visual CoT (explicit via gen_kwargs) ──
@@ -994,10 +1036,10 @@ class BagelUniG2U(lmms):
         pbar.close()
         return res
 
-    def loglikelihood(self, requests: List[Instance]) -> List[Tuple[float, bool]]:
+    def loglikelihood(self, requests: list[Instance]) -> list[tuple[float, bool]]:
         """Not supported for generation models"""
         raise NotImplementedError("Bagel is a generation model and does not support loglikelihood")
 
-    def generate_until_multi_round(self, requests) -> List[str]:
+    def generate_until_multi_round(self, requests) -> list[str]:
         """Multi-round dialogue generation"""
         raise NotImplementedError("TODO: Implement multi-round dialogue generation")

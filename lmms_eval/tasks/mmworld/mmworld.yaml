@@ -3,6 +3,7 @@ dataset_kwargs:
   token: True
   cache_dir: mmworld
   video: True
+  revision: 34748abf34c1d2fa9470964d5c3156ae8572c8ec
   # From_YouTube: True
 task: mmworld
 test_split: train

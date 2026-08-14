@@ -58,7 +58,9 @@ def _olympiadbench_doc_to_text(doc, lmms_eval_specific_kwargs=None):
     return olympiadbench_doc_to_text(doc)
 
 
-olympiadbench_doc_to_messages = make_reasoning_doc_to_messages(olympiadbench_doc_to_visual, _olympiadbench_doc_to_text, system_prompt=SYSTEM_PROMPT)
+olympiadbench_doc_to_messages = make_reasoning_doc_to_messages(
+    olympiadbench_doc_to_visual, _olympiadbench_doc_to_text, system_prompt=SYSTEM_PROMPT
+)
 
 
 def olympiadbench_process_results(doc, results):
@@ -68,8 +70,16 @@ def olympiadbench_process_results(doc, results):
     ground_truth = doc["final_answer"][0] if doc["final_answer"] else ""
     extra_info = {"question": question}
     for pred in results:
-        score_dict = compute_score(data_source="olympiadbench_official", solution_str=pred.strip(), ground_truth=ground_truth, extra_info=extra_info)
+        score_dict = compute_score(
+            data_source="olympiadbench_official",
+            solution_str=pred.strip(),
+            ground_truth=ground_truth,
+            extra_info=extra_info,
+        )
         acc_score += score_dict["acc_score"]
         format_score += score_dict.get("format_reward_score", 0.0)
 
-    return {"acc_score": acc_score / len(results) if results else 0.0, "format_score": format_score / len(results) if results else 0.0}
+    return {
+        "acc_score": acc_score / len(results) if results else 0.0,
+        "format_score": format_score / len(results) if results else 0.0,
+    }

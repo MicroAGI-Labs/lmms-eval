@@ -24,7 +24,7 @@ References:
 """
 
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from loguru import logger as eval_logger
 
@@ -67,7 +67,7 @@ def _extract_answer_letter(text: str) -> str:
     return ""
 
 
-def mmvp_doc_to_visual(doc: Dict[str, Any]) -> List:
+def mmvp_doc_to_visual(doc: dict[str, Any]) -> list:
     """
     Extract the image from the document.
 
@@ -83,14 +83,14 @@ def mmvp_doc_to_visual(doc: Dict[str, Any]) -> List:
     return [image]
 
 
-def _parse_options(options_str: str) -> List[str]:
+def _parse_options(options_str: str) -> list[str]:
     """Parse options from format '(a) Option1 (b) Option2' to list ['Option1', 'Option2']."""
     pattern = r"\([a-z]\)\s*([^(]+?)(?=\s*\([a-z]\)|$)"
     matches = re.findall(pattern, options_str, re.IGNORECASE)
     return [m.strip() for m in matches]
 
 
-def mmvp_doc_to_text(doc: Dict[str, Any], lmms_eval_specific_kwargs: Optional[Dict[str, Any]] = None) -> str:
+def mmvp_doc_to_text(doc: dict[str, Any], lmms_eval_specific_kwargs: dict[str, Any] | None = None) -> str:
     """
     Construct the prompt text from the document.
 
@@ -133,7 +133,7 @@ def _normalize_answer(answer: str) -> str:
     return answer.upper()
 
 
-def mmvp_doc_to_target(doc: Dict[str, Any]) -> str:
+def mmvp_doc_to_target(doc: dict[str, Any]) -> str:
     """
     Get the target answer for the document.
 
@@ -147,7 +147,7 @@ def mmvp_doc_to_target(doc: Dict[str, Any]) -> str:
     return _normalize_answer(original_answer)
 
 
-def mmvp_process_results(doc: Dict[str, Any], results: List[str]) -> Dict[str, Any]:
+def mmvp_process_results(doc: dict[str, Any], results: list[str]) -> dict[str, Any]:
     """
     Process the model prediction and compute correctness.
 
@@ -184,7 +184,7 @@ def mmvp_process_results(doc: Dict[str, Any], results: List[str]) -> Dict[str, A
     }
 
 
-def mmvp_aggregate_results(results: List[Dict[str, Any]]) -> float:
+def mmvp_aggregate_results(results: list[dict[str, Any]]) -> float:
     """
     Aggregate results to compute overall accuracy.
 
@@ -206,7 +206,7 @@ def mmvp_aggregate_results(results: List[Dict[str, Any]]) -> float:
     return accuracy
 
 
-def mmvp_aggregate_pair_results(results: List[Dict[str, Any]]) -> float:
+def mmvp_aggregate_pair_results(results: list[dict[str, Any]]) -> float:
     """
     Aggregate results to compute pair accuracy.
 
@@ -227,7 +227,7 @@ def mmvp_aggregate_pair_results(results: List[Dict[str, Any]]) -> float:
         return 0.0
 
     # Group results by pair index
-    pairs: Dict[int, List[Dict[str, Any]]] = {}
+    pairs: dict[int, list[dict[str, Any]]] = {}
     for r in results:
         pair_idx = r["pair_index"]
         if pair_idx not in pairs:
@@ -245,7 +245,7 @@ def mmvp_aggregate_pair_results(results: List[Dict[str, Any]]) -> float:
                 correct_pairs += 1
         elif len(pair_results) == 1:
             # Handle edge case of incomplete pairs (shouldn't happen with full dataset)
-            eval_logger.warning(f"MMVP: Incomplete pair at index {pair_idx}, " f"only {len(pair_results)} sample(s)")
+            eval_logger.warning(f"MMVP: Incomplete pair at index {pair_idx}, only {len(pair_results)} sample(s)")
 
     if total_pairs == 0:
         return 0.0

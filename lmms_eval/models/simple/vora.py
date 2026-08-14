@@ -1,23 +1,21 @@
 import os
 import uuid
 import warnings
-from typing import List, Optional, Tuple, Union
 
 warnings.simplefilter("ignore", category=DeprecationWarning)
 warnings.filterwarnings("ignore")
 
 import torch
 from accelerate import Accelerator, DistributedType
-from loguru import logger as eval_logger
-from PIL import Image
-from tqdm import tqdm
-from transformers import AutoModelForCausalLM, AutoProcessor, AutoTokenizer
-
 from lmms_eval import utils
 from lmms_eval.api.instance import Instance
 from lmms_eval.api.model import lmms
 from lmms_eval.api.registry import register_model
 from lmms_eval.models.model_utils.media_encoder import encode_image_to_data_url
+from loguru import logger as eval_logger
+from PIL import Image
+from tqdm import tqdm
+from transformers import AutoModelForCausalLM, AutoProcessor, AutoTokenizer
 
 
 @register_model("vora")
@@ -25,10 +23,10 @@ class VoRA(lmms):
     def __init__(
         self,
         pretrained: str = "",
-        device: Optional[str] = "cuda",
-        dtype: Optional[Union[str, torch.dtype]] = torch.bfloat16,
-        batch_size: Optional[Union[int, str]] = 1,
-        trust_remote_code: Optional[bool] = True,
+        device: str | None = "cuda",
+        dtype: str | torch.dtype | None = torch.bfloat16,
+        batch_size: int | str | None = 1,
+        trust_remote_code: bool | None = True,
         use_cache=True,
         **kwargs,
     ) -> None:
@@ -43,7 +41,9 @@ class VoRA(lmms):
             self._device = device
         self.dtype = dtype
 
-        self._model = AutoModelForCausalLM.from_pretrained(pretrained, device_map=self._device, trust_remote_code=trust_remote_code).eval()
+        self._model = AutoModelForCausalLM.from_pretrained(
+            pretrained, device_map=self._device, trust_remote_code=trust_remote_code
+        ).eval()
         self._model = self.model.to(self.dtype)
         self._config = self._model.config
         self._tokenizer = AutoTokenizer.from_pretrained(pretrained, trust_remote_code=trust_remote_code)
@@ -117,7 +117,7 @@ class VoRA(lmms):
     def world_size(self):
         return self._world_size
 
-    def loglikelihood(self, requests: List[Instance]) -> List[Tuple[float, bool]]:
+    def loglikelihood(self, requests: list[Instance]) -> list[tuple[float, bool]]:
         # TODO
         assert False, "We have not implemented this function for VoRA yet"
 
@@ -137,7 +137,7 @@ class VoRA(lmms):
             quality=85,
         )
 
-    def generate_until(self, requests: List[Instance]) -> List[str]:
+    def generate_until(self, requests: list[Instance]) -> list[str]:
         res = []
 
         def _collate(x):
@@ -183,7 +183,9 @@ class VoRA(lmms):
                 if isinstance(until, str):
                     until = [until]
                 elif not isinstance(until, list):
-                    raise ValueError(f"Expected `gen_kwargs['until']` to be of type Union[str,list] but got {type(until)}")
+                    raise ValueError(
+                        f"Expected `gen_kwargs['until']` to be of type Union[str,list] but got {type(until)}"
+                    )
 
             if isinstance(contexts, tuple):
                 contexts = list(contexts)
@@ -196,8 +198,18 @@ class VoRA(lmms):
                     visual = visuals[i] if i < len(visuals) else None
 
                     if isinstance(visual, Image.Image):  # Single image
-                        message.append({"role": "user", "content": [{"type": "image", "image": self._encode_image_data_url(visual)}, {"type": "text", "text": context}]})
-                    elif isinstance(visual, (list, tuple)) and all(isinstance(v, Image.Image) for v in visual):  # Multiple images
+                        message.append(
+                            {
+                                "role": "user",
+                                "content": [
+                                    {"type": "image", "image": self._encode_image_data_url(visual)},
+                                    {"type": "text", "text": context},
+                                ],
+                            }
+                        )
+                    elif isinstance(visual, (list, tuple)) and all(
+                        isinstance(v, Image.Image) for v in visual
+                    ):  # Multiple images
                         image_content = []
                         for v in visual:
                             image_content.append({"type": "image", "image": self._encode_image_data_url(v)})
@@ -209,7 +221,13 @@ class VoRA(lmms):
 
                 messages.append(message)
 
-            input_data = self.processor.apply_chat_template(messages, add_generation_prompt=True, tokenize=True, return_tensors="pt", return_dict=True).to(self.device).to(self.dtype)
+            input_data = (
+                self.processor.apply_chat_template(
+                    messages, add_generation_prompt=True, tokenize=True, return_tensors="pt", return_dict=True
+                )
+                .to(self.device)
+                .to(self.dtype)
+            )
 
             # preconfigure gen_kwargs with defaults
             if "max_new_tokens" not in gen_kwargs:
@@ -255,5 +273,5 @@ class VoRA(lmms):
         pbar.close()
         return res
 
-    def generate_until_multi_round(self, requests) -> List[str]:
+    def generate_until_multi_round(self, requests) -> list[str]:
         raise NotImplementedError("TODO: Implement multi-round generation")

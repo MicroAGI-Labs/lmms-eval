@@ -2,7 +2,6 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-
 from lmms_eval.tasks.ocrbench_v2 import spotting_metric, utils, vqa_metric
 
 

@@ -13,7 +13,9 @@ def chartqa_doc_to_text(doc, lmms_eval_specific_kwargs=None):
 
 chartqa_reasoning_doc_to_messages = make_reasoning_doc_to_messages(chartqa_doc_to_visual, chartqa_doc_to_text)
 
-_base_process = make_reasoning_process_results("chartqa", chartqa_doc_to_text, extra_info_fn=lambda doc: {"type": doc["type"]})
+_base_process = make_reasoning_process_results(
+    "chartqa", chartqa_doc_to_text, extra_info_fn=lambda doc: {"type": doc["type"]}
+)
 
 
 def chartqa_reasoning_process_results(doc, results):

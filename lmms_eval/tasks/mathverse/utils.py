@@ -2,12 +2,11 @@ import json
 from pathlib import Path
 
 import yaml
-from loguru import logger as eval_logger
-
 from lmms_eval.tasks._task_utils.file_utils import generate_submission_file
 from lmms_eval.tasks.mathverse.mathverse_evals import MathVerseEvaluator
+from loguru import logger as eval_logger
 
-with open(Path(__file__).parent / "mathverse.yaml", "r") as f:
+with open(Path(__file__).parent / "mathverse.yaml") as f:
     raw_data = f.readlines()
     safe_data = []
     for i, line in enumerate(raw_data):
@@ -36,7 +35,12 @@ def mathverse_doc_to_text(doc, lmms_eval_specific_kwargs=None):
         "problem_version": doc["problem_version"],
     }
     query_prompt = mathverse_evaluator.create_one_query(
-        problem, examples=None, shot_num=0, shot_type=lmms_eval_specific_kwargs["shot_type"], hint=lmms_eval_specific_kwargs.get("hint", None), query_type=lmms_eval_specific_kwargs["query_type"]
+        problem,
+        examples=None,
+        shot_num=0,
+        shot_type=lmms_eval_specific_kwargs["shot_type"],
+        hint=lmms_eval_specific_kwargs.get("hint", None),
+        query_type=lmms_eval_specific_kwargs["query_type"],
     )
     return query_prompt
 

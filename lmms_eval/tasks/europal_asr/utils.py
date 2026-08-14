@@ -1,4 +1,3 @@
-import os
 import re
 
 import numpy as np
@@ -76,7 +75,9 @@ def europal_asr_doc_to_audio(doc):
         # Get sampling rate (europal-asr is 16kHz)
         sampling_rate = getattr(audio_file, "_desired_sample_rate", 16000)
 
-        eval_logger.debug(f"Audio array shape: {audio_array.shape}, dtype: {audio_array.dtype}, sampling_rate: {sampling_rate}")
+        eval_logger.debug(
+            f"Audio array shape: {audio_array.shape}, dtype: {audio_array.dtype}, sampling_rate: {sampling_rate}"
+        )
 
         return [{"array": audio_array, "sampling_rate": sampling_rate}]
 
@@ -159,7 +160,10 @@ def extract_transcription(text):
             return match.group(1).strip()
 
     # Pattern 3: Text enclosed in quotes (single or double)
-    quote_patterns = [r"^['\"](.+?)['\"]$", r"['\"]([^'\"]{20,})['\"]"]  # Entire text in quotes  # Long text in quotes (at least 20 chars)
+    quote_patterns = [
+        r"^['\"](.+?)['\"]$",
+        r"['\"]([^'\"]{20,})['\"]",
+    ]  # Entire text in quotes  # Long text in quotes (at least 20 chars)
 
     for pattern in quote_patterns:
         match = re.search(pattern, text, re.DOTALL)

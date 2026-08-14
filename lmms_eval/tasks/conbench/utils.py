@@ -64,7 +64,15 @@ def conbench_process_results(doc, results):
     gt_ans = doc["answer"].lower()
 
     # score
-    score = 1 if (doc["question_field"] == "Q/A" and anls_score(prediction=pred_ans, gold_labels=[gt_ans], threshold=0.95) >= 0.4) or (gt_ans == pred_ans) else 0
+    score = (
+        1
+        if (
+            doc["question_field"] == "Q/A"
+            and anls_score(prediction=pred_ans, gold_labels=[gt_ans], threshold=0.95) >= 0.4
+        )
+        or (gt_ans == pred_ans)
+        else 0
+    )
     # Note: the key name here is very important. It decides which aggregation function will receive the results
     # We note down the question id/category to help us aggregate the results later
     return {"ConScore_D": {"image_id": doc["image_id"], "question_field": doc["question_field"], "score": score}}

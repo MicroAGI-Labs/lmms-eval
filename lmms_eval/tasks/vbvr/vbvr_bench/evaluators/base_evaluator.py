@@ -5,17 +5,15 @@ All task-specific evaluators inherit from this class.
 
 import os
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import cv2
 import numpy as np
 
 from ..utils import (
     compute_frame_difference,
-    compute_mse,
     compute_psnr,
     compute_ssim,
-    get_frame_count,
     get_video_frames,
     get_video_info,
     linear_score,
@@ -54,7 +52,7 @@ class BaseEvaluator(ABC):
         self.device = device
         self.task_name = task_name
 
-    def evaluate(self, eval_info: Dict, **kwargs) -> Dict[str, Any]:
+    def evaluate(self, eval_info: dict, **kwargs) -> dict[str, Any]:
         """
         Main evaluation function.
 
@@ -131,7 +129,9 @@ class BaseEvaluator(ABC):
                 dimensions["visual_quality"] = 0.0
 
             # 5. Task-specific evaluation (weight: 0.25)
-            task_score = self._evaluate_task_specific(video_frames, gt_frames, gt_first_frame, gt_final_frame, eval_info)
+            task_score = self._evaluate_task_specific(
+                video_frames, gt_frames, gt_first_frame, gt_final_frame, eval_info
+            )
             # SAFETY: Clamp task score to [0, 1] range
             task_score = max(0.0, min(1.0, task_score))
             dimensions["task_specific"] = task_score
@@ -155,27 +155,27 @@ class BaseEvaluator(ABC):
 
         return result
 
-    def _load_video_frames(self, video_path: str, max_frames: int = 100) -> List[np.ndarray]:
+    def _load_video_frames(self, video_path: str, max_frames: int = 100) -> list[np.ndarray]:
         """Load frames from the video to evaluate."""
         if not os.path.exists(video_path):
             return []
         return get_video_frames(video_path, max_frames=max_frames)
 
-    def _load_gt_first_frame(self, eval_info: Dict) -> Optional[np.ndarray]:
+    def _load_gt_first_frame(self, eval_info: dict) -> np.ndarray | None:
         """Load ground truth first frame."""
         path = eval_info.get("gt_first_frame")
         if path and os.path.exists(path):
             return load_image(path)
         return None
 
-    def _load_gt_final_frame(self, eval_info: Dict) -> Optional[np.ndarray]:
+    def _load_gt_final_frame(self, eval_info: dict) -> np.ndarray | None:
         """Load ground truth final frame."""
         path = eval_info.get("gt_final_frame")
         if path and os.path.exists(path):
             return load_image(path)
         return None
 
-    def _load_gt_video_frames(self, eval_info: Dict, max_frames: int = 100) -> List[np.ndarray]:
+    def _load_gt_video_frames(self, eval_info: dict, max_frames: int = 100) -> list[np.ndarray]:
         """Load ground truth video frames."""
         path = eval_info.get("gt_video_path")
         if path and os.path.exists(path):
@@ -183,7 +183,7 @@ class BaseEvaluator(ABC):
         return []
 
     @staticmethod
-    def _resize_to_match(frame1: np.ndarray, frame2: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    def _resize_to_match(frame1: np.ndarray, frame2: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         """
         Normalize frames to match dimensions for comparison.
         Handles padding removal (gray/white/black borders) before resizing.
@@ -259,7 +259,7 @@ class BaseEvaluator(ABC):
 
         return combined_score
 
-    def _evaluate_temporal_smoothness(self, frames: List[np.ndarray]) -> float:
+    def _evaluate_temporal_smoothness(self, frames: list[np.ndarray]) -> float:
         """
         Evaluate temporal smoothness of the video.
 
@@ -298,7 +298,7 @@ class BaseEvaluator(ABC):
 
         return smoothness_score
 
-    def _evaluate_visual_quality(self, frames: List[np.ndarray]) -> float:
+    def _evaluate_visual_quality(self, frames: list[np.ndarray]) -> float:
         """
         Evaluate visual quality of the video.
 
@@ -331,7 +331,14 @@ class BaseEvaluator(ABC):
         return np.mean(quality_scores)
 
     @abstractmethod
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         """
         Task-specific evaluation logic.
 
@@ -349,7 +356,7 @@ class BaseEvaluator(ABC):
         """
         pass
 
-    def _calculate_overall_score(self, dimensions: Dict[str, float]) -> float:
+    def _calculate_overall_score(self, dimensions: dict[str, float]) -> float:
         """
         Calculate overall score from dimension scores.
 
@@ -377,7 +384,7 @@ class BaseEvaluator(ABC):
     # Utility methods for subclasses
     # =========================================================================
 
-    def get_key_frames(self, frames: List[np.ndarray], gt_frame_count: int) -> List[np.ndarray]:
+    def get_key_frames(self, frames: list[np.ndarray], gt_frame_count: int) -> list[np.ndarray]:
         """
         Extract key frames aligned with ground truth frame count.
 
@@ -398,7 +405,9 @@ class BaseEvaluator(ABC):
         indices = np.linspace(0, len(frames) - 1, gt_frame_count, dtype=int)
         return [frames[i] for i in indices]
 
-    def find_best_matching_frame(self, target_frame: np.ndarray, candidate_frames: List[np.ndarray], start_idx: int = 0) -> Tuple[int, float]:
+    def find_best_matching_frame(
+        self, target_frame: np.ndarray, candidate_frames: list[np.ndarray], start_idx: int = 0
+    ) -> tuple[int, float]:
         """
         Find the frame in candidates that best matches target.
 
@@ -425,7 +434,9 @@ class BaseEvaluator(ABC):
 
         return best_idx, best_score
 
-    def compute_trajectory_similarity(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], num_samples: int = 10) -> float:
+    def compute_trajectory_similarity(
+        self, video_frames: list[np.ndarray], gt_frames: list[np.ndarray], num_samples: int = 10
+    ) -> float:
         """
         Compare video trajectory to GT trajectory using sampled frames.
 

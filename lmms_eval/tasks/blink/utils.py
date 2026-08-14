@@ -1,5 +1,5 @@
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from lmms_eval.tasks._task_utils.default_template_yaml import load_default_template_yaml
 
@@ -27,7 +27,7 @@ def _extract_answer_letter(text: str) -> str:
     return ""
 
 
-def blink_doc_to_text(doc: dict[str, Any], lmms_eval_specific_kwargs: Optional[dict[str, Any]] = None) -> str:
+def blink_doc_to_text(doc: dict[str, Any], lmms_eval_specific_kwargs: dict[str, Any] | None = None) -> str:
     if lmms_eval_specific_kwargs is None:
         lmms_eval_specific_kwargs = {}
 
@@ -48,7 +48,7 @@ def blink_doc_to_visual(doc: dict) -> list:
     return image_list
 
 
-def blink_process_results(doc: Dict, result: List[str]) -> Dict[str, Dict]:
+def blink_process_results(doc: dict, result: list[str]) -> dict[str, dict]:
     key_name = "blink_acc"
     # extract grounded answer
     grounded_output = doc["answer"].strip("()")
@@ -58,11 +58,18 @@ def blink_process_results(doc: Dict, result: List[str]) -> Dict[str, Dict]:
     pred_letter = _extract_answer_letter(response)
     flag = pred_letter == grounded_output
 
-    omnispatial_submission = {"id": doc["idx"], "gt_content": grounded_output, "pred_parsed": pred_letter, "pred": response, "sub_task": doc["sub_task"], "is_correct": flag}
+    omnispatial_submission = {
+        "id": doc["idx"],
+        "gt_content": grounded_output,
+        "pred_parsed": pred_letter,
+        "pred": response,
+        "sub_task": doc["sub_task"],
+        "is_correct": flag,
+    }
     return {key_name: omnispatial_submission}
 
 
-def blink_aggregate_results(results: List[Dict]):
+def blink_aggregate_results(results: list[dict]):
     total_samples = len(results)
     total_correct = 0
 

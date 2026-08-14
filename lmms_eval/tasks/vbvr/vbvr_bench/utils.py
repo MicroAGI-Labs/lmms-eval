@@ -6,14 +6,13 @@ import colorsys
 import json
 import os
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any
 
 import cv2
 import numpy as np
-from PIL import Image
 
 
-def safe_distance(p1: Tuple, p2: Tuple) -> float:
+def safe_distance(p1: tuple, p2: tuple) -> float:
     """
     Calculate Euclidean distance between two points, avoiding integer overflow.
 
@@ -29,7 +28,9 @@ def safe_distance(p1: Tuple, p2: Tuple) -> float:
     return np.sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2)
 
 
-def normalize_frame_size(frame: np.ndarray, target_frame: np.ndarray, background_color: Tuple[int, int, int] = None) -> np.ndarray:
+def normalize_frame_size(
+    frame: np.ndarray, target_frame: np.ndarray, background_color: tuple[int, int, int] = None
+) -> np.ndarray:
     """
     Normalize frame size to match target_frame dimensions.
 
@@ -90,7 +91,7 @@ def normalize_frame_size(frame: np.ndarray, target_frame: np.ndarray, background
     return cv2.resize(result_frame, (w_tgt, h_tgt))
 
 
-def _crop_padded_content(frame: np.ndarray, background_color: Tuple[int, int, int] = (128, 128, 128)) -> np.ndarray:
+def _crop_padded_content(frame: np.ndarray, background_color: tuple[int, int, int] = (128, 128, 128)) -> np.ndarray:
     """
     Crop out padding from a frame to extract the original content.
     Detects rows/columns that are mostly the background color and removes them.
@@ -147,9 +148,9 @@ def _crop_padded_content(frame: np.ndarray, background_color: Tuple[int, int, in
     return frame
 
 
-def load_json(path: str) -> Dict:
+def load_json(path: str) -> dict:
     """Load JSON file."""
-    with open(path, "r") as f:
+    with open(path) as f:
         return json.load(f)
 
 
@@ -174,7 +175,9 @@ def save_json(data: Any, path: str):
         json.dump(data, f, indent=2, cls=NumpyEncoder)
 
 
-def get_video_frames(video_path: str, max_frames: Optional[int] = None, frame_indices: Optional[List[int]] = None) -> List[np.ndarray]:
+def get_video_frames(
+    video_path: str, max_frames: int | None = None, frame_indices: list[int] | None = None
+) -> list[np.ndarray]:
     """
     Extract frames from a video file.
 
@@ -220,13 +223,18 @@ def get_frame_count(video_path: str) -> int:
     return count
 
 
-def get_video_info(video_path: str) -> Dict:
+def get_video_info(video_path: str) -> dict:
     """Get video information (fps, width, height, frame_count)."""
     cap = cv2.VideoCapture(video_path)
     if not cap.isOpened():
         raise ValueError(f"Cannot open video: {video_path}")
 
-    info = {"fps": cap.get(cv2.CAP_PROP_FPS), "width": int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)), "height": int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)), "frame_count": int(cap.get(cv2.CAP_PROP_FRAME_COUNT))}
+    info = {
+        "fps": cap.get(cv2.CAP_PROP_FPS),
+        "width": int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)),
+        "height": int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)),
+        "frame_count": int(cap.get(cv2.CAP_PROP_FRAME_COUNT)),
+    }
     cap.release()
     return info
 
@@ -239,7 +247,7 @@ def load_image(path: str) -> np.ndarray:
     return img
 
 
-def load_gt_metadata(gt_path: str) -> Dict:
+def load_gt_metadata(gt_path: str) -> dict:
     """
     Load ground truth metadata for a task instance.
 
@@ -261,13 +269,13 @@ def load_gt_metadata(gt_path: str) -> Dict:
         metadata["video_info"] = get_video_info(os.path.join(gt_path, "ground_truth.mp4"))
 
     if metadata["has_prompt"]:
-        with open(os.path.join(gt_path, "prompt.txt"), "r") as f:
+        with open(os.path.join(gt_path, "prompt.txt")) as f:
             metadata["prompt"] = f.read().strip()
 
     return metadata
 
 
-def extract_task_info_from_path(path: str) -> Dict:
+def extract_task_info_from_path(path: str) -> dict:
     """Extract task information from a video path."""
     parts = Path(path).parts
 
@@ -374,7 +382,12 @@ def compute_histogram_similarity(img1: np.ndarray, img2: np.ndarray, method: str
     cv2.normalize(hist1, hist1, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX)
     cv2.normalize(hist2, hist2, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX)
 
-    methods = {"correlation": cv2.HISTCMP_CORREL, "chi-square": cv2.HISTCMP_CHISQR, "intersection": cv2.HISTCMP_INTERSECT, "bhattacharyya": cv2.HISTCMP_BHATTACHARYYA}
+    methods = {
+        "correlation": cv2.HISTCMP_CORREL,
+        "chi-square": cv2.HISTCMP_CHISQR,
+        "intersection": cv2.HISTCMP_INTERSECT,
+        "bhattacharyya": cv2.HISTCMP_BHATTACHARYYA,
+    }
 
     return float(cv2.compareHist(hist1, hist2, methods.get(method, cv2.HISTCMP_CORREL)))
 
@@ -384,7 +397,7 @@ def compute_histogram_similarity(img1: np.ndarray, img2: np.ndarray, method: str
 # ============================================================================
 
 
-def get_dominant_colors(img: np.ndarray, n_colors: int = 5) -> List[Tuple[int, int, int]]:
+def get_dominant_colors(img: np.ndarray, n_colors: int = 5) -> list[tuple[int, int, int]]:
     """
     Extract dominant colors from an image using k-means clustering.
 
@@ -410,7 +423,7 @@ def get_dominant_colors(img: np.ndarray, n_colors: int = 5) -> List[Tuple[int, i
     return colors
 
 
-def color_distance(c1: Tuple, c2: Tuple, method: str = "euclidean") -> float:
+def color_distance(c1: tuple, c2: tuple, method: str = "euclidean") -> float:
     """
     Compute distance between two colors.
 
@@ -428,13 +441,13 @@ def color_distance(c1: Tuple, c2: Tuple, method: str = "euclidean") -> float:
         return np.sqrt(sum((a - b) ** 2 for a, b in zip(c1, c2)))
 
 
-def rgb_to_hsv(r: int, g: int, b: int) -> Tuple[float, float, float]:
+def rgb_to_hsv(r: int, g: int, b: int) -> tuple[float, float, float]:
     """Convert RGB to HSV (H: 0-360, S: 0-100, V: 0-100)."""
     h, s, v = colorsys.rgb_to_hsv(r / 255.0, g / 255.0, b / 255.0)
     return h * 360, s * 100, v * 100
 
 
-def color_name_match(color_bgr: Tuple[int, int, int], expected_name: str) -> float:
+def color_name_match(color_bgr: tuple[int, int, int], expected_name: str) -> float:
     """
     Check if a BGR color matches an expected color name.
 
@@ -487,7 +500,7 @@ def color_name_match(color_bgr: Tuple[int, int, int], expected_name: str) -> flo
 # ============================================================================
 
 
-def detect_shapes(img: np.ndarray, min_area: int = 100) -> List[Dict]:
+def detect_shapes(img: np.ndarray, min_area: int = 100) -> list[dict]:
     """
     Detect shapes in an image.
 
@@ -522,7 +535,17 @@ def detect_shapes(img: np.ndarray, min_area: int = 100) -> List[Dict]:
 
         x, y, w, h = cv2.boundingRect(contour)
 
-        shapes.append({"type": shape_type, "contour": contour, "vertices": vertices, "center": (cx, cy), "area": area, "bbox": (x, y, w, h), "approx": approx})
+        shapes.append(
+            {
+                "type": shape_type,
+                "contour": contour,
+                "vertices": vertices,
+                "center": (cx, cy),
+                "area": area,
+                "bbox": (x, y, w, h),
+                "approx": approx,
+            }
+        )
 
     return shapes
 
@@ -554,7 +577,7 @@ def classify_shape(vertices: int, contour: np.ndarray) -> str:
     return "polygon"
 
 
-def count_objects_by_color(img: np.ndarray, target_color_bgr: Tuple[int, int, int], tolerance: int = 30) -> int:
+def count_objects_by_color(img: np.ndarray, target_color_bgr: tuple[int, int, int], tolerance: int = 30) -> int:
     """
     Count distinct objects of a specific color in an image.
 
@@ -586,7 +609,7 @@ def count_objects_by_color(img: np.ndarray, target_color_bgr: Tuple[int, int, in
 # ============================================================================
 
 
-def compute_optical_flow(frame1: np.ndarray, frame2: np.ndarray) -> Tuple[np.ndarray, float]:
+def compute_optical_flow(frame1: np.ndarray, frame2: np.ndarray) -> tuple[np.ndarray, float]:
     """
     Compute optical flow between two frames.
 
@@ -611,7 +634,9 @@ def compute_frame_difference(frame1: np.ndarray, frame2: np.ndarray) -> float:
     return float(np.mean(diff) / 255.0)
 
 
-def detect_motion_regions(frame1: np.ndarray, frame2: np.ndarray, threshold: int = 30) -> List[Tuple[int, int, int, int]]:
+def detect_motion_regions(
+    frame1: np.ndarray, frame2: np.ndarray, threshold: int = 30
+) -> list[tuple[int, int, int, int]]:
     """
     Detect regions with motion between two frames.
 
@@ -669,7 +694,7 @@ def linear_score(value: float, min_val: float, max_val: float, invert: bool = Fa
     return score
 
 
-def threshold_score(value: float, thresholds: List[Tuple[float, float]]) -> float:
+def threshold_score(value: float, thresholds: list[tuple[float, float]]) -> float:
     """
     Calculate score based on threshold ranges.
 
@@ -703,7 +728,7 @@ def threshold_score(value: float, thresholds: List[Tuple[float, float]]) -> floa
     return 0.5
 
 
-def weighted_average(scores: Dict[str, float], weights: Dict[str, float]) -> float:
+def weighted_average(scores: dict[str, float], weights: dict[str, float]) -> float:
     """
     Calculate weighted average of scores.
 

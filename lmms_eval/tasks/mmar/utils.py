@@ -8,9 +8,8 @@ MMAR evaluates deep reasoning capabilities of Audio-Language Models across
 """
 
 import random
-import re
 from collections import defaultdict
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import numpy as np
 from loguru import logger as eval_logger
@@ -19,7 +18,7 @@ DEFAULT_PRE_PROMPT = ""
 DEFAULT_POST_PROMPT = "The best answer is:"
 
 
-def mmar_doc_to_audio(doc: Dict[str, Any]) -> List[Dict[str, Any]]:
+def mmar_doc_to_audio(doc: dict[str, Any]) -> list[dict[str, Any]]:
     """
     Extract audio from the document.
 
@@ -39,7 +38,7 @@ def mmar_doc_to_audio(doc: Dict[str, Any]) -> List[Dict[str, Any]]:
     return [audio]
 
 
-def mmar_doc_to_text(doc: Dict[str, Any], lmms_eval_specific_kwargs: Optional[Dict[str, Any]] = None) -> str:
+def mmar_doc_to_text(doc: dict[str, Any], lmms_eval_specific_kwargs: dict[str, Any] | None = None) -> str:
     """
     Build the prompt for MMAR audio reasoning.
 
@@ -57,7 +56,10 @@ def mmar_doc_to_text(doc: Dict[str, Any], lmms_eval_specific_kwargs: Optional[Di
         post_prompt = lmms_eval_specific_kwargs.get("post_prompt", post_prompt)
 
     # Build the instruction
-    instruction = "Listen to the audio and answer the following multiple-choice question. " "Respond with only the letter (A, B, C, or D) of the correct option.\n"
+    instruction = (
+        "Listen to the audio and answer the following multiple-choice question. "
+        "Respond with only the letter (A, B, C, or D) of the correct option.\n"
+    )
 
     # Get question and choices
     question = doc["question"]
@@ -76,7 +78,7 @@ def mmar_doc_to_text(doc: Dict[str, Any], lmms_eval_specific_kwargs: Optional[Di
     return "".join(prompt_parts).strip()
 
 
-def mmar_doc_to_target(doc: Dict[str, Any]) -> str:
+def mmar_doc_to_target(doc: dict[str, Any]) -> str:
     """
     Extract the ground truth answer letter.
 
@@ -89,7 +91,7 @@ def mmar_doc_to_target(doc: Dict[str, Any]) -> str:
     return str(doc["answer"]).strip().upper()
 
 
-def get_multi_choice_info(choices: List[str]) -> Tuple[Dict[str, str], List[str]]:
+def get_multi_choice_info(choices: list[str]) -> tuple[dict[str, str], list[str]]:
     """
     Extract choice letters and build index2ans mapping from formatted choices.
 
@@ -115,7 +117,7 @@ def get_multi_choice_info(choices: List[str]) -> Tuple[Dict[str, str], List[str]
     return index2ans, all_choices
 
 
-def parse_multi_choice_response(response: str, all_choices: List[str], index2ans: Dict[str, str]) -> str:
+def parse_multi_choice_response(response: str, all_choices: list[str], index2ans: dict[str, str]) -> str:
     """
     Parse the prediction from the generated response.
     Return the predicted index e.g., A, B, C, D.
@@ -195,7 +197,7 @@ def parse_multi_choice_response(response: str, all_choices: List[str], index2ans
     return pred_index
 
 
-def mmar_process_results(doc: Dict[str, Any], results: List[str]) -> Dict[str, Dict[str, Any]]:
+def mmar_process_results(doc: dict[str, Any], results: list[str]) -> dict[str, dict[str, Any]]:
     """
     Process model results and compare with ground truth.
 
@@ -233,7 +235,7 @@ def mmar_process_results(doc: Dict[str, Any], results: List[str]) -> Dict[str, D
     }
 
 
-def mmar_aggregate_results(results: List[Dict[str, Any]]) -> float:
+def mmar_aggregate_results(results: list[dict[str, Any]]) -> float:
     """
     Aggregate results and compute overall accuracy.
 

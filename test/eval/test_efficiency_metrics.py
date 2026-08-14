@@ -1,7 +1,6 @@
 """Tests for efficiency metrics aggregation."""
 
 import pytest
-
 from lmms_eval.models.model_utils.efficiency_metrics import build_efficiency_summary
 
 

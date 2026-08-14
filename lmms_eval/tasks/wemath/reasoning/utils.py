@@ -1,5 +1,4 @@
 import pandas as pd
-
 from lmms_eval.tasks._task_utils.reasoning_utils import compute_score
 from lmms_eval.tasks.wemath.wemath_utils import (
     calculate_metrics,
@@ -40,7 +39,9 @@ def wemath_reasoning_process_results(doc, results):
     question = wemath_doc_to_text_cot(doc, None)
     extra_info = {"question": question}
     for pred in results:
-        score_dict = compute_score(data_source="wemath", solution_str=pred.strip(), ground_truth=doc["answer"], extra_info=extra_info)
+        score_dict = compute_score(
+            data_source="wemath", solution_str=pred.strip(), ground_truth=doc["answer"], extra_info=extra_info
+        )
         acc_score += score_dict["acc_score"]
         format_score += score_dict.get("format_reward_score", 0.0)
 
@@ -58,7 +59,12 @@ def wemath_reasoning_process_results(doc, results):
         "acc_score": acc_score,
     }
 
-    return {"wemath_loose": data_dict, "wemath_strict": data_dict, "acc_score": acc_score / len(results) if results else 0.0, "format_score": format_score / len(results) if results else 0.0}
+    return {
+        "wemath_loose": data_dict,
+        "wemath_strict": data_dict,
+        "acc_score": acc_score / len(results) if results else 0.0,
+        "format_score": format_score / len(results) if results else 0.0,
+    }
 
 
 def wemath_aggregate_results(results, metric_name):

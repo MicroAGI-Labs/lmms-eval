@@ -2,12 +2,11 @@ import base64
 import io
 import re
 
-from PIL import Image
-
 from lmms_eval.tasks._task_utils.reasoning_utils import (
     make_reasoning_doc_to_messages,
     make_reasoning_process_results,
 )
+from PIL import Image
 
 TASKS = [
     "Reasoning",
@@ -54,8 +53,12 @@ def mme_realworld_cn_doc_to_text(doc, lmms_eval_specific_kwargs=None):
     return question
 
 
-mme_realworld_reasoning_doc_to_messages = make_reasoning_doc_to_messages(mme_realworld_doc_to_visual, mme_realworld_doc_to_text)
-mme_realworld_cn_reasoning_doc_to_messages = make_reasoning_doc_to_messages(mme_realworld_doc_to_visual, mme_realworld_cn_doc_to_text)
+mme_realworld_reasoning_doc_to_messages = make_reasoning_doc_to_messages(
+    mme_realworld_doc_to_visual, mme_realworld_doc_to_text
+)
+mme_realworld_cn_reasoning_doc_to_messages = make_reasoning_doc_to_messages(
+    mme_realworld_doc_to_visual, mme_realworld_cn_doc_to_text
+)
 
 
 def extract_characters_regex(s, choices=["(A)", "(B)", "(C)", "(D)", "(E)"]):
@@ -87,10 +90,16 @@ def extract_characters_regex(s, choices=["(A)", "(B)", "(C)", "(D)", "(E)"]):
 
 
 def get_correct_answer(sample):
-    sample["multi-choice options"] = [option.replace("（", "(").replace("）", ")") for option in sample["multi-choice options"]]
-    correct_answer = next(option.split(") ")[1] for option in sample["multi-choice options"] if option.startswith(f"({sample['answer']})"))
+    sample["multi-choice options"] = [
+        option.replace("（", "(").replace("）", ")") for option in sample["multi-choice options"]
+    ]
+    correct_answer = next(
+        option.split(") ")[1] for option in sample["multi-choice options"] if option.startswith(f"({sample['answer']})")
+    )
     return correct_answer
 
 
 mme_realworld_reasoning_process_results = make_reasoning_process_results("mmerealworld", mme_realworld_doc_to_text)
-mme_realworld_cn_reasoning_process_results = make_reasoning_process_results("mmerealworld_cn", mme_realworld_cn_doc_to_text)
+mme_realworld_cn_reasoning_process_results = make_reasoning_process_results(
+    "mmerealworld_cn", mme_realworld_cn_doc_to_text
+)

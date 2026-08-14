@@ -20,7 +20,9 @@ def ssv2_doc_to_visual(doc):
     for key in ["video_id", "id", "clip_id"]:
         value = doc.get(key)
         if value:
-            return [resolve_media_reference(str(value), media_type="video", cache_dir="ssv2", env_vars=("SSV2_VIDEO_DIR",))]
+            return [
+                resolve_media_reference(str(value), media_type="video", cache_dir="ssv2", env_vars=("SSV2_VIDEO_DIR",))
+            ]
     return []
 
 

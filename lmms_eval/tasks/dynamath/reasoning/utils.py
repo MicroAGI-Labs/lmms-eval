@@ -43,7 +43,9 @@ def dynamath_process_results(doc, results):
     question = dynamath_doc_to_text_cot(doc, None)
     extra_info = {"question": question}
     for pred in results:
-        score_dict = compute_score(data_source="dynamath", solution_str=pred.strip(), ground_truth=doc["ground_truth"], extra_info=extra_info)
+        score_dict = compute_score(
+            data_source="dynamath", solution_str=pred.strip(), ground_truth=doc["ground_truth"], extra_info=extra_info
+        )
         acc_score += score_dict["acc_score"]
         format_score += score_dict.get("format_reward_score", 0.0)
     data_dict = {"acc": score_dict["acc_score"], "question_id": doc["question_id"], "variant_id": doc["id"]}

@@ -4,11 +4,10 @@ import os
 import random
 import sys
 
-import numpy as np
-from loguru import logger as eval_logger
-
 import lmms_eval.tasks._task_utils.file_utils as file_utils
+import numpy as np
 from lmms_eval.tasks._task_utils.default_template_yaml import load_default_template_yaml
+from loguru import logger as eval_logger
 
 config = load_default_template_yaml(__file__)
 

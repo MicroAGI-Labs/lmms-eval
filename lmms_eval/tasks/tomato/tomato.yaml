@@ -1,8 +1,9 @@
 dataset_path: lmms-lab/TOMATO
 dataset_kwargs:
   token: True
-  cache_dir: TOMATO
+  cache_dir: TOMATO_78bacf40aacad66b35f9affdd72dc33fc17acdaf
   video: True
+  revision: 78bacf40aacad66b35f9affdd72dc33fc17acdaf
 task: "tomato"
 test_split: test
 output_type: generate_until
@@ -22,4 +23,3 @@ metric_list:
   - metric: tomato_score
     aggregation: !function utils.tomato_aggregate_results
     higher_is_better: true
-

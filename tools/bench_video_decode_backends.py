@@ -7,7 +7,6 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
-
 from lmms_eval.models.model_utils.load_video import read_video
 
 
@@ -19,7 +18,9 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--fps", type=float, default=None, help="Optional fps limit")
     parser.add_argument("--iterations", type=int, default=30, help="Timed iterations")
     parser.add_argument("--warmup", type=int, default=5, help="Warmup iterations")
-    parser.add_argument("--force-include-last-frame", action="store_true", help="Pass force_include_last_frame to decoder")
+    parser.add_argument(
+        "--force-include-last-frame", action="store_true", help="Pass force_include_last_frame to decoder"
+    )
     parser.add_argument("--output", type=Path, default=None, help="Optional output JSON path")
     return parser.parse_args()
 

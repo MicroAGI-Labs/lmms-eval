@@ -24,20 +24,18 @@ import json
 import os
 import re
 from contextlib import contextmanager
-from typing import Dict, List, Optional, Tuple, Union
 
 import torch
 from accelerate import Accelerator, DistributedType
+from lmms_eval import utils
+from lmms_eval.api.instance import Instance
+from lmms_eval.api.model import lmms
+from lmms_eval.api.registry import register_model
 from loguru import logger as eval_logger
 from PIL import Image
 from tqdm import tqdm
 from transformers import AutoModelForCausalLM
 from transformers.models.auto import configuration_auto
-
-from lmms_eval import utils
-from lmms_eval.api.instance import Instance
-from lmms_eval.api.model import lmms
-from lmms_eval.api.registry import register_model
 
 
 @contextmanager
@@ -82,11 +80,11 @@ class OvisU1(lmms):
         self,
         pretrained: str = "AIDC-AI/Ovis-U1-3B",
         device: str = "cuda",
-        dtype: Optional[Union[str, torch.dtype]] = "auto",
+        dtype: str | torch.dtype | None = "auto",
         batch_size: int = 1,
-        trust_remote_code: Optional[bool] = True,
+        trust_remote_code: bool | None = True,
         use_cache: bool = True,
-        attn_implementation: Optional[str] = None,
+        attn_implementation: str | None = None,
         # Visual CoT parameters (used when auto-detected)
         stage1_max_new_tokens: int = 4096,
         stage1_guidance_scale: float = 3.0,
@@ -94,11 +92,13 @@ class OvisU1(lmms):
         stage2_max_new_tokens: int = 512,
         stage2_temperature: float = 0.0,
         stage2_do_sample: bool = False,
-        generation_prompt_template: str = ("Generate a detailed visual diagram or illustration to help " "answer this question: {question}"),
+        generation_prompt_template: str = (
+            "Generate a detailed visual diagram or illustration to help answer this question: {question}"
+        ),
         # Output and debugging
-        output_dir: Optional[str] = None,
+        output_dir: str | None = None,
         save_intermediate: bool = False,
-        intermediate_dir: Optional[str] = None,
+        intermediate_dir: str | None = None,
         fail_gracefully: bool = True,
         **kwargs,
     ) -> None:
@@ -120,7 +120,7 @@ class OvisU1(lmms):
         self.stage2_do_sample = stage2_do_sample
 
         # Set image shapes based on ratio
-        ratio_to_shape: Dict[str, Tuple[int, int]] = {
+        ratio_to_shape: dict[str, tuple[int, int]] = {
             "1:1": (1024, 1024),
             "4:3": (768, 1024),
             "3:4": (1024, 768),
@@ -151,7 +151,9 @@ class OvisU1(lmms):
         # Validate attention implementation
         valid_attn_implementations = [None, "flash_attention_2", "sdpa", "eager"]
         if attn_implementation not in valid_attn_implementations:
-            raise ValueError(f"attn_implementation must be one of " f"{valid_attn_implementations}, got {attn_implementation}")
+            raise ValueError(
+                f"attn_implementation must be one of {valid_attn_implementations}, got {attn_implementation}"
+            )
 
         # Prepare model loading arguments
         model_kwargs = {
@@ -179,7 +181,9 @@ class OvisU1(lmms):
                 DistributedType.MULTI_GPU,
                 DistributedType.DEEPSPEED,
             ]
-            assert accelerator.distributed_type in distributed_type_list, "Unsupported distributed type. Only DDP, FSDP, and DeepSpeed supported"
+            assert accelerator.distributed_type in distributed_type_list, (
+                "Unsupported distributed type. Only DDP, FSDP, and DeepSpeed supported"
+            )
             if accelerator.distributed_type == DistributedType.FSDP:
                 self._model = accelerator.prepare(self.model)
             else:
@@ -242,7 +246,7 @@ class OvisU1(lmms):
                 new_list.append(j)
         return new_list
 
-    def _extract_image(self, img_data) -> Optional[Image.Image]:
+    def _extract_image(self, img_data) -> Image.Image | None:
         """Extract PIL Image from various formats."""
         try:
             if img_data is None:
@@ -266,7 +270,7 @@ class OvisU1(lmms):
             eval_logger.debug(f"Failed to extract image from {type(img_data)}: {e}")
             return None
 
-    def _prepare_images(self, visuals: list) -> List[Image.Image]:
+    def _prepare_images(self, visuals: list) -> list[Image.Image]:
         """Convert a list of visuals (various formats) to PIL Images."""
         images = []
         for visual in visuals:
@@ -283,7 +287,7 @@ class OvisU1(lmms):
         task: str,
         generation_prompt: str,
         stage1_text: str,
-        generated_images: List[str],
+        generated_images: list[str],
         question: str,
         stage2_answer: str,
     ) -> None:
@@ -313,8 +317,8 @@ class OvisU1(lmms):
         question: str,
         doc_id: str,
         task: str,
-        original_image: Optional[Image.Image] = None,
-    ) -> Tuple[str, List[str]]:
+        original_image: Image.Image | None = None,
+    ) -> tuple[str, list[str]]:
         """
         Stage 1: Generate auxiliary visualization image.
 
@@ -399,7 +403,9 @@ class OvisU1(lmms):
 
             # Step 1: Unconditional baseline
             uncond_prompt = "<image>\nGenerate an image."
-            input_ids, pixel_values, attention_mask, grid_thws, _ = build_inputs(uncond_prompt, uncond_image, width, height)
+            input_ids, pixel_values, attention_mask, grid_thws, _ = build_inputs(
+                uncond_prompt, uncond_image, width, height
+            )
             with torch.inference_mode():
                 no_both_cond = self.model.generate_condition(
                     input_ids,
@@ -447,7 +453,7 @@ class OvisU1(lmms):
                 )
 
             # Save generated images
-            generated_images: List[str] = []
+            generated_images: list[str] = []
             if generated_images_list:
                 task_image_dir = os.path.join(self.generated_images_dir, task)
                 os.makedirs(task_image_dir, exist_ok=True)
@@ -475,7 +481,7 @@ class OvisU1(lmms):
         generation_prompt: str,
         image_path: str,
         doc_id: str,
-        original_image: Optional[Image.Image] = None,
+        original_image: Image.Image | None = None,
     ) -> str:
         """
         Stage 2: Answer question using original + auxiliary image.
@@ -554,7 +560,7 @@ class OvisU1(lmms):
     def _generate_standard(
         self,
         context: str,
-        images: List[Image.Image],
+        images: list[Image.Image],
         gen_kwargs: dict,
     ) -> str:
         """Standard single-stage understanding pipeline."""
@@ -709,11 +715,11 @@ class OvisU1(lmms):
 
     # ── Main entry point ────────────────────────────────────────────────
 
-    def generate_visual_cot(self, requests: List[Instance]) -> List[str]:
+    def generate_visual_cot(self, requests: list[Instance]) -> list[str]:
         """Visual CoT (GtA) generation — delegates to generate_until which auto-detects GtA from prompt tags."""
         return self.generate_until(requests)
 
-    def generate_until(self, requests: List[Instance]) -> List[str]:
+    def generate_until(self, requests: list[Instance]) -> list[str]:
         """
         Generate text for each request, auto-detecting mode:
         - [GEN_PROMPT] tags → Visual CoT two-stage pipeline
@@ -780,7 +786,7 @@ class OvisU1(lmms):
                 self._save_intermediate_artifacts(
                     doc_id=str(doc_id[0]),
                     task=task,
-                    generation_prompt=(f"Interleaved: " f"{bagel_interleaved.get('task_type', 'unknown')}"),
+                    generation_prompt=(f"Interleaved: {bagel_interleaved.get('task_type', 'unknown')}"),
                     stage1_text="",
                     generated_images=generated_imgs,
                     question=context,
@@ -824,13 +830,13 @@ class OvisU1(lmms):
 
     def generate_uni_mmmu_interleaved(
         self,
-        input_images: List,
+        input_images: list,
         prompt: str,
         doc_id: str,
         task: str,
         interleaved_config: dict,
         doc: dict = None,
-    ) -> Tuple[str, List[str]]:
+    ) -> tuple[str, list[str]]:
         """
         Uni-MMMU interleaved generation:
         - Jigsaw: gen_image(cand0) -> gen_image(cand1) -> gen_text(answer)
@@ -856,14 +862,16 @@ class OvisU1(lmms):
         if input_images and len(input_images) > 0:
             original_image = self._extract_image(input_images[0])
 
-        generated_images: List[str] = []
+        generated_images: list[str] = []
         task_output_dir = os.path.join(self.generated_images_dir, task)
         os.makedirs(task_output_dir, exist_ok=True)
 
         if task_type == "jigsaw":
             # Generate 2 completed images then final answer
             for cand_idx in range(2):
-                suffix = f"Output ONLY a single image with Candidate {cand_idx} " f"placed in the bottom-right cell. No text."
+                suffix = (
+                    f"Output ONLY a single image with Candidate {cand_idx} placed in the bottom-right cell. No text."
+                )
                 gen_prompt = prompt + "\n\n" + suffix
                 _, img_paths = self._stage1_generate_image(
                     generation_prompt=gen_prompt,
@@ -876,7 +884,12 @@ class OvisU1(lmms):
                     generated_images.extend(img_paths)
 
             # Final answer with all generated images
-            final_suffix = "Now output EXACTLY ONE <FINAL_ANSWER_JSON>" '{"choice": 0 or 1, "rationale": "<=30 words"}' "</FINAL_ANSWER_JSON>\n" "Do not output any additional images."
+            final_suffix = (
+                "Now output EXACTLY ONE <FINAL_ANSWER_JSON>"
+                '{"choice": 0 or 1, "rationale": "<=30 words"}'
+                "</FINAL_ANSWER_JSON>\n"
+                "Do not output any additional images."
+            )
             final_text = self._answer_with_multiple_images(
                 prompt + "\n\n" + final_suffix,
                 original_image,
@@ -886,9 +899,9 @@ class OvisU1(lmms):
             # Maze/Sliding: iterative generation
             for i in range(1, num_images + 1):
                 if task_type == "maze":
-                    plan_suffix = f"Step {i}: Generate an image showing the next move " f"(one step up/down/left/right)."
+                    plan_suffix = f"Step {i}: Generate an image showing the next move (one step up/down/left/right)."
                 else:
-                    plan_suffix = f"Step {i}: Generate an image showing which tile " f"to move and in which direction."
+                    plan_suffix = f"Step {i}: Generate an image showing which tile to move and in which direction."
                 gen_prompt = prompt + "\n\n" + plan_suffix
                 _, img_paths = self._stage1_generate_image(
                     generation_prompt=gen_prompt,
@@ -900,7 +913,11 @@ class OvisU1(lmms):
                 if img_paths:
                     generated_images.extend(img_paths)
 
-            final_suffix = "After the images, emit EXACTLY ONE LINE containing ONLY " "the final move list as <ANSWER_JSON>[...]</ANSWER_JSON>. " "No other text."
+            final_suffix = (
+                "After the images, emit EXACTLY ONE LINE containing ONLY "
+                "the final move list as <ANSWER_JSON>[...]</ANSWER_JSON>. "
+                "No other text."
+            )
             final_text = self._answer_with_multiple_images(
                 prompt + "\n\n" + final_suffix,
                 original_image,
@@ -912,8 +929,8 @@ class OvisU1(lmms):
     def _answer_with_multiple_images(
         self,
         query_text: str,
-        original_image: Optional[Image.Image],
-        generated_image_paths: List[str],
+        original_image: Image.Image | None,
+        generated_image_paths: list[str],
     ) -> str:
         """Answer a question using original image + multiple generated images."""
         if not generated_image_paths:
@@ -957,8 +974,8 @@ class OvisU1(lmms):
 
     # ── Not implemented ─────────────────────────────────────────────────
 
-    def loglikelihood(self, requests: List[Instance]) -> List[Tuple[float, bool]]:
+    def loglikelihood(self, requests: list[Instance]) -> list[tuple[float, bool]]:
         raise NotImplementedError("Loglikelihood not implemented for Ovis-U1")
 
-    def generate_until_multi_round(self, requests) -> List[str]:
+    def generate_until_multi_round(self, requests) -> list[str]:
         raise NotImplementedError("Multi-round generation not yet implemented")

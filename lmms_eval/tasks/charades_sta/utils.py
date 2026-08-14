@@ -6,10 +6,9 @@ import re
 import sys
 from pathlib import Path
 
+import lmms_eval.tasks._task_utils.file_utils as file_utils
 import yaml
 from loguru import logger as eval_logger
-
-import lmms_eval.tasks._task_utils.file_utils as file_utils
 
 # with open(Path(__file__).parent / "_default_template.yaml", "r") as f:
 #     raw_data = f.readlines()
@@ -26,7 +25,7 @@ hf_home = os.getenv("HF_HOME", "~/.cache/huggingface/")
 # cache_dir = os.path.join(hf_home, cache_dir)
 # base_cache_dir = config["dataset_kwargs"]["cache_dir"]
 base_cache_dir = os.path.expanduser(hf_home)
-with open(Path(__file__).parent / "charades.yaml", "r") as f:
+with open(Path(__file__).parent / "charades.yaml") as f:
     raw_data = f.readlines()
     safe_data = []
     for i, line in enumerate(raw_data):
@@ -74,7 +73,7 @@ def temporal_grounding_doc_to_answer(doc):
 # Process result for mcq answer generation
 def temporal_grounding_process_results_generation(doc, result):
     pred = result[0]
-    data_dict = {f'{doc["video"]}>>>{doc["caption"]}>>>{doc["timestamp"]}': pred}
+    data_dict = {f"{doc['video']}>>>{doc['caption']}>>>{doc['timestamp']}": pred}
     return {f"charades_sta_{metric}": data_dict for metric in CHARADES_STA_METRICS}
 
 

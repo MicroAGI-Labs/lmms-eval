@@ -85,7 +85,7 @@ df_items = {
     "content": [],
 }
 # img_feature = datasets.Image(decode=False)
-with open(ocrbench_json, "r") as f:
+with open(ocrbench_json) as f:
     data = json.load(f)
 
 for i in tqdm(range(len(data))):

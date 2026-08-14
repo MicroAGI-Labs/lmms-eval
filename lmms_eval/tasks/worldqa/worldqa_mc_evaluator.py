@@ -6,7 +6,9 @@ from loguru import logger as eval_logger
 
 
 class WorldQA_MC_Evaluator:
-    def __init__(self, sys_prompt="There are several options:", API_KEY="", API_URL="", model_version="gpt-3.5-turbo-0613"):
+    def __init__(
+        self, sys_prompt="There are several options:", API_KEY="", API_URL="", model_version="gpt-3.5-turbo-0613"
+    ):
         self.sys_prompt = sys_prompt
         self.model_version = model_version
         self.API_KEY = API_KEY
@@ -54,7 +56,20 @@ class WorldQA_MC_Evaluator:
                     break
                 if ch in splits:
                     return ch
-        tups = [("", "."), ("", ","), ("", ":"), ("", ")"), ("", ")."), ("(", ")"), ("(", ")."), (":", ""), (":", ","), (":", "."), (":", ")"), (":", ").")]
+        tups = [
+            ("", "."),
+            ("", ","),
+            ("", ":"),
+            ("", ")"),
+            ("", ")."),
+            ("(", ")"),
+            ("(", ")."),
+            (":", ""),
+            (":", ","),
+            (":", "."),
+            (":", ")"),
+            (":", ")."),
+        ]
         for tup in tups:
             if count(splits, choices, prefix=tup[0], suffix=tup[1]) == 1:
                 for ch in choices:
@@ -75,7 +90,13 @@ class WorldQA_MC_Evaluator:
         messages = [
             {"role": "user", "content": prompt},
         ]
-        payload = {"model": self.model_version, "messages": messages, "temperature": temperature, "max_tokens": max_tokens, "n": n}
+        payload = {
+            "model": self.model_version,
+            "messages": messages,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+            "n": n,
+        }
 
         while patience > 0:
             patience -= 1
@@ -103,6 +124,8 @@ class WorldQA_MC_Evaluator:
             choice = self.can_infer_option(results["pred"], num_choice=4)
             return int(choice.lower().strip() == answer.lower().strip())
         else:
-            prompt = self.build_prompt(question=results["question"], options="\n".join(results["option"]), prediction=results["pred"])
+            prompt = self.build_prompt(
+                question=results["question"], options="\n".join(results["option"]), prediction=results["pred"]
+            )
             prediction = self.get_chat_response(prompt)
             return int(prediction.lower().strip() == answer.lower().strip())

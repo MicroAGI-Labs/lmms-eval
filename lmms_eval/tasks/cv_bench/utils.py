@@ -1,6 +1,6 @@
 import re
 from collections import defaultdict
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 
 def _extract_answer_letter(text: str) -> str:
@@ -24,7 +24,7 @@ def _extract_answer_letter(text: str) -> str:
     return ""
 
 
-def cv_bench_doc_to_text(doc: dict[str, Any], lmms_eval_specific_kwargs: Optional[dict[str, Any]] = None) -> str:
+def cv_bench_doc_to_text(doc: dict[str, Any], lmms_eval_specific_kwargs: dict[str, Any] | None = None) -> str:
     if lmms_eval_specific_kwargs is None:
         lmms_eval_specific_kwargs = {}
 
@@ -38,7 +38,7 @@ def cv_bench_doc_to_visual(doc: dict) -> list:
     return [doc["image"].convert("RGB")]
 
 
-def cv_bench_process_results(doc: Dict, result: List[str]) -> Dict[str, Dict]:
+def cv_bench_process_results(doc: dict, result: list[str]) -> dict[str, dict]:
     key_name = "cv_bench_acc"
     # extract grounded answer
     grounded_output = doc["answer"].strip("()")
@@ -48,11 +48,20 @@ def cv_bench_process_results(doc: Dict, result: List[str]) -> Dict[str, Dict]:
     pred_letter = _extract_answer_letter(response)
     flag = pred_letter == grounded_output
 
-    cv_bench_submission = {"id": doc["idx"], "gt_content": grounded_output, "pred_parsed": pred_letter, "pred": response, "type": doc["type"], "task": doc["task"], "source": doc["source"], "is_correct": flag}
+    cv_bench_submission = {
+        "id": doc["idx"],
+        "gt_content": grounded_output,
+        "pred_parsed": pred_letter,
+        "pred": response,
+        "type": doc["type"],
+        "task": doc["task"],
+        "source": doc["source"],
+        "is_correct": flag,
+    }
     return {key_name: cv_bench_submission}
 
 
-def cv_bench_aggregate_results(results: List[Dict]):
+def cv_bench_aggregate_results(results: list[dict]):
     total_samples = len(results)
     total_correct = 0
 
@@ -64,7 +73,7 @@ def cv_bench_aggregate_results(results: List[Dict]):
     return accuracy
 
 
-def cv_bench_default_aggregate_results(results: List[Dict]):
+def cv_bench_default_aggregate_results(results: list[dict]):
     source_samples = defaultdict(list)
     for elem in results:
         source = elem["source"]

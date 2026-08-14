@@ -27,7 +27,9 @@ def _get_lance_resolver() -> LanceVideoBlobResolver | None:
             if _LANCE_RESOLVER is None:
                 id_column = os.getenv("MINERVA_LANCE_VIDEO_ID_COLUMN", "video_id").strip()
                 blob_column = os.getenv("MINERVA_LANCE_VIDEO_BLOB_COLUMN", "video_blob").strip()
-                cache_dir = Path(os.path.expanduser(os.getenv("MINERVA_LANCE_CACHE_DIR", "~/.cache/lmms_eval/minerva_lance_videos")))
+                cache_dir = Path(
+                    os.path.expanduser(os.getenv("MINERVA_LANCE_CACHE_DIR", "~/.cache/lmms_eval/minerva_lance_videos"))
+                )
                 _LANCE_RESOLVER = LanceVideoBlobResolver(
                     dataset_uri=dataset_uri,
                     id_column=id_column,

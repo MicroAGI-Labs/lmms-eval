@@ -3,9 +3,8 @@ import random
 import re
 
 import numpy as np
-from loguru import logger as eval_logger
-
 from lmms_eval.llm_judge import ServerConfig, get_server
+from loguru import logger as eval_logger
 
 API_TYPE = os.getenv("API_TYPE", "openai")
 # Use JUDGE_MODEL_VERSION instead of MODEL_VERSION
@@ -25,7 +24,9 @@ def get_column_value(doc, candidates):
 
 
 def voicebench_doc_to_audio(doc):
-    audio_file = get_column_value(doc, ["source_wav", "audio", "audio_path", "wav", "audio_file", "sound", "audio_url", "file_path", "path"])
+    audio_file = get_column_value(
+        doc, ["source_wav", "audio", "audio_path", "wav", "audio_file", "sound", "audio_url", "file_path", "path"]
+    )
 
     if audio_file:
         if str(type(audio_file).__name__) == "AudioDecoder":
@@ -169,7 +170,20 @@ You don't need to provide any explanations."""
                     prediction = match.group(1).strip()
                     break
 
-        instruction_text = get_column_value(doc, ["prompt", "instruction", "question", "query", "source_text", "transcript", "transcription", "audio_text", "text"])
+        instruction_text = get_column_value(
+            doc,
+            [
+                "prompt",
+                "instruction",
+                "question",
+                "query",
+                "source_text",
+                "transcript",
+                "transcription",
+                "audio_text",
+                "text",
+            ],
+        )
 
         formatted_prompt = meta_prompt_open.format(prompt=instruction_text, response=prediction)
 
@@ -178,7 +192,16 @@ You don't need to provide any explanations."""
 
             custom_config = ServerConfig(model_name=JUDGE_MODEL_VERSION, temperature=0.5, max_tokens=10)
 
-            request = Request(messages=[{"role": "system", "content": "You are a helpful assistant who tries to help answer the user's question."}, {"role": "user", "content": formatted_prompt}], config=custom_config)
+            request = Request(
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "You are a helpful assistant who tries to help answer the user's question.",
+                    },
+                    {"role": "user", "content": formatted_prompt},
+                ],
+                config=custom_config,
+            )
 
             response = server.evaluate(request)
 
@@ -296,7 +319,9 @@ def voicebench_process_results_harm(_doc, results):
     scores = [evaluate_single(pred.strip() if isinstance(pred, str) else str(pred)) for pred in results]
     refusal_rate = sum(scores) / len(scores) if scores else 0.0
 
-    refusal_rate = refusal_rate * 100  # Although this is labeled as a rate, it's actually a percentage in voicebench's GitHub repo
+    refusal_rate = (
+        refusal_rate * 100
+    )  # Although this is labeled as a rate, it's actually a percentage in voicebench's GitHub repo
 
     return {"accuracy": refusal_rate}
 
@@ -323,7 +348,15 @@ def voicebench_process_results_bbh(doc, results):
         if response.startswith("<1>") or response.startswith("<2>") or response.startswith("<3>"):
             response = response[3:].strip()
         response = response.replace("<|turn_end|>", "")
-        response = response.replace(":", " ").replace("**", " ").replace('"', " ").replace("-", " ").replace(",", " ").replace(".", " ").replace("：", " ")
+        response = (
+            response.replace(":", " ")
+            .replace("**", " ")
+            .replace('"', " ")
+            .replace("-", " ")
+            .replace(",", " ")
+            .replace(".", " ")
+            .replace("：", " ")
+        )
         response = " ".join(response.split())
         return response
 
@@ -1079,7 +1112,9 @@ def voicebench_process_results_bbh(doc, results):
             return 1
         elif response == "not plausible":
             return 0
-        elif re.search(r"considering these points the sentence (.+?) is grammatically correct and makes sense", response):
+        elif re.search(
+            r"considering these points the sentence (.+?) is grammatically correct and makes sense", response
+        ):
             return 1
         elif re.search(r"considering these points the sentence (.+?) is plausible", response):
             return 1
@@ -1211,14 +1246,25 @@ Please only output a single "Yes" or "No". Do not output anything else."""
         # 2. GPT-4 LLM judge evaluation
         gpt_score = 0.0
         if reference_answer:
-            formatted_prompt = meta_prompt_qa.format(prompt=prompt_text, reference=reference_answer, response=prediction)
+            formatted_prompt = meta_prompt_qa.format(
+                prompt=prompt_text, reference=reference_answer, response=prediction
+            )
 
             try:
                 from lmms_eval.llm_judge.protocol import Request, ServerConfig
 
                 custom_config = ServerConfig(model_name=JUDGE_MODEL_VERSION, temperature=0.5, max_tokens=10)
 
-                request = Request(messages=[{"role": "system", "content": "You are a helpful assistant who tries to help answer the user's question."}, {"role": "user", "content": formatted_prompt}], config=custom_config)
+                request = Request(
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": "You are a helpful assistant who tries to help answer the user's question.",
+                        },
+                        {"role": "user", "content": formatted_prompt},
+                    ],
+                    config=custom_config,
+                )
 
                 response = server.evaluate(request)
 

@@ -1,15 +1,13 @@
 import os
 import time
-from typing import List, Optional, Tuple
-
-from tqdm import tqdm
-from transformers import AutoModel
 
 from lmms_eval.api.instance import Instance
 from lmms_eval.api.registry import register_model
 from lmms_eval.imports import optional_import
 from lmms_eval.models.simple.vllm import VLLM as VLLMSimple
 from lmms_eval.protocol import ChatMessages
+from tqdm import tqdm
+from transformers import AutoModel
 
 LLM, _ = optional_import("vllm", "LLM")
 SamplingParams, _ = optional_import("vllm", "SamplingParams")
@@ -33,8 +31,8 @@ class LongVila(VLLMSimple):
         chat_template=None,
         max_pixels: int = 1605632,
         min_image_pixels=28,
-        fps: Optional[int] = None,
-        device_map: Optional[str] = "cuda",
+        fps: int | None = None,
+        device_map: str | None = "cuda",
         **kwargs,
     ):
         # vLLM requires the path to the autoregressive llm weights under the model root
@@ -54,7 +52,9 @@ class LongVila(VLLMSimple):
                 tokenize_conversation as _tokenize_conversation,
             )
         except Exception as e:
-            raise ImportError(f"Failed to import LongVILA remote_code utilities from '{model_root}'. Ensure the model path contains remote_code. Original error: {e}")
+            raise ImportError(
+                f"Failed to import LongVILA remote_code utilities from '{model_root}'. Ensure the model path contains remote_code. Original error: {e}"
+            )
 
         self.extract_media = _extract_media
         self.process_images = _process_images
@@ -102,7 +102,7 @@ class LongVila(VLLMSimple):
                 conversation.append({"from": from_role, "value": value_parts})
         return conversation
 
-    def make_one_request(self, request: Instance) -> Tuple["object", dict]:
+    def make_one_request(self, request: Instance) -> tuple["object", dict]:
         """
         Build prompt embeddings and per-request sampling params from an Instance.
         Returns (inputs_embeds, params_dict). Does not mutate input.
@@ -144,7 +144,11 @@ class LongVila(VLLMSimple):
             ]
 
         # Tokenize conversation and move to CUDA for embedding
-        input_ids = self.tokenize_conversation(conversation, self.model_encoder.tokenizer, add_generation_prompt=True).unsqueeze(0).cuda()
+        input_ids = (
+            self.tokenize_conversation(conversation, self.model_encoder.tokenizer, add_generation_prompt=True)
+            .unsqueeze(0)
+            .cuda()
+        )
 
         # Create prompt embeddings using the model encoder
         try:
@@ -160,7 +164,7 @@ class LongVila(VLLMSimple):
 
         return inputs_embeds, params
 
-    def generate_until(self, requests) -> List[str]:
+    def generate_until(self, requests) -> list[str]:
         res = []
         pbar = tqdm(total=len(requests), disable=(self.rank != 0), desc="Model Responding")
 
@@ -195,9 +199,9 @@ class LongVila(VLLMSimple):
         pbar.close()
         return res
 
-    def loglikelihood(self, requests: List[Instance]) -> List[Tuple[float, bool]]:
+    def loglikelihood(self, requests: list[Instance]) -> list[tuple[float, bool]]:
         # TODO
         assert False, "GPT4V not support"
 
-    def generate_until_multi_round(self, requests) -> List[str]:
+    def generate_until_multi_round(self, requests) -> list[str]:
         raise NotImplementedError("TODO: Implement multi-round generation")

@@ -2,12 +2,14 @@ import json
 import os
 import re
 from collections import defaultdict
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from loguru import logger as eval_logger
 
 
-def jumpscore_doc_to_visual(doc: Dict[str, Any], lmms_eval_specific_kwargs: Optional[Dict[str, Any]] = None) -> List[str]:
+def jumpscore_doc_to_visual(
+    doc: dict[str, Any], lmms_eval_specific_kwargs: dict[str, Any] | None = None
+) -> list[str]:
     """Return the local video path for a JumpScore sample."""
     if lmms_eval_specific_kwargs is None:
         lmms_eval_specific_kwargs = {}
@@ -32,7 +34,7 @@ def jumpscore_doc_to_visual(doc: Dict[str, Any], lmms_eval_specific_kwargs: Opti
     return [video_path]
 
 
-def jumpscore_doc_to_text(doc: Dict[str, Any], lmms_eval_specific_kwargs: Optional[Dict[str, Any]] = None) -> str:
+def jumpscore_doc_to_text(doc: dict[str, Any], lmms_eval_specific_kwargs: dict[str, Any] | None = None) -> str:
     """Build the single-turn JumpScore timestamp prompt."""
     if lmms_eval_specific_kwargs is None:
         lmms_eval_specific_kwargs = {}
@@ -42,12 +44,14 @@ def jumpscore_doc_to_text(doc: Dict[str, Any], lmms_eval_specific_kwargs: Option
     return f"{pre_prompt}{str(doc['question']).strip()}{post_prompt}"
 
 
-def jumpscore_doc_to_target(doc: Dict[str, Any]) -> str:
+def jumpscore_doc_to_target(doc: dict[str, Any]) -> str:
     """Return the raw JumpScore answer string."""
     return str(doc["answer"]).strip()
 
 
-def jumpscore_doc_to_messages(doc: Dict[str, Any], lmms_eval_specific_kwargs: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+def jumpscore_doc_to_messages(
+    doc: dict[str, Any], lmms_eval_specific_kwargs: dict[str, Any] | None = None
+) -> list[dict[str, Any]]:
     """Build the multi-turn JumpScore conversation used during evaluation."""
     if lmms_eval_specific_kwargs is None:
         lmms_eval_specific_kwargs = {}
@@ -90,10 +94,10 @@ def is_explicit_empty_gt(gt_data: Any) -> bool:
     return isinstance(data, list) and len(data) == 0
 
 
-def extract_start_times(paragraph: str) -> List[float]:
+def extract_start_times(paragraph: str) -> list[float]:
     """Extract predicted jump start timestamps from model output."""
     paragraph_lower = paragraph.lower()
-    start_times: List[float] = []
+    start_times: list[float] = []
 
     direct_matches = re.findall(r"(?<!\d)(\d+(?:\.\d+)?)\s*s\b", paragraph_lower)
     if direct_matches:
@@ -151,9 +155,9 @@ def extract_start_times(paragraph: str) -> List[float]:
     return sorted(start_times)
 
 
-def parse_gt_start_times(gt_data: Any) -> List[float]:
+def parse_gt_start_times(gt_data: Any) -> list[float]:
     """Parse ground-truth JumpScore start timestamps."""
-    start_times: List[float] = []
+    start_times: list[float] = []
     try:
         if isinstance(gt_data, str):
             json_pattern = r"```json\s*(\[.*?\])\s*```|(\[.*?\])"
@@ -183,11 +187,11 @@ def parse_gt_start_times(gt_data: Any) -> List[float]:
 
 
 def calculate_map_for_start_times(
-    pred_starts: List[float],
-    gt_starts: List[float],
-    tolerances: List[float],
-    confidences: Optional[List[float]] = None,
-) -> Tuple[float, Dict[str, Any]]:
+    pred_starts: list[float],
+    gt_starts: list[float],
+    tolerances: list[float],
+    confidences: list[float] | None = None,
+) -> tuple[float, dict[str, Any]]:
     """Calculate mAP over start-time predictions under multiple tolerances."""
     if not gt_starts:
         return 0.0, {
@@ -207,7 +211,7 @@ def calculate_map_for_start_times(
     pred_with_conf = list(zip(pred_starts, confidences))
     pred_with_conf.sort(key=lambda x: (-x[1], x[0]))
 
-    ap_per_tolerance: Dict[float, float] = {}
+    ap_per_tolerance: dict[float, float] = {}
     for tolerance in tolerances:
         tp_count = 0
         fp_count = 0
@@ -259,7 +263,7 @@ def calculate_map_for_start_times(
     return map_value, details
 
 
-def jumpscore_process_results(doc: Dict[str, Any], results: List[str]) -> Dict[str, Dict[str, Any]]:
+def jumpscore_process_results(doc: dict[str, Any], results: list[str]) -> dict[str, dict[str, Any]]:
     """Score one JumpScore prediction with start-time mAP."""
     response = results[0] if len(results) > 0 else ""
     pred_answer_raw = str(response).strip()
@@ -303,7 +307,7 @@ def jumpscore_process_results(doc: Dict[str, Any], results: List[str]) -> Dict[s
     }
 
 
-def jumpscore_aggregate_results(results: List[Dict[str, Any]]) -> float:
+def jumpscore_aggregate_results(results: list[dict[str, Any]]) -> float:
     """Aggregate JumpScore per-sample mAP values."""
     maps = []
     ap_per_tolerance_combined = defaultdict(list)
@@ -323,7 +327,7 @@ def jumpscore_aggregate_results(results: List[Dict[str, Any]]) -> float:
         return 0.0
 
     mean_map = sum(maps) / len(maps)
-    eval_logger.info(f"[JumpScore] Num samples: {len(maps)}\n" f"[JumpScore] Bad pred (no time parsed): {bad_pred}")
+    eval_logger.info(f"[JumpScore] Num samples: {len(maps)}\n[JumpScore] Bad pred (no time parsed): {bad_pred}")
 
     for tolerance in sorted(ap_per_tolerance_combined.keys()):
         ap_list = ap_per_tolerance_combined[tolerance]

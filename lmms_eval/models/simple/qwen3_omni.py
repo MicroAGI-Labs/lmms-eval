@@ -1,24 +1,24 @@
-from typing import List, Optional, Tuple, Union
 
 import librosa
 import numpy as np
 import torch
 from accelerate import Accelerator, DistributedType
-from loguru import logger as eval_logger
-from moviepy import VideoFileClip
-from PIL import Image
-from tqdm import tqdm
-
 from lmms_eval import utils
 from lmms_eval.api.instance import Instance
 from lmms_eval.api.model import lmms
 from lmms_eval.api.registry import register_model
 from lmms_eval.models.model_utils.audio_processing import split_audio
+from loguru import logger as eval_logger
+from moviepy import VideoFileClip
+from PIL import Image
+from tqdm import tqdm
 
 try:
     from transformers import Qwen3OmniMoeForConditionalGeneration, Qwen3OmniMoeProcessor
 except ImportError:
-    eval_logger.warning("Failed to import Qwen3OmniMoe classes; Please install transformers from source: pip install git+https://github.com/huggingface/transformers")
+    eval_logger.warning(
+        "Failed to import Qwen3OmniMoe classes; Please install transformers from source: pip install git+https://github.com/huggingface/transformers"
+    )
 
 try:
     from qwen_omni_utils import process_mm_info
@@ -36,11 +36,11 @@ class Qwen3_Omni(lmms):
     def __init__(
         self,
         pretrained: str = "Qwen/Qwen3-Omni-30B-A3B-Instruct",
-        device: Optional[str] = "cuda",
-        device_map: Optional[str] = "auto",
-        batch_size: Optional[Union[int, str]] = 1,
+        device: str | None = "cuda",
+        device_map: str | None = "auto",
+        batch_size: int | str | None = 1,
         use_cache: bool = True,
-        attn_implementation: Optional[str] = "flash_attention_2",
+        attn_implementation: str | None = "flash_attention_2",
         max_num_frames: int = 128,
         system_prompt: str = "You are Qwen, a virtual human developed by the Qwen Team, Alibaba Group, capable of perceiving auditory and visual inputs, as well as generating text and speech.",
         **kwargs,
@@ -136,7 +136,7 @@ class Qwen3_Omni(lmms):
     def world_size(self):
         return self._world_size
 
-    def loglikelihood(self, requests: List[Instance]) -> List[Tuple[float, bool]]:
+    def loglikelihood(self, requests: list[Instance]) -> list[tuple[float, bool]]:
         raise NotImplementedError("Loglikelihood is not implemented for Qwen3_Omni")
 
     def flatten(self, input):
@@ -256,7 +256,7 @@ class Qwen3_Omni(lmms):
         clip = VideoFileClip(video_path)
         return clip.audio is not None
 
-    def generate_until(self, requests: List[Instance]) -> List[str]:
+    def generate_until(self, requests: list[Instance]) -> list[str]:
         res = []
         current_use_audio = False
 
@@ -280,7 +280,9 @@ class Qwen3_Omni(lmms):
                 first_visual = visuals[0]
                 has_audio = any(isinstance(v, dict) or type(v).__name__ == "AudioDecoder" for v in first_visual)
                 has_image = any(isinstance(v, Image.Image) for v in first_visual)
-                has_video = any(isinstance(v, str) and v.endswith((".mp4", ".avi", ".mov", ".mkv", ".webm")) for v in first_visual)
+                has_video = any(
+                    isinstance(v, str) and v.endswith((".mp4", ".avi", ".mov", ".mkv", ".webm")) for v in first_visual
+                )
                 if sum([has_audio, has_image, has_video]) > 1:
                     should_flatten = False
 
@@ -295,7 +297,9 @@ class Qwen3_Omni(lmms):
                 if isinstance(until, str):
                     until = [until]
                 elif not isinstance(until, list):
-                    raise ValueError(f"Expected `gen_kwargs['until']` to be of type Union[str,list] but got {type(until)}")
+                    raise ValueError(
+                        f"Expected `gen_kwargs['until']` to be of type Union[str,list] but got {type(until)}"
+                    )
 
             message = [
                 {
@@ -347,7 +351,11 @@ class Qwen3_Omni(lmms):
                         single_message["content"].append({"type": "text", "text": context})
                         message.append(single_message)
 
-                    elif isinstance(visual, (list, tuple)) and len(visual) > 0 and all(isinstance(v, dict) or type(v).__name__ == "AudioDecoder" for v in visual):
+                    elif (
+                        isinstance(visual, (list, tuple))
+                        and len(visual) > 0
+                        and all(isinstance(v, dict) or type(v).__name__ == "AudioDecoder" for v in visual)
+                    ):
                         current_use_audio = True
                         for j, v in enumerate(visual):
                             audio_dict = self._decode_audio(v)
@@ -450,5 +458,5 @@ class Qwen3_Omni(lmms):
         pbar.close()
         return res
 
-    def generate_until_multi_round(self, requests) -> List[str]:
+    def generate_until_multi_round(self, requests) -> list[str]:
         raise NotImplementedError("TODO: Implement multi-round generation")

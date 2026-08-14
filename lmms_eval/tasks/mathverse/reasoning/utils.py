@@ -1,7 +1,6 @@
 from pathlib import Path
 
 import yaml
-
 from lmms_eval.tasks._task_utils.reasoning_utils import compute_score
 from lmms_eval.tasks.mathverse.mathverse_evals import MathVerseEvaluator
 
@@ -11,7 +10,7 @@ SYSTEM_PROMPT = (
     "Please provide a clear, concise response within <answer> </answer> tags that directly addresses the question."
 )
 
-with open(Path(__file__).parent / "mathverse_testmini.yaml", "r") as f:
+with open(Path(__file__).parent / "mathverse_testmini.yaml") as f:
     raw_data = f.readlines()
     safe_data = []
     for i, line in enumerate(raw_data):
@@ -40,7 +39,12 @@ def mathverse_doc_to_text(doc, lmms_eval_specific_kwargs=None):
         "problem_version": doc["problem_version"],
     }
     query_prompt = mathverse_evaluator.create_one_query(
-        problem, examples=None, shot_num=0, shot_type=lmms_eval_specific_kwargs["shot_type"], hint=lmms_eval_specific_kwargs.get("hint", None), query_type=lmms_eval_specific_kwargs["query_type"]
+        problem,
+        examples=None,
+        shot_num=0,
+        shot_type=lmms_eval_specific_kwargs["shot_type"],
+        hint=lmms_eval_specific_kwargs.get("hint", None),
+        query_type=lmms_eval_specific_kwargs["query_type"],
     )
     return query_prompt
 
@@ -52,7 +56,9 @@ def mathverse_doc_to_messages(doc, lmms_eval_specific_kwargs=None):
 
     user_messages = []
     if visuals:
-        user_messages.append({"role": "user", "content": [{"type": "image", "url": visuals[0]}, {"type": "text", "text": query_prompt}]})
+        user_messages.append(
+            {"role": "user", "content": [{"type": "image", "url": visuals[0]}, {"type": "text", "text": query_prompt}]}
+        )
     else:
         user_messages.append({"role": "user", "content": [{"type": "text", "text": query_prompt}]})
 
@@ -71,8 +77,13 @@ def mathverse_process_results(doc, results):
     question = mathverse_doc_to_text(doc, default_kwargs)
     extra_info = {"question": question}
     for pred in results:
-        score_dict = compute_score(data_source="mathvista", solution_str=pred.strip(), ground_truth=doc["answer"], extra_info=extra_info)
+        score_dict = compute_score(
+            data_source="mathvista", solution_str=pred.strip(), ground_truth=doc["answer"], extra_info=extra_info
+        )
         acc_score += score_dict["acc_score"]
         format_score += score_dict.get("format_reward_score", 0.0)
 
-    return {"acc_score": acc_score / len(results) if results else 0.0, "format_score": format_score / len(results) if results else 0.0}
+    return {
+        "acc_score": acc_score / len(results) if results else 0.0,
+        "format_score": format_score / len(results) if results else 0.0,
+    }

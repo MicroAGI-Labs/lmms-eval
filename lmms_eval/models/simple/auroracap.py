@@ -1,6 +1,5 @@
 import logging
 import os.path as osp
-from typing import List, Optional, Tuple, Union
 
 import av
 import numpy as np
@@ -8,6 +7,11 @@ import torch
 from accelerate import Accelerator, DistributedType
 from accelerate.state import AcceleratorState
 from huggingface_hub import snapshot_download
+from lmms_eval import utils
+from lmms_eval.api.instance import Instance
+from lmms_eval.api.model import lmms
+from lmms_eval.api.registry import register_model
+from lmms_eval.models.model_utils.load_video import read_video
 from PIL import Image
 from tqdm import tqdm
 from transformers import (
@@ -17,12 +21,6 @@ from transformers import (
     CLIPImageProcessor,
 )
 
-from lmms_eval import utils
-from lmms_eval.api.instance import Instance
-from lmms_eval.api.model import lmms
-from lmms_eval.api.registry import register_model
-from lmms_eval.models.model_utils.load_video import read_video
-
 try:
     from lmms_eval.models.aurora_xtuner.model.aurora import (
         AuroraEncoder,
@@ -31,7 +29,9 @@ try:
     )
     from lmms_eval.models.aurora_xtuner.utils import PROMPT_TEMPLATE
 except ImportError:
-    eval_logger.error("AuroraCap is not installed. Please install AuroraCap to use this model by `git clone https://github.com/rese1f/aurora.git` and link `src/xtuner/xtuner` to `lmms_eval/models/aurora_xtuner`")
+    eval_logger.error(
+        "AuroraCap is not installed. Please install AuroraCap to use this model by `git clone https://github.com/rese1f/aurora.git` and link `src/xtuner/xtuner` to `lmms_eval/models/aurora_xtuner`"
+    )
 import warnings
 
 warnings.filterwarnings("ignore")
@@ -65,9 +65,9 @@ class AuroraCap(lmms):
         pretrained: str = "model/PATH",
         resolution: int = 378,
         token_merge_ratio: float = 0.4,
-        device: Optional[str] = "cuda",
-        dtype: Optional[Union[str, torch.dtype]] = "auto",
-        batch_size: Optional[Union[int, str]] = 1,
+        device: str | None = "cuda",
+        dtype: str | torch.dtype | None = "auto",
+        batch_size: int | str | None = 1,
         conv_template="vicuna_v1",  # vicuna_v1",
         video_decode_backend: str = "pyav",
         max_frames_num: int = 16,
@@ -102,7 +102,9 @@ class AuroraCap(lmms):
         )
 
         projector_path = osp.join(pretrained_pth, "projector")
-        self.model.projector = AutoModel.from_pretrained(projector_path, torch_dtype=torch.float16, trust_remote_code=True)
+        self.model.projector = AutoModel.from_pretrained(
+            projector_path, torch_dtype=torch.float16, trust_remote_code=True
+        )
 
         self._image_processor = CLIPImageProcessor.from_pretrained(
             pretrained_model_name_or_path="laion/CLIP-ViT-bigG-14-laion2B-39B-b160k",  # use standard CLIP processor
@@ -140,8 +142,13 @@ class AuroraCap(lmms):
                     "train_batch_size": self.batch_size_per_gpu * accelerator.num_processes,
                 }
                 AcceleratorState().deepspeed_plugin.deepspeed_config_process(must_match=True, **kwargs)
-                eval_logger.info("Detected that you are using DistributedType.DEEPSPEED. Make sure you run `accelerate config` and set zero stage to 0")
-            if accelerator.distributed_type == DistributedType.FSDP or accelerator.distributed_type == DistributedType.DEEPSPEED:
+                eval_logger.info(
+                    "Detected that you are using DistributedType.DEEPSPEED. Make sure you run `accelerate config` and set zero stage to 0"
+                )
+            if (
+                accelerator.distributed_type == DistributedType.FSDP
+                or accelerator.distributed_type == DistributedType.DEEPSPEED
+            ):
                 self._model = accelerator.prepare(self.model)
                 self._model.visual_encoder = accelerator.prepare(self.model.visual_encoder)
                 self._model.projector = accelerator.prepare(self.model.projector)
@@ -231,7 +238,7 @@ class AuroraCap(lmms):
             new_images = torch.stack(new_images, dim=0)
         return new_images
 
-    def tok_encode(self, string: str, left_truncate_len=None, add_special_tokens=None) -> List[int]:
+    def tok_encode(self, string: str, left_truncate_len=None, add_special_tokens=None) -> list[int]:
         """ """
         add_special_tokens = False if add_special_tokens is None else add_special_tokens
         encoding = self.tokenizer.encode(string, add_special_tokens=add_special_tokens)
@@ -243,7 +250,7 @@ class AuroraCap(lmms):
     def tok_decode(self, tokens):
         return self.tokenizer.decode(tokens)
 
-    def loglikelihood(self, requests: List[Instance]) -> List[Tuple[float, bool]]:
+    def loglikelihood(self, requests: list[Instance]) -> list[tuple[float, bool]]:
         res = []
         pbar = tqdm(total=len(requests), disable=(self.rank != 0), desc="Model Responding")
 
@@ -280,13 +287,23 @@ class AuroraCap(lmms):
             conv.append_message(conv.roles[0], prompts_input)
             conv.append_message(conv.roles[1], None)
             prompt = conv.get_prompt()
-            pad_token_id = self.tokenizer.pad_token_id if self.tokenizer.pad_token_id is not None else self.tokenizer.eos_token_id
-            contxt_id = tokenizer_image_token(prompt, self.tokenizer, IMAGE_TOKEN_INDEX, return_tensors="pt").unsqueeze(0).to(self.device)
+            pad_token_id = (
+                self.tokenizer.pad_token_id if self.tokenizer.pad_token_id is not None else self.tokenizer.eos_token_id
+            )
+            contxt_id = (
+                tokenizer_image_token(prompt, self.tokenizer, IMAGE_TOKEN_INDEX, return_tensors="pt")
+                .unsqueeze(0)
+                .to(self.device)
+            )
             # Add the answer of the second role
             conv.messages[1][1] = continuation
 
             prompt = conv.get_prompt()
-            input_ids = tokenizer_image_token(prompt, self.tokenizer, IMAGE_TOKEN_INDEX, return_tensors="pt").unsqueeze(0).to(self.device)
+            input_ids = (
+                tokenizer_image_token(prompt, self.tokenizer, IMAGE_TOKEN_INDEX, return_tensors="pt")
+                .unsqueeze(0)
+                .to(self.device)
+            )
             labels = input_ids.clone()
             # Context part no need to calculate for loss
             labels[0, : contxt_id.shape[1]] = -100
@@ -355,7 +372,7 @@ class AuroraCap(lmms):
 
         return np.stack([x.to_ndarray(format="rgb24") for x in frames])
 
-    def generate_until(self, requests: List[Instance]) -> List[str]:
+    def generate_until(self, requests: list[Instance]) -> list[str]:
         res = []
 
         def _collate(x):
@@ -373,14 +390,20 @@ class AuroraCap(lmms):
         # in the same batch.
         re_ords = utils.Collator([reg.args for reg in requests], _collate, grouping=True)
         chunks = re_ords.get_batched(n=self.batch_size, batch_fn=None)
-        num_iters = len(requests) // self.batch_size if len(requests) % self.batch_size == 0 else len(requests) // self.batch_size + 1
+        num_iters = (
+            len(requests) // self.batch_size
+            if len(requests) % self.batch_size == 0
+            else len(requests) // self.batch_size + 1
+        )
         pbar = tqdm(total=num_iters, disable=(self.rank != 0), desc="Model Responding")
 
         for chunk in chunks:
             contexts, all_gen_kwargs, doc_to_visual, doc_id, task, split = zip(*chunk)
             task = task[0]
             split = split[0]
-            visuals = [doc_to_visual[0](self.task_dict[task][split][ids]) for ids in doc_id]  # the length of visuals is 1, equal to batchsize
+            visuals = [
+                doc_to_visual[0](self.task_dict[task][split][ids]) for ids in doc_id
+            ]  # the length of visuals is 1, equal to batchsize
             visuals = self.flatten(visuals)
             # we assume all gen kwargs in the batch are the same
             # this is safe to assume because the `grouper` object ensures it.
@@ -395,7 +418,9 @@ class AuroraCap(lmms):
                 if isinstance(until, str):
                     until = [until]
                 elif not isinstance(until, list):
-                    raise ValueError(f"Expected `gen_kwargs['until']` to be of type Union[str,list] but got {type(until)}")
+                    raise ValueError(
+                        f"Expected `gen_kwargs['until']` to be of type Union[str,list] but got {type(until)}"
+                    )
 
             if "image_aspect_ratio" in gen_kwargs.keys() and "image_aspect_ratio" not in self._config.__dict__:
                 # here we should pop it out of gen_kwargs so that it doesn't get passed to the model for next step of generation
@@ -418,11 +443,15 @@ class AuroraCap(lmms):
                                 video = self.load_video(visuals[0], self.max_frames_num)
                             elif self.video_decode_backend == "pyav":
                                 video = read_video(visuals[0], num_frm=self.max_frames_num)
-                            image_tensor = self.process_images(video, self._image_processor, self._config).to(self._device)
+                            image_tensor = self.process_images(video, self._image_processor, self._config).to(
+                                self._device
+                            )
                         elif visuals[0].endswith("mkv"):
                             assert self.video_decode_backend == "pyav", "we only tested this case, decord may not work"
                             video = read_video(visuals[0], num_frm=self.max_frames_num)
-                            image_tensor = self.process_images(video, self._image_processor, self._config).to(self._device)
+                            image_tensor = self.process_images(video, self._image_processor, self._config).to(
+                                self._device
+                            )
 
                 if type(image_tensor) is list:
                     image_tensor = [_image.to(dtype=torch.float16, device=self.device) for _image in image_tensor]
@@ -446,7 +475,11 @@ class AuroraCap(lmms):
                         image_tokens = [DEFAULT_IMAGE_TOKEN] * len(video)
                     elif isinstance(visuals, list):
                         if isinstance(visuals[0], Image.Image):
-                            image_tokens = [DEFAULT_IMAGE_TOKEN] * len(visual) if isinstance(visual, list) else [DEFAULT_IMAGE_TOKEN]
+                            image_tokens = (
+                                [DEFAULT_IMAGE_TOKEN] * len(visual)
+                                if isinstance(visual, list)
+                                else [DEFAULT_IMAGE_TOKEN]
+                            )
                         else:
                             if visual.endswith("mp4") or visual.endswith("mkv"):
                                 image_tokens = [DEFAULT_IMAGE_TOKEN] * len(video)
@@ -493,8 +526,13 @@ class AuroraCap(lmms):
             if "num_beams" not in gen_kwargs:
                 gen_kwargs["num_beams"] = 1
 
-            input_ids_list = [tokenizer_image_token(prompt, self.tokenizer, IMAGE_TOKEN_INDEX, return_tensors="pt") for prompt in question_input]
-            pad_token_ids = self.tokenizer.pad_token_id if self.tokenizer.pad_token_id is not None else self.tokenizer.eos_token_id
+            input_ids_list = [
+                tokenizer_image_token(prompt, self.tokenizer, IMAGE_TOKEN_INDEX, return_tensors="pt")
+                for prompt in question_input
+            ]
+            pad_token_ids = (
+                self.tokenizer.pad_token_id if self.tokenizer.pad_token_id is not None else self.tokenizer.eos_token_id
+            )
             input_ids = self.pad_sequence(input_ids_list, batch_first=True, padding_value=pad_token_ids).to(self.device)
             attention_masks = input_ids.ne(pad_token_ids).to(self.device)
             # These steps are not in LLaVA's original code, but are necessary for generation to work

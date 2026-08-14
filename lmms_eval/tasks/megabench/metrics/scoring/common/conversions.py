@@ -2,7 +2,6 @@ import ast
 import json
 import re
 from numbers import Number
-from typing import Tuple, Union
 
 from matplotlib import font_manager
 from metrics.parsing.common.parsers import parse_json
@@ -141,7 +140,7 @@ def str_to_coords(coord_list, dim=2) -> list:
     return new_coords
 
 
-def parse_point_2d_from_xml(xml_string) -> Union[Tuple[float, float], None]:
+def parse_point_2d_from_xml(xml_string) -> tuple[float, float] | None:
     """Parse an (x, y) point from XML formatted like this: <point>x, y</point>"""
     if not isinstance(xml_string, str):
         return None
@@ -223,7 +222,7 @@ def ascii_text_to_image(
         try:
             font = ImageFont.truetype(font_name, font_size)
             break
-        except IOError:
+        except OSError:
             continue
     if font is None:
         raise ValueError("Cannot properly render ASCII art: missing monospace font.")

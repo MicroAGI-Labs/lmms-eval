@@ -37,7 +37,9 @@ def _format_task_load_error(exc: Exception) -> str:
     return " | ".join(details)
 
 
-def collect_task_sizes(tasks_arg: str | None, *, verbosity: str = "WARNING", include_path: str | None = None) -> dict[str, int]:
+def collect_task_sizes(
+    tasks_arg: str | None, *, verbosity: str = "WARNING", include_path: str | None = None
+) -> dict[str, int]:
     task_sizes: dict[str, int] = {}
     if not tasks_arg:
         return task_sizes

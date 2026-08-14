@@ -3,24 +3,22 @@ import os
 import os.path as osp
 import warnings
 from datetime import timedelta
-from typing import List, Optional, Tuple, Union
 
 import PIL
 import torch
 from accelerate import Accelerator, DistributedType, InitProcessGroupKwargs
 from accelerate.state import AcceleratorState
 from huggingface_hub import snapshot_download
+from lmms_eval import utils
+from lmms_eval.api.instance import Instance
+from lmms_eval.api.model import lmms
+from lmms_eval.api.registry import register_model
 from moviepy.video.io.VideoFileClip import VideoFileClip
 from packaging import version
 from PIL import Image
 from torchvision import transforms
 from tqdm import tqdm
 from transformers import StoppingCriteria, StoppingCriteriaList
-
-from lmms_eval import utils
-from lmms_eval.api.instance import Instance
-from lmms_eval.api.model import lmms
-from lmms_eval.api.registry import register_model
 
 # Suppress warnings
 warnings.filterwarnings("ignore")
@@ -54,7 +52,7 @@ class StoppingCriteriaSub(StoppingCriteria):
 
     def __call__(self, input_ids: torch.LongTensor, scores: torch.FloatTensor):
         for stop in self.stops:
-            if torch.all((stop == input_ids[0][-len(stop) :])).item():
+            if torch.all(stop == input_ids[0][-len(stop) :]).item():
                 return True
 
         return False
@@ -68,21 +66,21 @@ class MovieChat(lmms):
 
     def __init__(
         self,
-        truncation: Optional[bool] = True,
-        device: Optional[str] = "cuda:0",
-        batch_size: Optional[Union[int, str]] = 1,
+        truncation: bool | None = True,
+        device: str | None = "cuda:0",
+        batch_size: int | str | None = 1,
         pretrained_llama_model: str = "Enxin/MovieChat-vicuna",
         pretrained_llama_proj_model: str = "Enxin/MovieChat-proj",
-        attn_implementation: Optional[str] = best_fit_attn_implementation,
-        device_map: Optional[str] = "cuda:0",
-        use_cache: Optional[bool] = True,
-        truncate_context: Optional[bool] = False,  # whether to truncate the context in generation, set it False for LLaVA-1.6
-        customized_config: Optional[str] = None,  # ends in json
-        short_memory_length: Optional[int] = 18,
-        long_memory_length: Optional[int] = 256,
-        sliding_window_length: Optional[int] = 8,
-        merge_frame_length: Optional[int] = 2,
-        tmp_folder: Optional[str] = "tmp/",
+        attn_implementation: str | None = best_fit_attn_implementation,
+        device_map: str | None = "cuda:0",
+        use_cache: bool | None = True,
+        truncate_context: bool | None = False,  # whether to truncate the context in generation, set it False for LLaVA-1.6
+        customized_config: str | None = None,  # ends in json
+        short_memory_length: int | None = 18,
+        long_memory_length: int | None = 256,
+        sliding_window_length: int | None = 8,
+        merge_frame_length: int | None = 2,
+        tmp_folder: str | None = "tmp/",
         **kwargs,
     ) -> None:
         super().__init__()
@@ -101,8 +99,16 @@ class MovieChat(lmms):
             self._device = torch.device(f"cuda:{accelerator.local_process_index}")
             self.device_map = f"cuda:{accelerator.local_process_index}"
 
-        llama_model = snapshot_download(repo_id=pretrained_llama_model) if not osp.isdir(pretrained_llama_model) else pretrained_llama_model
-        llama_proj_pth = snapshot_download(repo_id=pretrained_llama_proj_model) if not osp.isdir(pretrained_llama_proj_model) else pretrained_llama_proj_model
+        llama_model = (
+            snapshot_download(repo_id=pretrained_llama_model)
+            if not osp.isdir(pretrained_llama_model)
+            else pretrained_llama_model
+        )
+        llama_proj_pth = (
+            snapshot_download(repo_id=pretrained_llama_proj_model)
+            if not osp.isdir(pretrained_llama_proj_model)
+            else pretrained_llama_proj_model
+        )
         llama_proj = osp.join(llama_proj_pth, "finetune-vicuna7b-v2.pth")
         model_config = {
             "arch": "moviechat",
@@ -125,7 +131,11 @@ class MovieChat(lmms):
             "n_frms": 8,
         }
         self.transform = transforms.Compose(
-            [transforms.Resize((224, 224)), transforms.ToTensor(), transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])]  # Resize to 224x224  # Convert PIL Image to Tensor with shape [C, H, W]  # Normalize
+            [
+                transforms.Resize((224, 224)),
+                transforms.ToTensor(),
+                transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+            ]  # Resize to 224x224  # Convert PIL Image to Tensor with shape [C, H, W]  # Normalize
         )
         self._image_processor = registry.get_processor_class(vis_processor_cfg["name"]).from_config(vis_processor_cfg)
 
@@ -133,11 +143,16 @@ class MovieChat(lmms):
         self.model.long_memory_length = long_memory_length
         self.merge_frame_length = merge_frame_length
         self.sliding_window_length = sliding_window_length
-        self.num_clips = (self.model.long_memory_length // self.merge_frame_length) * ((self.model.short_memory_length - self.merge_frame_length) // self.sliding_window_length)
+        self.num_clips = (self.model.long_memory_length // self.merge_frame_length) * (
+            (self.model.short_memory_length - self.merge_frame_length) // self.sliding_window_length
+        )
         self.tmp_folder = tmp_folder
 
         self._tokenizer = self.model.llama_tokenizer
-        stop_words_ids = [torch.tensor([835]).to(self.device), torch.tensor([2277, 29937]).to(self.device)]  # '###' can be encoded in two different ways.
+        stop_words_ids = [
+            torch.tensor([835]).to(self.device),
+            torch.tensor([2277, 29937]).to(self.device),
+        ]  # '###' can be encoded in two different ways.
         self.stopping_criteria = StoppingCriteriaList([StoppingCriteriaSub(stops=stop_words_ids)])
 
         self.model.eval()
@@ -148,7 +163,11 @@ class MovieChat(lmms):
         assert self.batch_size_per_gpu == 1, "MovieChat currently does not support batched generation."
 
         if accelerator.num_processes > 1:
-            assert accelerator.distributed_type in [DistributedType.FSDP, DistributedType.MULTI_GPU, DistributedType.DEEPSPEED], "Unsupported distributed type provided. Only DDP and FSDP are supported."
+            assert accelerator.distributed_type in [
+                DistributedType.FSDP,
+                DistributedType.MULTI_GPU,
+                DistributedType.DEEPSPEED,
+            ], "Unsupported distributed type provided. Only DDP and FSDP are supported."
             # If you want to use DistributedType.DEEPSPEED, you have to run accelerate config before using the model
             # Also, you have to select zero stage 0 (equivalent to DDP) in order to make the prepare model works
             # I tried to set different parameters in the kwargs to let default zero 2 stage works, but it didn't work.
@@ -158,9 +177,14 @@ class MovieChat(lmms):
                     "train_batch_size": self.batch_size_per_gpu * accelerator.num_processes,
                 }
                 AcceleratorState().deepspeed_plugin.deepspeed_config_process(must_match=True, **kwargs)
-                eval_logger.info("Detected that you are using DistributedType.DEEPSPEED. Make sure you run `accelerate config` and set zero stage to 0")
+                eval_logger.info(
+                    "Detected that you are using DistributedType.DEEPSPEED. Make sure you run `accelerate config` and set zero stage to 0"
+                )
 
-            if accelerator.distributed_type == DistributedType.FSDP or accelerator.distributed_type == DistributedType.DEEPSPEED:
+            if (
+                accelerator.distributed_type == DistributedType.FSDP
+                or accelerator.distributed_type == DistributedType.DEEPSPEED
+            ):
                 self._model = accelerator.prepare(self.model)
             else:
                 self._model = accelerator.prepare_model(self.model, evaluation_mode=True)
@@ -223,7 +247,7 @@ class MovieChat(lmms):
     def world_size(self):
         return self._world_size
 
-    def tok_encode(self, string: str, left_truncate_len=None, add_special_tokens=None) -> List[int]:
+    def tok_encode(self, string: str, left_truncate_len=None, add_special_tokens=None) -> list[int]:
         """ """
         add_special_tokens = False if add_special_tokens is None else add_special_tokens
         encoding = self.tokenizer.encode(string, add_special_tokens=add_special_tokens)
@@ -238,7 +262,7 @@ class MovieChat(lmms):
         except:
             return self.tokenizer.decode([tokens])
 
-    def loglikelihood(self, requests: List[Instance]) -> List[Tuple[float, bool]]:
+    def loglikelihood(self, requests: list[Instance]) -> list[tuple[float, bool]]:
         # TODO
         raise NotImplementedError("MovieChat only supports generation.")
 
@@ -269,12 +293,27 @@ class MovieChat(lmms):
         mixed_embs = torch.cat(mixed_embs, dim=1)
         return mixed_embs
 
-    def answer(self, img_list, input_text, max_new_tokens=300, num_beams=1, min_length=1, top_p=0.9, repetition_penalty=1.0, length_penalty=1, temperature=1.0, max_length=2000):
+    def answer(
+        self,
+        img_list,
+        input_text,
+        max_new_tokens=300,
+        num_beams=1,
+        min_length=1,
+        top_p=0.9,
+        repetition_penalty=1.0,
+        length_penalty=1,
+        temperature=1.0,
+        max_length=2000,
+    ):
         embs = self.get_context_emb(input_text, img_list)
 
         current_max_len = embs.shape[1] + max_new_tokens
         if current_max_len - max_length > 0:
-            print("Warning: The number of tokens in current conversation exceeds the max length. " "The model will not see the contexts outside the range.")
+            print(
+                "Warning: The number of tokens in current conversation exceeds the max length. "
+                "The model will not see the contexts outside the range."
+            )
         begin_idx = max(0, current_max_len - max_length)
 
         embs = embs[:, begin_idx:]
@@ -302,7 +341,7 @@ class MovieChat(lmms):
         output_text = output_text.split("Assistant:")[-1].strip()
         return output_text, output_token.cpu().numpy()
 
-    def generate_until(self, requests: List[Instance]) -> List[str]:
+    def generate_until(self, requests: list[Instance]) -> list[str]:
         res = []
 
         def _collate(x):
@@ -321,13 +360,21 @@ class MovieChat(lmms):
         metadata = requests[0].metadata
         re_ords = utils.Collator([reg.args for reg in requests], _collate, grouping=True)
         chunks = re_ords.get_batched(n=self.batch_size, batch_fn=None)
-        num_iters = len(requests) // self.batch_size if len(requests) % self.batch_size == 0 else len(requests) // self.batch_size + 1
+        num_iters = (
+            len(requests) // self.batch_size
+            if len(requests) % self.batch_size == 0
+            else len(requests) // self.batch_size + 1
+        )
         pbar = tqdm(total=num_iters, disable=(self.rank != 0), desc="Model Responding")
         for chunk in chunks:
-            batched_contexts, all_gen_kwargs, batched_doc_to_visual, batched_doc_id, batched_task, batched_split = zip(*chunk)
+            batched_contexts, all_gen_kwargs, batched_doc_to_visual, batched_doc_id, batched_task, batched_split = zip(
+                *chunk
+            )
             task = batched_task[0]
             split = batched_split[0]
-            batched_visuals = [batched_doc_to_visual[0](self.task_dict[task][split][ids]) for ids in batched_doc_id]  # [B, N]
+            batched_visuals = [
+                batched_doc_to_visual[0](self.task_dict[task][split][ids]) for ids in batched_doc_id
+            ]  # [B, N]
             assert len(batched_visuals) == 1
 
             # we assume all gen kwargs in the batch are the same
@@ -339,7 +386,11 @@ class MovieChat(lmms):
             text_outputs = []
 
             for visual, context in zip(batched_visuals, batched_contexts):
-                if type(visual[0]) == PIL.Image.Image and "task_type" not in metadata and "sample_frames" not in metadata:  # For image task
+                if (
+                    type(visual[0]) == PIL.Image.Image
+                    and "task_type" not in metadata
+                    and "sample_frames" not in metadata
+                ):  # For image task
                     raise NotImplementedError("MovieChat only supports video inputs.")
 
                 elif "task_type" in metadata and metadata["task_type"] == "video" and "sample_frames" in metadata:
@@ -362,7 +413,11 @@ class MovieChat(lmms):
                         start_time = i * clip_duration
                         end_time = start_time + clip_duration
                         # uniformly sample self.sliding_window_length frames from the video from start_time to end_time
-                        frames = list(video.subclip(start_time, end_time).iter_frames(fps=self.sliding_window_length / clip_duration))[: self.sliding_window_length]
+                        frames = list(
+                            video.subclip(start_time, end_time).iter_frames(
+                                fps=self.sliding_window_length / clip_duration
+                            )
+                        )[: self.sliding_window_length]
                         for frame in frames:
                             frame = Image.fromarray(frame)
                             frame_tensor = self.transform(frame)
@@ -374,7 +429,9 @@ class MovieChat(lmms):
 
                         frames_tensor = torch.stack(preprocess_frames, dim=0)
 
-                        image_embeds = self.model.ln_vision(self.model.visual_encoder(frames_tensor.half().to(self.device)))
+                        image_embeds = self.model.ln_vision(
+                            self.model.visual_encoder(frames_tensor.half().to(self.device))
+                        )
                         image_atts = torch.ones(image_embeds.size()[:-1], dtype=torch.long).to(self.device)
                         query_tokens = self.model.query_tokens.expand(image_embeds.shape[0], -1, -1)
                         query_output = self.model.Qformer.bert(
@@ -398,29 +455,45 @@ class MovieChat(lmms):
                             # merge short_memory_frames
                             similar_list = []
                             for frame_i in range(len(self.model.short_memory_buffer) - 1):
-                                scores = self.model.short_memory_buffer[frame_i] @ self.model.short_memory_buffer[frame_i + 1].transpose(-1, -2)
+                                scores = self.model.short_memory_buffer[frame_i] @ self.model.short_memory_buffer[
+                                    frame_i + 1
+                                ].transpose(-1, -2)
                                 frame_silimar = torch.mean(scores)
                                 similar_list.append(frame_silimar)
 
                             while len(self.model.short_memory_buffer) > self.merge_frame_length:
                                 max_value = max(similar_list)
                                 max_index = similar_list.index(max_value)
-                                new_frame_feature = (self.model.short_memory_buffer[max_index].cpu() + self.model.short_memory_buffer[max_index + 1].cpu()) / 2
+                                new_frame_feature = (
+                                    self.model.short_memory_buffer[max_index].cpu()
+                                    + self.model.short_memory_buffer[max_index + 1].cpu()
+                                ) / 2
                                 self.model.short_memory_buffer[max_index] = new_frame_feature.cuda()
                                 del self.model.short_memory_buffer[max_index + 1]
                                 similar_list = []
                                 for frame_i in range(len(self.model.short_memory_buffer) - 1):
-                                    scores = self.model.short_memory_buffer[frame_i] @ self.model.short_memory_buffer[frame_i + 1].transpose(-1, -2)
+                                    scores = self.model.short_memory_buffer[frame_i] @ self.model.short_memory_buffer[
+                                        frame_i + 1
+                                    ].transpose(-1, -2)
                                     frame_silimar = torch.mean(scores)
                                     similar_list.append(frame_silimar)
 
                             for frame in self.model.short_memory_buffer:
                                 self.model.long_memory_buffer.append(frame)
 
-                    cur_image = self.model.encode_image(preprocess_frames[-1].unsqueeze(0).unsqueeze(2).half(), self.device)
+                    cur_image = self.model.encode_image(
+                        preprocess_frames[-1].unsqueeze(0).unsqueeze(2).half(), self.device
+                    )
                     video_emb, _ = self.model.encode_long_video(cur_image, device=self.device, middle_video=False)
                     img_list.append(video_emb)
-                    llm_message = self.answer(img_list=img_list, input_text=context, num_beams=1, temperature=1.0, max_new_tokens=300, max_length=2000)[0]
+                    llm_message = self.answer(
+                        img_list=img_list,
+                        input_text=context,
+                        num_beams=1,
+                        temperature=1.0,
+                        max_new_tokens=300,
+                        max_length=2000,
+                    )[0]
                     text_outputs.append(llm_message)
 
                     # except Exception as e:

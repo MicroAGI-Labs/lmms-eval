@@ -1,6 +1,5 @@
 import logging
 import re
-from typing import List
 
 eval_logger = logging.getLogger("lmms-eval")
 
@@ -62,7 +61,7 @@ def get_option(final_answer):
     return None
 
 
-def get_prediction(question_type: str, raw_answer: str, ref_answer: str, options: List[str]):
+def get_prediction(question_type: str, raw_answer: str, ref_answer: str, options: list[str]):
     answer = parse_answer(raw_answer)
     ref_answer = ref_answer.strip("()\n ")  # important for some datasets
     if question_type == "multi-choice":

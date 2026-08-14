@@ -4,10 +4,9 @@ This module provides core evaluation functions for calculating accuracy and
 organizing results by task settings.
 """
 
-from typing import Dict
 
 
-def calculate_accuracy(results: Dict) -> float:
+def calculate_accuracy(results: dict) -> float:
     """Calculate accuracy percentage from results.
 
     Args:
@@ -20,7 +19,7 @@ def calculate_accuracy(results: Dict) -> float:
     return results.get("gen_cogmap_accuracy", 0.0) * 100
 
 
-def initialize_basic_results_structure() -> Dict:
+def initialize_basic_results_structure() -> dict:
     """Initialize the basic results data structure.
 
     Returns:
@@ -60,7 +59,7 @@ def initialize_basic_results_structure() -> Dict:
     return results
 
 
-def update_accuracy_metrics(results: Dict) -> Dict:
+def update_accuracy_metrics(results: dict) -> dict:
     """Update accuracy metrics for all settings.
 
     Args:
@@ -86,7 +85,7 @@ def update_accuracy_metrics(results: Dict) -> Dict:
     return results
 
 
-def get_filtered_totals(results: Dict) -> tuple:
+def get_filtered_totals(results: dict) -> tuple:
     """Calculate filtered totals excluding settings that shouldn't be included in overall metrics.
 
     Args:
@@ -107,7 +106,7 @@ def get_filtered_totals(results: Dict) -> tuple:
     return filtered_total, filtered_correct
 
 
-def get_unfiltered_totals(results: Dict) -> tuple:
+def get_unfiltered_totals(results: dict) -> tuple:
     """Calculate unfiltered totals including all settings.
 
     Args:
@@ -127,7 +126,7 @@ def get_unfiltered_totals(results: Dict) -> tuple:
     return unfiltered_total, unfiltered_correct
 
 
-def apply_filtering_to_results(results: Dict) -> Dict:
+def apply_filtering_to_results(results: dict) -> dict:
     """Apply filtering logic to exclude certain settings from overall metrics.
     This maintains compatibility with the original evaluation logic.
 

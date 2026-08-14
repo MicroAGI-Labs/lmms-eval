@@ -1,8 +1,7 @@
 import json
 
-from loguru import logger
-
 from lmms_eval.tasks._task_utils.file_utils import generate_submission_file
+from loguru import logger
 
 
 def docvqa_doc_to_visual(doc):
@@ -19,7 +18,10 @@ def docvqa_doc_to_text(doc, lmms_eval_specific_kwargs):
 def docvqa_test_process_results(doc, results):
     pred = results[0]
     questionId = doc["questionId"]
-    return {"anls": {"questionId": int(questionId), "answer": pred}, "submission": {"questionId": int(questionId), "answer": pred}}
+    return {
+        "anls": {"questionId": int(questionId), "answer": pred},
+        "submission": {"questionId": int(questionId), "answer": pred},
+    }
 
 
 def docvqa_test_aggregate_results(results, args):

@@ -26,7 +26,10 @@ class TestFastVideoGenerateUntil(unittest.TestCase):
 
     def test_init_does_not_forward_legacy_overwrite_kwarg(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            with patch("lmms_eval.models.chat.fastvideo._has_fastvideo", True), patch("lmms_eval.models.chat.fastvideo.VideoGenerator", _FakeVideoGenerator):
+            with (
+                patch("lmms_eval.models.chat.fastvideo._has_fastvideo", True),
+                patch("lmms_eval.models.chat.fastvideo.VideoGenerator", _FakeVideoGenerator),
+            ):
                 FastVideo(model="demo-model", output_dir=tmpdir, overwrite=True)
 
         self.assertEqual(_FakeVideoGenerator.last_model, "demo-model")

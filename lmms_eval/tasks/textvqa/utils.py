@@ -2,10 +2,9 @@ import datetime
 import json
 import statistics
 
-from loguru import logger as eval_logger
-
 from lmms_eval.tasks._task_utils.file_utils import generate_submission_file
 from lmms_eval.tasks._task_utils.vqa_eval_metric import EvalAIAnswerProcessor
+from loguru import logger as eval_logger
 
 
 def textvqa_doc_to_visual(doc):

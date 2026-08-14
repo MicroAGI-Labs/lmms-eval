@@ -2,7 +2,6 @@
 Specific evaluators for In-Domain_50 tasks (Part 3).
 """
 
-from typing import Any, Dict, List, Optional, Tuple
 
 import cv2
 import numpy as np
@@ -24,7 +23,7 @@ class IdentifyAllHollowPointsEvaluator(BaseEvaluator):
 
     TASK_WEIGHTS = {"identification": 0.40, "completeness": 0.30, "position": 0.20, "annotation": 0.10}
 
-    def _detect_hollow_points(self, frame: np.ndarray) -> List[Tuple[int, int]]:
+    def _detect_hollow_points(self, frame: np.ndarray) -> list[tuple[int, int]]:
         """Detect hollow (unfilled) circular points."""
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
@@ -56,7 +55,7 @@ class IdentifyAllHollowPointsEvaluator(BaseEvaluator):
 
         return hollow_points
 
-    def _detect_red_markings(self, frame: np.ndarray) -> List[Tuple[int, int]]:
+    def _detect_red_markings(self, frame: np.ndarray) -> list[tuple[int, int]]:
         """Detect red circle markings."""
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
@@ -84,7 +83,14 @@ class IdentifyAllHollowPointsEvaluator(BaseEvaluator):
 
         return centers
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         """Evaluate identify all hollow points task."""
         scores = {}
 
@@ -173,7 +179,7 @@ class ConstructConcentricRingEvaluator(BaseEvaluator):
 
     TASK_WEIGHTS = {"center": 0.35, "fidelity": 0.35, "structure": 0.20, "smoothness": 0.10}
 
-    def _detect_circles(self, frame: np.ndarray) -> List[Dict]:
+    def _detect_circles(self, frame: np.ndarray) -> list[dict]:
         """Detect circles in the frame - optimized for concentric ring detection."""
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
@@ -206,7 +212,9 @@ class ConstructConcentricRingEvaluator(BaseEvaluator):
         if len(detected) < 2:
             # Use stricter parameters to avoid false positives
             for param2 in [50, 40, 30]:
-                circles = cv2.HoughCircles(gray, cv2.HOUGH_GRADIENT, 1, 100, param1=100, param2=param2, minRadius=50, maxRadius=500)
+                circles = cv2.HoughCircles(
+                    gray, cv2.HOUGH_GRADIENT, 1, 100, param1=100, param2=param2, minRadius=50, maxRadius=500
+                )
                 if circles is not None and len(circles[0]) >= 2:
                     circles = np.uint16(np.around(circles))
                     detected = []
@@ -220,7 +228,9 @@ class ConstructConcentricRingEvaluator(BaseEvaluator):
             for d in detected:
                 is_dup = False
                 for u in unique:
-                    center_dist = np.sqrt((d["center"][0] - u["center"][0]) ** 2 + (d["center"][1] - u["center"][1]) ** 2)
+                    center_dist = np.sqrt(
+                        (d["center"][0] - u["center"][0]) ** 2 + (d["center"][1] - u["center"][1]) ** 2
+                    )
                     radius_diff = abs(d["radius"] - u["radius"])
                     if center_dist < 30 and radius_diff < 30:
                         is_dup = True
@@ -231,7 +241,14 @@ class ConstructConcentricRingEvaluator(BaseEvaluator):
 
         return detected
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         """Evaluate construct concentric ring task."""
         scores = {}
 
@@ -360,9 +377,13 @@ class ShapeOutlineFillEvaluator(BaseEvaluator):
     3. Bottom right shape should be either filled or have thicker lines (follow pattern)
     """
 
-    TASK_WEIGHTS = {"first_row_preserved": 0.45, "bottom_right_correct": 0.35, "shape_preserved": 0.20}  # Top row unchanged  # D has correct shape and style  # D shape matches C
+    TASK_WEIGHTS = {
+        "first_row_preserved": 0.45,
+        "bottom_right_correct": 0.35,
+        "shape_preserved": 0.20,
+    }  # Top row unchanged  # D has correct shape and style  # D shape matches C
 
-    def _detect_shapes_in_quadrant(self, frame: np.ndarray, quadrant: str) -> Dict:
+    def _detect_shapes_in_quadrant(self, frame: np.ndarray, quadrant: str) -> dict:
         """Detect shape in specified quadrant and determine if filled or outline."""
         h, w = frame.shape[:2]
 
@@ -424,7 +445,14 @@ class ShapeOutlineFillEvaluator(BaseEvaluator):
 
         return {"exists": True, "shape_type": shape_type, "is_filled": is_filled, "area": area, "vertices": vertices}
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         """Evaluate visual analogy transformation.
 
         CRITICAL RULES:
@@ -451,8 +479,12 @@ class ShapeOutlineFillEvaluator(BaseEvaluator):
 
         # Check if top row shapes are preserved (area should be similar)
         if first_top_left["exists"] and first_top_right["exists"]:
-            tl_change = abs(final_top_left.get("area", 0) - first_top_left.get("area", 0)) / max(first_top_left.get("area", 1), 1)
-            tr_change = abs(final_top_right.get("area", 0) - first_top_right.get("area", 0)) / max(first_top_right.get("area", 1), 1)
+            tl_change = abs(final_top_left.get("area", 0) - first_top_left.get("area", 0)) / max(
+                first_top_left.get("area", 1), 1
+            )
+            tr_change = abs(final_top_right.get("area", 0) - first_top_right.get("area", 0)) / max(
+                first_top_right.get("area", 1), 1
+            )
 
             if tl_change > 0.5 or tr_change > 0.5:
                 # First row changed significantly
@@ -516,7 +548,7 @@ class ShapeColorThenScaleEvaluator(BaseEvaluator):
 
     TASK_WEIGHTS = {"two_step_rule": 0.30, "first_step": 0.25, "second_step": 0.25, "sequence": 0.20}
 
-    def _detect_shape_properties(self, frame: np.ndarray) -> Dict:
+    def _detect_shape_properties(self, frame: np.ndarray) -> dict:
         """Detect shape color and size."""
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV) if len(frame.shape) == 3 else None
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY) if len(frame.shape) == 3 else frame
@@ -543,7 +575,14 @@ class ShapeColorThenScaleEvaluator(BaseEvaluator):
 
         return {"exists": True, "area": area, "hue": mean_hue, "saturation": mean_sat}
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         """Evaluate two-step color-then-scale transformation."""
 
         if not video_frames or gt_final_frame is None:
@@ -628,7 +667,7 @@ class ShapeOutlineThenMoveEvaluator(BaseEvaluator):
 
     TASK_WEIGHTS = {"two_step_rule": 0.30, "first_step": 0.25, "second_step": 0.25, "sequence": 0.20}
 
-    def _get_shape_centroid(self, frame: np.ndarray) -> Optional[Tuple[float, float]]:
+    def _get_shape_centroid(self, frame: np.ndarray) -> tuple[float, float] | None:
         """Get centroid of main shape in frame."""
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY) if len(frame.shape) == 3 else frame
 
@@ -670,7 +709,14 @@ class ShapeOutlineThenMoveEvaluator(BaseEvaluator):
 
         return False
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         """Evaluate two-step outline-then-move transformation."""
 
         if not video_frames or gt_final_frame is None:
@@ -772,7 +818,14 @@ class ShapeScaleThenOutlineEvaluator(BaseEvaluator):
 
         return False
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         """Evaluate two-step scale-then-outline transformation."""
 
         if not video_frames or gt_final_frame is None:
@@ -842,7 +895,7 @@ class BallBounceEvaluator(BaseEvaluator):
 
     TASK_WEIGHTS = {"bounce_count": 0.30, "physics": 0.35, "trajectory": 0.25, "smoothness": 0.10}
 
-    def _track_ball_positions(self, frames: List[np.ndarray]) -> List[Tuple[float, float]]:
+    def _track_ball_positions(self, frames: list[np.ndarray]) -> list[tuple[float, float]]:
         """Track ball center position across frames."""
         positions = []
 
@@ -874,7 +927,7 @@ class BallBounceEvaluator(BaseEvaluator):
 
         return positions
 
-    def _count_bounces(self, positions: List[Tuple[float, float]]) -> int:
+    def _count_bounces(self, positions: list[tuple[float, float]]) -> int:
         """Count number of direction changes (bounces)."""
         if len(positions) < 3:
             return 0
@@ -892,7 +945,7 @@ class BallBounceEvaluator(BaseEvaluator):
 
         return bounces
 
-    def _calculate_motion_smoothness(self, positions: List[Tuple[float, float]]) -> float:
+    def _calculate_motion_smoothness(self, positions: list[tuple[float, float]]) -> float:
         """Calculate how smooth the motion is."""
         if len(positions) < 2:
             return 1.0
@@ -916,7 +969,14 @@ class BallBounceEvaluator(BaseEvaluator):
 
         return max(0, 1 - cv / 2)
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         """Evaluate ball bounce trajectory prediction."""
 
         if not video_frames or not gt_frames:
@@ -951,7 +1011,13 @@ class BallBounceEvaluator(BaseEvaluator):
         if gen_positions:
             # Check if trajectory spans reasonable distance
             if len(gen_positions) >= 2:
-                total_dist = sum(np.sqrt((gen_positions[i][0] - gen_positions[i - 1][0]) ** 2 + (gen_positions[i][1] - gen_positions[i - 1][1]) ** 2) for i in range(1, len(gen_positions)))
+                total_dist = sum(
+                    np.sqrt(
+                        (gen_positions[i][0] - gen_positions[i - 1][0]) ** 2
+                        + (gen_positions[i][1] - gen_positions[i - 1][1]) ** 2
+                    )
+                    for i in range(1, len(gen_positions))
+                )
                 scores["trajectory"] = min(1.0, total_dist / 200.0)
             else:
                 scores["trajectory"] = 0.3
@@ -980,7 +1046,7 @@ class ColorAdditionEvaluator(BaseEvaluator):
 
     TASK_WEIGHTS = {"mixing": 0.40, "movement": 0.30, "overlap": 0.20, "fidelity": 0.10}
 
-    def _detect_colored_regions(self, frame: np.ndarray) -> List[Dict]:
+    def _detect_colored_regions(self, frame: np.ndarray) -> list[dict]:
         """Detect colored regions and their properties."""
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV) if len(frame.shape) == 3 else None
         if hsv is None:
@@ -1020,7 +1086,14 @@ class ColorAdditionEvaluator(BaseEvaluator):
 
         return regions
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         """Evaluate additive color mixing animation."""
 
         if not video_frames or gt_final_frame is None:
@@ -1117,7 +1190,7 @@ class GlassRefractionEvaluator(BaseEvaluator):
 
     TASK_WEIGHTS = {"snells_law": 0.50, "ray_direction": 0.30, "ray_completeness": 0.15, "scene_fidelity": 0.05}
 
-    def _detect_lines(self, frame: np.ndarray) -> List[Dict]:
+    def _detect_lines(self, frame: np.ndarray) -> list[dict]:
         """Detect lines in the frame."""
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY) if len(frame.shape) == 3 else frame
         edges = cv2.Canny(gray, 50, 150)
@@ -1134,7 +1207,7 @@ class GlassRefractionEvaluator(BaseEvaluator):
 
         return detected
 
-    def _detect_red_line(self, frame: np.ndarray) -> Optional[Dict]:
+    def _detect_red_line(self, frame: np.ndarray) -> dict | None:
         """Detect red line (refracted ray)."""
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV) if len(frame.shape) == 3 else None
         if hsv is None:
@@ -1158,7 +1231,14 @@ class GlassRefractionEvaluator(BaseEvaluator):
 
         return None
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         """Evaluate refraction ray drawing accuracy."""
 
         if not video_frames or gt_final_frame is None:
@@ -1234,7 +1314,7 @@ class MirrorReflectionEvaluator(BaseEvaluator):
 
     TASK_WEIGHTS = {"reflection_angle": 0.40, "symmetry": 0.30, "ray_extension": 0.20, "starting_point": 0.10}
 
-    def _detect_lines(self, frame: np.ndarray) -> List[Dict]:
+    def _detect_lines(self, frame: np.ndarray) -> list[dict]:
         """Detect all lines in the frame."""
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY) if len(frame.shape) == 3 else frame
         edges = cv2.Canny(gray, 50, 150)
@@ -1251,7 +1331,7 @@ class MirrorReflectionEvaluator(BaseEvaluator):
 
         return detected
 
-    def _detect_colored_line(self, frame: np.ndarray, color: str) -> Optional[Dict]:
+    def _detect_colored_line(self, frame: np.ndarray, color: str) -> dict | None:
         """Detect line of specific color."""
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV) if len(frame.shape) == 3 else None
         if hsv is None:
@@ -1281,7 +1361,14 @@ class MirrorReflectionEvaluator(BaseEvaluator):
 
         return None
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         """Evaluate mirror reflection ray drawing accuracy."""
 
         if not video_frames or gt_final_frame is None:
@@ -1333,7 +1420,9 @@ class MirrorReflectionEvaluator(BaseEvaluator):
 
         # 3. Ray extension: Check line length
         if gen_reflected is not None and gt_reflected is not None:
-            length_ratio = min(gen_reflected["length"], gt_reflected["length"]) / max(gen_reflected["length"], gt_reflected["length"], 1)
+            length_ratio = min(gen_reflected["length"], gt_reflected["length"]) / max(
+                gen_reflected["length"], gt_reflected["length"], 1
+            )
             scores["ray_extension"] = length_ratio
         elif gen_reflected is not None:
             scores["ray_extension"] = min(1.0, gen_reflected["length"] / 100.0)

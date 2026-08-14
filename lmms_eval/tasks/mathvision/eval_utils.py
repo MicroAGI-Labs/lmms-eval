@@ -23,7 +23,7 @@ def is_number(s):
 
 def save_jsonl(path: str, data: list, t_stamp=True) -> None:
     if t_stamp:
-        file_name = f"{path.replace('.jsonl','')}{timestamp()}.jsonl"
+        file_name = f"{path.replace('.jsonl', '')}{timestamp()}.jsonl"
     else:
         file_name = path
     with open(file_name, "w", encoding="utf-8") as f:
@@ -32,7 +32,7 @@ def save_jsonl(path: str, data: list, t_stamp=True) -> None:
 
 
 def load_jsonl(path: str):
-    with open(path, "r", encoding="utf-8") as fh:
+    with open(path, encoding="utf-8") as fh:
         return [json.loads(line) for line in fh.readlines() if line]
 
 
@@ -62,13 +62,23 @@ def eval_tuple(s):
         if s[0] == "(" and s[-1] == ")" and len(sl) > 1:
             # Evaluate each element using latex2sympy and round the result to 2 decimal places
             # Skip evaluation if element is 'infty', 'a', or '-a'
-            s = ",".join([str(round(eval(str(latex2sympy(sub))), 2)) if "infty" not in sub and sub not in ["a", "-a"] else sub for sub in sl])
+            s = ",".join(
+                [
+                    str(round(eval(str(latex2sympy(sub))), 2)) if "infty" not in sub and sub not in ["a", "-a"] else sub
+                    for sub in sl
+                ]
+            )
             return f"({s})"
 
         # Check if string is a list representation and has more than one element
         elif s[0] == "[" and s[-1] == "]" and len(sl) > 1:
             # Same evaluation process as for tuples
-            s = ",".join([str(round(eval(str(latex2sympy(sub))), 2)) if "infty" not in sub and sub not in ["a", "-a"] else sub for sub in sl])
+            s = ",".join(
+                [
+                    str(round(eval(str(latex2sympy(sub))), 2)) if "infty" not in sub and sub not in ["a", "-a"] else sub
+                    for sub in sl
+                ]
+            )
             return f"[{s}]"
 
     except Exception:  # Catch any exceptions and return the original string
@@ -199,7 +209,7 @@ def delete_extra_zero(n):
     try:
         n = float(n)  # Try to convert the input to a float
     except ValueError:  # If conversion fails
-        print("None {}".format(n))  # Print the error message
+        print(f"None {n}")  # Print the error message
         return n  # Return the original string
 
     # If n is an integer after conversion, return its string representation
@@ -275,7 +285,7 @@ def _fix_a_slash_b(string):
         b = int(b)
 
         # Check if the string is in the expected format after conversion.
-        assert string == "{}/{}".format(a, b)
+        assert string == f"{a}/{b}"
 
         # Convert the fraction to LaTeX representation.
         new_string = "\\frac{" + str(a) + "}{" + str(b) + "}"

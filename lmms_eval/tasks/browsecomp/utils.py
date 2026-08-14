@@ -13,7 +13,7 @@ _browsecomp_config_path = Path(__file__).parent / "browsecomp.yaml"
 
 
 def _load_yaml_stripped(path: Path) -> dict:
-    with open(path, "r") as f:
+    with open(path) as f:
         raw_data = f.readlines()
     safe_data = [line for line in raw_data if "!function" not in line]
     return yaml.safe_load("".join(safe_data)) or {}
@@ -240,6 +240,12 @@ def browsecomp_aggregate_results(results) -> float:
     eval_logger.info("BrowseComp overall accuracy: {:.4f} ({}/{})", overall_accuracy, int(total_correct), total_count)
     for topic in sorted(topic_total):
         accuracy = topic_correct[topic] / topic_total[topic]
-        eval_logger.info("BrowseComp topic [{}] accuracy: {:.4f} ({}/{})", topic, accuracy, int(topic_correct[topic]), topic_total[topic])
+        eval_logger.info(
+            "BrowseComp topic [{}] accuracy: {:.4f} ({}/{})",
+            topic,
+            accuracy,
+            int(topic_correct[topic]),
+            topic_total[topic],
+        )
 
     return float(overall_accuracy)

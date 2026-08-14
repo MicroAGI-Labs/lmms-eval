@@ -4,7 +4,7 @@ import os
 import re
 import time
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
 import yaml
 from loguru import logger as eval_logger
@@ -15,7 +15,7 @@ from sympy.parsing.latex import parse_latex
 FAIL_MSG = "Failed to obtain answer via API."
 
 
-def load_seephys_config() -> Dict[str, Any]:
+def load_seephys_config() -> dict[str, Any]:
     config_path = Path(__file__).parent / "seephys.yaml"
     eval_logger.info(f"Loading SeePhys config from: {config_path}")
 
@@ -23,7 +23,7 @@ def load_seephys_config() -> Dict[str, Any]:
         eval_logger.error(f"Config file not found at: {config_path}")
         return {"metadata": {}}
 
-    with open(config_path, "r") as f:
+    with open(config_path) as f:
         raw_data = f.readlines()
         safe_data = []
         for line in raw_data:
@@ -63,13 +63,15 @@ class SeephysEvaluator:
             API_URL = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
             API_KEY = os.getenv("OPENAI_API_KEY", "")
             if not API_KEY:
-                eval_logger.error("OPENAI_API_KEY not found. Please set the environment variable: `export OPENAI_API_KEY=$Your_KEY`")
+                eval_logger.error(
+                    "OPENAI_API_KEY not found. Please set the environment variable: `export OPENAI_API_KEY=$Your_KEY`"
+                )
                 raise ValueError("OPENAI_API_KEY is required for LLM-as-a-judge evaluation.")
 
             self.client = OpenAI(api_key=API_KEY, base_url=API_URL)
             eval_logger.debug(f"Initialized SeephysEvaluator judger client for model {self.juder_model}")
 
-    def _safe_to_dict(self, resp) -> Dict[str, Any]:
+    def _safe_to_dict(self, resp) -> dict[str, Any]:
         """
         Convert response to plain dict for robust inspection.
         """
@@ -84,7 +86,7 @@ class SeephysEvaluator:
             eval_logger.debug(f"_safe_to_dict error: {e}")
             return {}
 
-    def _extract_content_from_response(self, resp_dict: Dict[str, Any]) -> str:
+    def _extract_content_from_response(self, resp_dict: dict[str, Any]) -> str:
         """
         Robustly extract visible content from various possible response formats.
         """
@@ -115,7 +117,15 @@ class SeephysEvaluator:
 
         return ""
 
-    def judger_generate(self, prompt: str, temperature: int = 1, max_completion_tokens: int = 4096, n: int = 1, patience: int = 3, sleep_time: int = 0) -> str:
+    def judger_generate(
+        self,
+        prompt: str,
+        temperature: int = 1,
+        max_completion_tokens: int = 4096,
+        n: int = 1,
+        patience: int = 3,
+        sleep_time: int = 0,
+    ) -> str:
         """
         Call the judger LLM and try to robustly return visible content.
         If the first call returns no visible content but shows evidence of internal reasoning tokens,
@@ -168,13 +178,14 @@ class SeephysEvaluator:
                     reasoning_tokens = 0
 
                 if (not content) and (finish_reason == "length" or reasoning_tokens > 0):
-                    eval_logger.warning(f"Judger produced no visible content on attempt {attempt}. finish_reason={finish_reason}, reasoning_tokens={reasoning_tokens}. Retrying with larger max_completion_tokens.")
+                    eval_logger.warning(
+                        f"Judger produced no visible content on attempt {attempt}. finish_reason={finish_reason}, reasoning_tokens={reasoning_tokens}. Retrying with larger max_completion_tokens."
+                    )
                     payload["max_completion_tokens"] = int(max(4096, payload.get("max_completion_tokens", 0) * 2))
                     time.sleep(sleep_time)
                     continue
 
                 if not content:
-
                     textual = json.dumps(resp_dict, ensure_ascii=False)[:8000]
                     return textual
 
@@ -252,7 +263,10 @@ Now please provide your judgement (0 or 1), DONNOT output explanation:
         query = line.get("question", "")
         gt = line.get("answer", "")
 
-        full_prompt = self.get_ICE_scoring().strip() + f"\n[Question]: {query}\n[Standard Answer]: {gt}\n[Model Answer]: {pred}\nJudgement: "
+        full_prompt = (
+            self.get_ICE_scoring().strip()
+            + f"\n[Question]: {query}\n[Standard Answer]: {gt}\n[Model Answer]: {pred}\nJudgement: "
+        )
         return full_prompt
 
     def _extract_answer_by_rule(self, line: dict) -> str:
@@ -360,7 +374,7 @@ Now please provide your judgement (0 or 1), DONNOT output explanation:
             pass
         return False
 
-    def Seephys_auxeval(self, line: dict) -> Dict[str, Any]:
+    def Seephys_auxeval(self, line: dict) -> dict[str, Any]:
         """
         Use the LLM judger to compare extracted answer with GT.
         Prefetch (fast path) tries symbolic/string match before calling judge LLM.
@@ -377,7 +391,6 @@ Now please provide your judgement (0 or 1), DONNOT output explanation:
 
         extracted_answer = self._extract_answer_by_rule(line)
         if extracted_answer == "":
-
             log += "No extracted answer from model output.\n"
             return dict(log=log, res=0, extracted=extracted_answer)
 
@@ -401,7 +414,7 @@ Now please provide your judgement (0 or 1), DONNOT output explanation:
         log += "All retries failed; returning 0.\n"
         return dict(log=log, res=0, extracted=extracted_answer)
 
-    def Seephys_process_line(self, line: dict) -> Dict[str, Any]:
+    def Seephys_process_line(self, line: dict) -> dict[str, Any]:
         """
         Quick rule-based checking for cases where we can avoid LLM judger.
         Returns dict with match (1/0) and extracted value.

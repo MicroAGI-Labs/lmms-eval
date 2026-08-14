@@ -1,6 +1,7 @@
 import hashlib
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any, Sequence
+from typing import Any
 
 
 @dataclass(frozen=True)
@@ -154,8 +155,17 @@ def decide_next_concurrency(
     high_latency_threshold = config.target_latency_s * 1.1
     low_latency_threshold = config.target_latency_s * 0.85
 
-    should_reduce = rate_limit_rate >= rate_limit_reduce_threshold or failure_rate > config.failure_threshold or (p95_latency_s > 0 and p95_latency_s > high_latency_threshold)
-    should_increase = not should_reduce and rate_limit_rate == 0.0 and failure_rate <= (config.failure_threshold * 0.5) and (p95_latency_s == 0 or p95_latency_s < low_latency_threshold)
+    should_reduce = (
+        rate_limit_rate >= rate_limit_reduce_threshold
+        or failure_rate > config.failure_threshold
+        or (p95_latency_s > 0 and p95_latency_s > high_latency_threshold)
+    )
+    should_increase = (
+        not should_reduce
+        and rate_limit_rate == 0.0
+        and failure_rate <= (config.failure_threshold * 0.5)
+        and (p95_latency_s == 0 or p95_latency_s < low_latency_threshold)
+    )
 
     if should_reduce:
         next_concurrency = max(

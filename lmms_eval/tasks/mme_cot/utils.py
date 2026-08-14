@@ -5,11 +5,10 @@ import os
 import string
 
 import pandas as pd
-from loguru import logger as eval_logger
-from PIL import Image
-
 from lmms_eval.llm_judge import ServerConfig, get_server
 from lmms_eval.tasks._task_utils.file_utils import generate_submission_file
+from loguru import logger as eval_logger
+from PIL import Image
 
 dir_name = os.path.dirname(os.path.abspath(__file__))
 
@@ -81,7 +80,9 @@ Only return "Yes" or "No" with no additional text or formatting."""
 
     try:
         # Use the llm_judge API for binary evaluation
-        result = server.evaluate_binary(question=question, answer=answer, prediction=prediction, output_format="yes/no", custom_prompt=custom_prompt)
+        result = server.evaluate_binary(
+            question=question, answer=answer, prediction=prediction, output_format="yes/no", custom_prompt=custom_prompt
+        )
 
         # Parse the result
         if result["success"]:

@@ -3,12 +3,9 @@ import os
 import re
 import tempfile
 import time
+from collections.abc import Generator
 from contextlib import contextmanager
-from typing import Any, Dict, Generator, List
-
-from loguru import logger as eval_logger
-from tqdm import tqdm
-from transformers.cache_utils import DynamicCache
+from typing import Any
 
 from lmms_eval import utils
 from lmms_eval.api.instance import GenerationResult, Instance, TokenCounts
@@ -24,6 +21,9 @@ from lmms_eval.models.model_utils.thyme.utils import (
 )
 from lmms_eval.models.simple.qwen2_5_vl import Qwen2_5_VL as Qwen2_5_VLSimple
 from lmms_eval.protocol import ChatMessages
+from loguru import logger as eval_logger
+from tqdm import tqdm
+from transformers.cache_utils import DynamicCache
 
 try:
     from qwen_vl_utils import process_vision_info
@@ -33,7 +33,7 @@ except ImportError:
 
 
 @contextmanager
-def extract_user_input(message_list: List[Dict[str, Any]]) -> Generator[str, None, None]:
+def extract_user_input(message_list: list[dict[str, Any]]) -> Generator[str]:
     """
     Context manager that extracts the user's image and saves it to a temporary file if needed.
 
@@ -120,7 +120,11 @@ class Thyme(Qwen2_5_VLSimple):
                     eval_logger.info(f"Iteration {self.max_iterations - retry_iterations}")
 
                 # Prepare inputs
-                text = self.processor.apply_chat_template([conversation_history], tokenize=False, add_generation_prompt=(retry_iterations == self.max_iterations - 1))
+                text = self.processor.apply_chat_template(
+                    [conversation_history],
+                    tokenize=False,
+                    add_generation_prompt=(retry_iterations == self.max_iterations - 1),
+                )
 
                 if retry_iterations != self.max_iterations - 1:
                     if text[0].endswith("<|im_end|>\n"):
@@ -138,13 +142,19 @@ class Thyme(Qwen2_5_VLSimple):
                 last_execution_context = copy.deepcopy(self._remove_unpickable_values(previous_execution_context))
 
                 # Generate
-                generated_ids = self.model.generate(**inputs, **generate_kwargs, past_key_values=kv_cache, use_cache=self.use_cache)
+                generated_ids = self.model.generate(
+                    **inputs, **generate_kwargs, past_key_values=kv_cache, use_cache=self.use_cache
+                )
 
-                generated_ids = [output_ids[len(input_ids) :] for input_ids, output_ids in zip(inputs.input_ids, generated_ids)]
+                generated_ids = [
+                    output_ids[len(input_ids) :] for input_ids, output_ids in zip(inputs.input_ids, generated_ids)
+                ]
 
                 total_tokens += len(generated_ids[0])
 
-                out = self.tokenizer.batch_decode(generated_ids, skip_special_tokens=True, clean_up_tokenization_spaces=False)
+                out = self.tokenizer.batch_decode(
+                    generated_ids, skip_special_tokens=True, clean_up_tokenization_spaces=False
+                )
                 generated_text_segment = out[0]
 
                 # Check for direct answer
@@ -153,7 +163,9 @@ class Thyme(Qwen2_5_VLSimple):
                     has_valid_answer = True
 
                 # Check for code block
-                code_regex = re.compile(r"<code>\s*(?:```\s*)?(?:python\s*)?([\s\S]*?)\s*(?:```\s*)?</code>", re.IGNORECASE)
+                code_regex = re.compile(
+                    r"<code>\s*(?:```\s*)?(?:python\s*)?([\s\S]*?)\s*(?:```\s*)?</code>", re.IGNORECASE
+                )
                 code_match = code_regex.search(generated_text_segment)
 
                 if code_match:
@@ -168,7 +180,12 @@ class Thyme(Qwen2_5_VLSimple):
                         captured_stdout,
                         error_msg,
                         current_execution_context,
-                    ) = execute_code_in_sandbox(code_to_execute, user_image_path, temp_output_dir=temp_output_dir, previous_execution_context=previous_execution_context)
+                    ) = execute_code_in_sandbox(
+                        code_to_execute,
+                        user_image_path,
+                        temp_output_dir=temp_output_dir,
+                        previous_execution_context=previous_execution_context,
+                    )
 
                     if not processed_img_paths:
                         # Rollback on failure
@@ -181,7 +198,10 @@ class Thyme(Qwen2_5_VLSimple):
                     previous_execution_context = current_execution_context
 
                     # Add generated content
-                    generated_content += [{"type": "text", "text": generated_text_segment}, {"type": "text", "text": "<sandbox_output>"}]
+                    generated_content += [
+                        {"type": "text", "text": generated_text_segment},
+                        {"type": "text", "text": "<sandbox_output>"},
+                    ]
 
                     # Add images or text output
                     first_path = processed_img_paths[0]
@@ -252,7 +272,9 @@ class Thyme(Qwen2_5_VLSimple):
         text = self.processor.apply_chat_template([conversation_history], tokenize=False, add_generation_prompt=True)
 
         if process_vision_info is None:
-            raise ImportError("qwen_vl_utils is required for vision processing. " "Please install it via: pip install qwen-vl-utils")
+            raise ImportError(
+                "qwen_vl_utils is required for vision processing. Please install it via: pip install qwen-vl-utils"
+            )
         images, videos = process_vision_info([conversation_history])
         inputs = self.processor(
             text=text,
@@ -265,7 +287,13 @@ class Thyme(Qwen2_5_VLSimple):
             inputs = inputs.to("cuda")
         else:
             inputs = inputs.to(self.device)
-        generate_kwargs = {"max_new_tokens": 2048, "temperature": None, "do_sample": False, "eos_token_id": self.tokenizer.eos_token_id, "use_cache": True}
+        generate_kwargs = {
+            "max_new_tokens": 2048,
+            "temperature": None,
+            "do_sample": False,
+            "eos_token_id": self.tokenizer.eos_token_id,
+            "use_cache": True,
+        }
 
         generated_ids = self.model.generate(**inputs, **generate_kwargs)
         generated_ids = [output_ids[len(input_ids) :] for input_ids, output_ids in zip(inputs.input_ids, generated_ids)]
@@ -283,7 +311,7 @@ class Thyme(Qwen2_5_VLSimple):
 
         return generated_text, total_tokens
 
-    def generate_until(self, requests: List[Instance]) -> List[GenerationResult]:
+    def generate_until(self, requests: list[Instance]) -> list[GenerationResult]:
         res = []
 
         # A dummy collate here to sort by doc id
@@ -295,14 +323,21 @@ class Thyme(Qwen2_5_VLSimple):
         # in the same batch.
         re_ords = utils.Collator([reg.args for reg in requests], _collate, group_fn=lambda x: x[2], grouping=True)
         chunks = re_ords.get_batched(n=self.batch_size, batch_fn=None)
-        num_iters = len(requests) // self.batch_size if len(requests) % self.batch_size == 0 else len(requests) // self.batch_size + 1
+        num_iters = (
+            len(requests) // self.batch_size
+            if len(requests) % self.batch_size == 0
+            else len(requests) // self.batch_size + 1
+        )
         pbar = tqdm(total=num_iters, disable=(self.rank != 0), desc="Model Responding")
         total_elapsed_time = 0
         total_tokens = 0
         for chunk in chunks:
             ctx, doc_to_messages, all_gen_kwargs, doc_id, task, split = zip(*chunk)
-            chat_messages = [doc_to_messages[idx](self.task_dict[task][split][ids]) for idx, (ids, task, split) in enumerate(zip(doc_id, task, split))]
-            chat_messages: List[ChatMessages] = [ChatMessages(**{"messages": message}) for message in chat_messages]
+            chat_messages = [
+                doc_to_messages[idx](self.task_dict[task][split][ids])
+                for idx, (ids, task, split) in enumerate(zip(doc_id, task, split))
+            ]
+            chat_messages: list[ChatMessages] = [ChatMessages(**{"messages": message}) for message in chat_messages]
             visuals = []
             videos = []
             for messages in chat_messages:
@@ -321,7 +356,9 @@ class Thyme(Qwen2_5_VLSimple):
                 video_kwargs["fps"] = self.fps
             else:
                 video_kwargs["nframes"] = self.max_num_frames
-            batched_messages = [chat_message.to_hf_messages(video_kwargs=video_kwargs) for chat_message in chat_messages]
+            batched_messages = [
+                chat_message.to_hf_messages(video_kwargs=video_kwargs) for chat_message in chat_messages
+            ]
             # Current implementation supports single image input with batch_size=1
             if self.batch_size != 1:
                 eval_logger.warning(f"Thyme model currently only supports batch_size=1, got {self.batch_size}")
@@ -333,14 +370,18 @@ class Thyme(Qwen2_5_VLSimple):
                 with extract_user_input(current_message) as temp_image_path:
                     # Try reasoning mode first with automatic cleanup of intermediate files
                     with tempfile.TemporaryDirectory() as temp_dir:
-                        final_response, has_valid_answer, generated_total_tokens = self._generate_reasoning_mode(current_message, temp_image_path, temp_dir)
+                        final_response, has_valid_answer, generated_total_tokens = self._generate_reasoning_mode(
+                            current_message, temp_image_path, temp_dir
+                        )
                     if not has_valid_answer:
                         # Fall back to simple QA mode if reasoning fails
                         final_response, generated_total_tokens = self._generate_simple_mode(current_message)
 
                 total_tokens += generated_total_tokens
                 answers.append(final_response)
-                cache_context = self.processor.apply_chat_template(current_message, tokenize=False, add_generation_prompt=True)
+                cache_context = self.processor.apply_chat_template(
+                    current_message, tokenize=False, add_generation_prompt=True
+                )
                 cache_contexts.append(cache_context)
                 output_token_counts.append(generated_total_tokens)
             end_time = time.time()
@@ -374,7 +415,9 @@ class Thyme(Qwen2_5_VLSimple):
         pbar.close()
         return res
 
-    def _prepare_content_reasoning(self, inputs: list[dict[str, str | List]], user_image_path: str) -> list[dict[str, str | List]]:
+    def _prepare_content_reasoning(
+        self, inputs: list[dict[str, str | list]], user_image_path: str
+    ) -> list[dict[str, str | list]]:
         new_inputs = []
         new_inputs.append({"role": "system", "content": REASONING_SYS_PROMPT})
         for conv_round in inputs:
@@ -399,7 +442,7 @@ class Thyme(Qwen2_5_VLSimple):
             new_inputs.append({"role": "user", "content": content})
         return new_inputs
 
-    def _prepare_content_simple(self, inputs: list[dict[str, str | List]]) -> list[dict[str, str | List]]:
+    def _prepare_content_simple(self, inputs: list[dict[str, str | list]]) -> list[dict[str, str | list]]:
         new_inputs = []
         new_inputs.append({"role": "system", "content": SIMPLE_SYS_PROMPT})
         for conv_round in inputs:

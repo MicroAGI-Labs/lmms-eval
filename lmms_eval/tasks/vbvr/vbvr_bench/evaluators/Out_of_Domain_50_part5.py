@@ -2,12 +2,11 @@
 Specific evaluators for Out-of-Domain_50 tasks (Part 5).
 """
 
-from typing import Dict, List, Optional, Tuple
 
 import cv2
 import numpy as np
 
-from ..utils import compute_optical_flow, normalize_frame_size
+from ..utils import normalize_frame_size
 from .base_evaluator import BaseEvaluator
 
 
@@ -28,7 +27,14 @@ class ControlPanelEvaluator(BaseEvaluator):
 
     TASK_WEIGHTS = {"state_matching": 0.45, "smoothness": 0.25, "identification": 0.20, "preservation": 0.10}
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         if len(video_frames) < 2:
             return 0.0
 
@@ -43,7 +49,15 @@ class ControlPanelEvaluator(BaseEvaluator):
 
         # If final frame has very few controls or one huge region, structure is destroyed
         if final_controls < 2 or (first_controls > 2 and final_controls < first_controls // 2):
-            self._last_task_details = {"state_matching": 0.0, "smoothness": 0.3, "identification": 0.0, "preservation": 0.0, "structure_destroyed": True, "first_controls": first_controls, "final_controls": final_controls}
+            self._last_task_details = {
+                "state_matching": 0.0,
+                "smoothness": 0.3,
+                "identification": 0.0,
+                "preservation": 0.0,
+                "structure_destroyed": True,
+                "first_controls": first_controls,
+                "final_controls": final_controls,
+            }
             return 0.0
 
         scores["state_matching"] = self._evaluate_state_matching(first_frame, final_frame, gt_final_frame)
@@ -70,7 +84,7 @@ class ControlPanelEvaluator(BaseEvaluator):
 
         return sum(1 for cnt in contours if 100 < cv2.contourArea(cnt) < max_area)
 
-    def _detect_controls(self, frame: np.ndarray) -> Dict:
+    def _detect_controls(self, frame: np.ndarray) -> dict:
         """Detect control panel elements."""
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
@@ -135,7 +149,7 @@ class ControlPanelEvaluator(BaseEvaluator):
 
         return controls
 
-    def _evaluate_state_matching(self, first: np.ndarray, final: np.ndarray, gt_final: Optional[np.ndarray]) -> float:
+    def _evaluate_state_matching(self, first: np.ndarray, final: np.ndarray, gt_final: np.ndarray | None) -> float:
         """Check if all controls reach target state."""
         if gt_final is None:
             return 0.5
@@ -167,12 +181,14 @@ class ControlPanelEvaluator(BaseEvaluator):
 
         # Compare dial positions
         if gt_controls["dials"] and final_controls["dials"]:
-            dial_match = min(len(final_controls["dials"]), len(gt_controls["dials"])) / max(len(gt_controls["dials"]), 1)
+            dial_match = min(len(final_controls["dials"]), len(gt_controls["dials"])) / max(
+                len(gt_controls["dials"]), 1
+            )
             scores.append(dial_match)
 
         return np.mean(scores) if scores else 0.5
 
-    def _evaluate_smoothness(self, video_frames: List[np.ndarray]) -> float:
+    def _evaluate_smoothness(self, video_frames: list[np.ndarray]) -> float:
         """Check if transitions are smooth."""
         if len(video_frames) < 3:
             return 0.5
@@ -238,9 +254,21 @@ class RavenMatrixEvaluator(BaseEvaluator):
     - Grid structure preserved (5%): 3x3 grid structure maintained
     """
 
-    TASK_WEIGHTS = {"preservation": 0.40, "answer_correct": 0.40, "answer_has_content": 0.15, "grid_structure": 0.05}  # CRITICAL: other 8 cells unchanged  # Answer cell matches GT  # Answer cell is not empty
+    TASK_WEIGHTS = {
+        "preservation": 0.40,
+        "answer_correct": 0.40,
+        "answer_has_content": 0.15,
+        "grid_structure": 0.05,
+    }  # CRITICAL: other 8 cells unchanged  # Answer cell matches GT  # Answer cell is not empty
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         if len(video_frames) < 2:
             return 0.0
 
@@ -264,7 +292,9 @@ class RavenMatrixEvaluator(BaseEvaluator):
         scores["final_cell_counts"] = [c["count"] for c in final_cell_info]
 
         # 1. CRITICAL: Check if other 8 cells are preserved (40%)
-        preservation_score = self._evaluate_other_cells_preserved(first_frame, final_frame, first_cell_info, final_cell_info)
+        preservation_score = self._evaluate_other_cells_preserved(
+            first_frame, final_frame, first_cell_info, final_cell_info
+        )
         scores["preservation"] = preservation_score
 
         # If preservation is too low, other scores are less meaningful
@@ -291,7 +321,7 @@ class RavenMatrixEvaluator(BaseEvaluator):
         self._last_task_details = scores
         return sum(scores.get(k, 0) * self.TASK_WEIGHTS[k] for k in self.TASK_WEIGHTS if k in scores)
 
-    def _analyze_all_cells(self, frame: np.ndarray) -> List[Dict]:
+    def _analyze_all_cells(self, frame: np.ndarray) -> list[dict]:
         """Analyze shapes in all 9 cells."""
         cells = []
         for row in range(3):
@@ -303,7 +333,9 @@ class RavenMatrixEvaluator(BaseEvaluator):
                 cells.append(props)
         return cells
 
-    def _evaluate_other_cells_preserved(self, first_frame: np.ndarray, final_frame: np.ndarray, first_info: List[Dict], final_info: List[Dict]) -> float:
+    def _evaluate_other_cells_preserved(
+        self, first_frame: np.ndarray, final_frame: np.ndarray, first_info: list[dict], final_info: list[dict]
+    ) -> float:
         """CRITICAL: Check that all 8 cells except bottom-right are unchanged."""
         unchanged_count = 0
         total_checked = 0
@@ -401,7 +433,7 @@ class RavenMatrixEvaluator(BaseEvaluator):
         cell_h, cell_w = h // 3, w // 3
         return frame[row * cell_h : (row + 1) * cell_h, col * cell_w : (col + 1) * cell_w]
 
-    def _detect_shapes_in_cell(self, cell: np.ndarray) -> Dict:
+    def _detect_shapes_in_cell(self, cell: np.ndarray) -> dict:
         """Detect shapes in a cell and return properties."""
         gray = cv2.cvtColor(cell, cv2.COLOR_BGR2GRAY)
         _, thresh = cv2.threshold(gray, 200, 255, cv2.THRESH_BINARY_INV)
@@ -449,7 +481,12 @@ class RavenMatrixEvaluator(BaseEvaluator):
 
             shapes.append({"type": shape_type, "area": area, "vertices": vertices, "filled": is_filled})
 
-        return {"count": len(shapes), "shapes": shapes, "types": [s["type"] for s in shapes], "filled": [s["filled"] for s in shapes]}
+        return {
+            "count": len(shapes),
+            "shapes": shapes,
+            "types": [s["type"] for s in shapes],
+            "filled": [s["filled"] for s in shapes],
+        }
 
 
 class SymbolDeleteEvaluator(BaseEvaluator):
@@ -463,9 +500,21 @@ class SymbolDeleteEvaluator(BaseEvaluator):
     - Symbol fidelity (10%): Remaining symbols unchanged
     """
 
-    TASK_WEIGHTS = {"deletion_accuracy": 0.40, "reorganization": 0.30, "order_preservation": 0.20, "symbol_fidelity": 0.10}
+    TASK_WEIGHTS = {
+        "deletion_accuracy": 0.40,
+        "reorganization": 0.30,
+        "order_preservation": 0.20,
+        "symbol_fidelity": 0.10,
+    }
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         if len(video_frames) < 2:
             return 0.0
 
@@ -481,7 +530,7 @@ class SymbolDeleteEvaluator(BaseEvaluator):
         self._last_task_details = scores
         return sum(scores[k] * self.TASK_WEIGHTS[k] for k in self.TASK_WEIGHTS)
 
-    def _detect_symbols(self, frame: np.ndarray) -> List[Dict]:
+    def _detect_symbols(self, frame: np.ndarray) -> list[dict]:
         """Detect colored symbols in the frame."""
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
@@ -516,7 +565,7 @@ class SymbolDeleteEvaluator(BaseEvaluator):
         symbols.sort(key=lambda s: s["center"][0])
         return symbols
 
-    def _evaluate_deletion(self, first: np.ndarray, final: np.ndarray, gt_final: Optional[np.ndarray]) -> float:
+    def _evaluate_deletion(self, first: np.ndarray, final: np.ndarray, gt_final: np.ndarray | None) -> float:
         """Check if correct symbol is deleted."""
         first_symbols = self._detect_symbols(first)
         final_symbols = self._detect_symbols(final)
@@ -617,9 +666,21 @@ class SymbolInsertEvaluator(BaseEvaluator):
     - Layout accuracy (5%): Centered, even spacing
     """
 
-    TASK_WEIGHTS = {"position_accuracy": 0.40, "symbol_identification": 0.30, "sequence_adjustment": 0.25, "layout_accuracy": 0.05}
+    TASK_WEIGHTS = {
+        "position_accuracy": 0.40,
+        "symbol_identification": 0.30,
+        "sequence_adjustment": 0.25,
+        "layout_accuracy": 0.05,
+    }
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         if len(video_frames) < 2:
             return 0.0
 
@@ -635,7 +696,7 @@ class SymbolInsertEvaluator(BaseEvaluator):
         self._last_task_details = scores
         return sum(scores[k] * self.TASK_WEIGHTS[k] for k in self.TASK_WEIGHTS)
 
-    def _detect_symbols(self, frame: np.ndarray) -> List[Dict]:
+    def _detect_symbols(self, frame: np.ndarray) -> list[dict]:
         """Detect colored symbols in the frame."""
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
         mask = cv2.inRange(hsv, np.array([0, 30, 30]), np.array([180, 255, 255]))
@@ -666,7 +727,7 @@ class SymbolInsertEvaluator(BaseEvaluator):
         symbols.sort(key=lambda s: s["center"][0])
         return symbols
 
-    def _evaluate_position(self, first: np.ndarray, final: np.ndarray, gt_final: Optional[np.ndarray]) -> float:
+    def _evaluate_position(self, first: np.ndarray, final: np.ndarray, gt_final: np.ndarray | None) -> float:
         """Check if insert position is correct."""
         first_symbols = self._detect_symbols(first)
         final_symbols = self._detect_symbols(final)
@@ -684,7 +745,7 @@ class SymbolInsertEvaluator(BaseEvaluator):
 
         return score
 
-    def _evaluate_symbol(self, first: np.ndarray, final: np.ndarray, gt_final: Optional[np.ndarray]) -> float:
+    def _evaluate_symbol(self, first: np.ndarray, final: np.ndarray, gt_final: np.ndarray | None) -> float:
         """Check if correct symbol is inserted."""
         first_symbols = self._detect_symbols(first)
         final_symbols = self._detect_symbols(final)
@@ -751,9 +812,21 @@ class SymbolSubstituteEvaluator(BaseEvaluator):
     - Animation quality (5%): Smooth cross-fade
     """
 
-    TASK_WEIGHTS = {"count_preservation": 0.40, "symbol_preservation": 0.35, "substitution_occurred": 0.20, "animation_quality": 0.05}
+    TASK_WEIGHTS = {
+        "count_preservation": 0.40,
+        "symbol_preservation": 0.35,
+        "substitution_occurred": 0.20,
+        "animation_quality": 0.05,
+    }
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         if len(video_frames) < 2:
             return 0.0
 
@@ -769,7 +842,15 @@ class SymbolSubstituteEvaluator(BaseEvaluator):
 
         # CRITICAL CHECK 1: Symbol count must remain the same
         if final_count != first_count:
-            self._last_task_details = {"count_preservation": 0.0, "symbol_preservation": 0.0, "substitution_occurred": 0.0, "animation_quality": 0.0, "count_mismatch": True, "first_count": first_count, "final_count": final_count}
+            self._last_task_details = {
+                "count_preservation": 0.0,
+                "symbol_preservation": 0.0,
+                "substitution_occurred": 0.0,
+                "animation_quality": 0.0,
+                "count_mismatch": True,
+                "first_count": first_count,
+                "final_count": final_count,
+            }
             return 0.0
 
         scores["count_preservation"] = 1.0
@@ -793,7 +874,7 @@ class SymbolSubstituteEvaluator(BaseEvaluator):
         self._last_task_details["changed_count"] = changed_count
         return sum(scores[k] * self.TASK_WEIGHTS[k] for k in self.TASK_WEIGHTS)
 
-    def _detect_symbols(self, frame: np.ndarray) -> List[Dict]:
+    def _detect_symbols(self, frame: np.ndarray) -> list[dict]:
         """Detect colored symbols in the frame."""
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
         mask = cv2.inRange(hsv, np.array([0, 30, 30]), np.array([180, 255, 255]))
@@ -821,12 +902,20 @@ class SymbolSubstituteEvaluator(BaseEvaluator):
             color_arr = np.array(mean_color, dtype=np.uint8).reshape(1, 1, 3)
             hsv_c = cv2.cvtColor(color_arr, cv2.COLOR_BGR2HSV)[0, 0]
 
-            symbols.append({"center": (cx, cy), "area": area, "color": mean_color, "hue": int(hsv_c[0]), "saturation": int(hsv_c[1])})
+            symbols.append(
+                {
+                    "center": (cx, cy),
+                    "area": area,
+                    "color": mean_color,
+                    "hue": int(hsv_c[0]),
+                    "saturation": int(hsv_c[1]),
+                }
+            )
 
         symbols.sort(key=lambda s: s["center"][0])
         return symbols
 
-    def _evaluate_symbol_changes(self, first_symbols: List[Dict], final_symbols: List[Dict]) -> Tuple[int, float]:
+    def _evaluate_symbol_changes(self, first_symbols: list[dict], final_symbols: list[dict]) -> tuple[int, float]:
         """Count how many symbols changed color and calculate preservation score."""
         if len(first_symbols) != len(final_symbols):
             return len(first_symbols), 0.0
@@ -861,7 +950,7 @@ class SymbolSubstituteEvaluator(BaseEvaluator):
 
         return changed_count, preservation_score
 
-    def _evaluate_animation(self, video_frames: List[np.ndarray]) -> float:
+    def _evaluate_animation(self, video_frames: list[np.ndarray]) -> float:
         """Check if cross-fade animation is smooth."""
         if len(video_frames) < 3:
             return 0.5
@@ -889,9 +978,21 @@ class SymbolEditConstraintEvaluator(BaseEvaluator):
     - Layout accuracy (5%): Proper spacing
     """
 
-    TASK_WEIGHTS = {"original_preservation": 0.45, "insertion_occurred": 0.35, "count_correctness": 0.15, "layout_accuracy": 0.05}
+    TASK_WEIGHTS = {
+        "original_preservation": 0.45,
+        "insertion_occurred": 0.35,
+        "count_correctness": 0.15,
+        "layout_accuracy": 0.05,
+    }
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         if len(video_frames) < 2:
             return 0.0
 
@@ -916,7 +1017,15 @@ class SymbolEditConstraintEvaluator(BaseEvaluator):
 
         # CRITICAL CHECK 1: Symbols must be inserted (not deleted)
         if final_count <= first_count:
-            self._last_task_details = {"original_preservation": 0.0, "insertion_occurred": 0.0, "count_correctness": 0.0, "layout_accuracy": 0.0, "no_insertion": True, "first_count": first_count, "final_count": final_count}
+            self._last_task_details = {
+                "original_preservation": 0.0,
+                "insertion_occurred": 0.0,
+                "count_correctness": 0.0,
+                "layout_accuracy": 0.0,
+                "no_insertion": True,
+                "first_count": first_count,
+                "final_count": final_count,
+            }
             return 0.0
 
         # CRITICAL CHECK 2: All original symbols must be preserved
@@ -924,7 +1033,13 @@ class SymbolEditConstraintEvaluator(BaseEvaluator):
 
         # If original symbols are not preserved, heavily penalize
         if scores["original_preservation"] < 0.5:
-            self._last_task_details = {"original_preservation": scores["original_preservation"], "insertion_occurred": 0.0, "count_correctness": 0.0, "layout_accuracy": 0.0, "originals_changed": True}
+            self._last_task_details = {
+                "original_preservation": scores["original_preservation"],
+                "insertion_occurred": 0.0,
+                "count_correctness": 0.0,
+                "layout_accuracy": 0.0,
+                "originals_changed": True,
+            }
             return scores["original_preservation"] * self.TASK_WEIGHTS["original_preservation"]
 
         # Check if correct number of symbols were inserted
@@ -963,7 +1078,7 @@ class SymbolEditConstraintEvaluator(BaseEvaluator):
         self._last_task_details["expected_count"] = expected_count
         return sum(scores[k] * self.TASK_WEIGHTS[k] for k in self.TASK_WEIGHTS)
 
-    def _detect_symbols(self, frame: np.ndarray) -> List[Dict]:
+    def _detect_symbols(self, frame: np.ndarray) -> list[dict]:
         """Detect colored symbols in the frame."""
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
         mask = cv2.inRange(hsv, np.array([0, 30, 30]), np.array([180, 255, 255]))
@@ -991,12 +1106,20 @@ class SymbolEditConstraintEvaluator(BaseEvaluator):
             color_arr = np.array(mean_color, dtype=np.uint8).reshape(1, 1, 3)
             hsv_c = cv2.cvtColor(color_arr, cv2.COLOR_BGR2HSV)[0, 0]
 
-            symbols.append({"center": (cx, cy), "area": area, "color": mean_color, "hue": int(hsv_c[0]), "saturation": int(hsv_c[1])})
+            symbols.append(
+                {
+                    "center": (cx, cy),
+                    "area": area,
+                    "color": mean_color,
+                    "hue": int(hsv_c[0]),
+                    "saturation": int(hsv_c[1]),
+                }
+            )
 
         symbols.sort(key=lambda s: s["center"][0])
         return symbols
 
-    def _evaluate_original_preservation(self, first_symbols: List[Dict], final_symbols: List[Dict]) -> float:
+    def _evaluate_original_preservation(self, first_symbols: list[dict], final_symbols: list[dict]) -> float:
         """Check if all original symbols are preserved."""
         if len(first_symbols) == 0:
             return 1.0
@@ -1032,7 +1155,7 @@ class SymbolEditConstraintEvaluator(BaseEvaluator):
 
         return preserved / len(first_symbols)
 
-    def _evaluate_layout(self, final_symbols: List[Dict]) -> float:
+    def _evaluate_layout(self, final_symbols: list[dict]) -> float:
         """Check layout spacing."""
         if len(final_symbols) < 2:
             return 0.5
@@ -1047,7 +1170,7 @@ class SymbolEditConstraintEvaluator(BaseEvaluator):
             return 0.7
         return 0.2
 
-    def _find_target_symbol_hue(self, first_symbols: List[Dict], gt_final_symbols: List[Dict]) -> Optional[int]:
+    def _find_target_symbol_hue(self, first_symbols: list[dict], gt_final_symbols: list[dict]) -> int | None:
         """Find the hue of the target symbol (the one that was duplicated)."""
         # Count hues in first and GT final
         first_hues = {}
@@ -1071,7 +1194,7 @@ class SymbolEditConstraintEvaluator(BaseEvaluator):
 
         return target_hue
 
-    def _check_new_symbols_type(self, first_symbols: List[Dict], final_symbols: List[Dict], target_hue: int) -> float:
+    def _check_new_symbols_type(self, first_symbols: list[dict], final_symbols: list[dict], target_hue: int) -> float:
         """Check if new symbols match the target type."""
         # Find symbols in final that are not in first (new symbols)
         first_positions = set()
@@ -1111,9 +1234,21 @@ class GravityPhysicsEvaluator(BaseEvaluator):
     - Visual preservation (5%): Scene elements unchanged
     """
 
-    TASK_WEIGHTS = {"physics_accuracy": 0.50, "final_position": 0.30, "motion_quality": 0.15, "visual_preservation": 0.05}
+    TASK_WEIGHTS = {
+        "physics_accuracy": 0.50,
+        "final_position": 0.30,
+        "motion_quality": 0.15,
+        "visual_preservation": 0.05,
+    }
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         if len(video_frames) < 2:
             return 0.0
 
@@ -1129,7 +1264,7 @@ class GravityPhysicsEvaluator(BaseEvaluator):
         self._last_task_details = scores
         return sum(scores[k] * self.TASK_WEIGHTS[k] for k in self.TASK_WEIGHTS)
 
-    def _detect_ball(self, frame: np.ndarray) -> Optional[Tuple[int, int]]:
+    def _detect_ball(self, frame: np.ndarray) -> tuple[int, int] | None:
         """Detect red ball position."""
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
         lower_red1 = np.array([0, 100, 100])
@@ -1146,7 +1281,7 @@ class GravityPhysicsEvaluator(BaseEvaluator):
             return (cx, cy)
         return None
 
-    def _evaluate_physics(self, video_frames: List[np.ndarray]) -> float:
+    def _evaluate_physics(self, video_frames: list[np.ndarray]) -> float:
         """Check if physics simulation is accurate."""
         # Track ball positions through video
         positions = []
@@ -1176,7 +1311,7 @@ class GravityPhysicsEvaluator(BaseEvaluator):
 
         return 0.5
 
-    def _evaluate_position(self, final: np.ndarray, gt_final: Optional[np.ndarray]) -> float:
+    def _evaluate_position(self, final: np.ndarray, gt_final: np.ndarray | None) -> float:
         """Check if ball is at correct final position."""
         final_pos = self._detect_ball(final)
 
@@ -1211,7 +1346,7 @@ class GravityPhysicsEvaluator(BaseEvaluator):
 
         return 0.5
 
-    def _evaluate_motion(self, video_frames: List[np.ndarray]) -> float:
+    def _evaluate_motion(self, video_frames: list[np.ndarray]) -> float:
         """Check if motion is smooth with acceleration."""
         if len(video_frames) < 5:
             return 0.5
@@ -1271,7 +1406,14 @@ class AnimalMatchingEvaluator(BaseEvaluator):
 
     TASK_WEIGHTS = {"identification": 0.30, "matching": 0.35, "alignment": 0.25, "appearance": 0.10}
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         if len(video_frames) < 2:
             return 0.0
 
@@ -1287,7 +1429,7 @@ class AnimalMatchingEvaluator(BaseEvaluator):
         self._last_task_details = scores
         return sum(scores[k] * self.TASK_WEIGHTS[k] for k in self.TASK_WEIGHTS)
 
-    def _detect_colored_animals(self, frame: np.ndarray) -> List[Dict]:
+    def _detect_colored_animals(self, frame: np.ndarray) -> list[dict]:
         """Detect colored animal faces."""
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
         animals = []
@@ -1331,7 +1473,7 @@ class AnimalMatchingEvaluator(BaseEvaluator):
             return 0.7
         return 0.3
 
-    def _evaluate_matching(self, first: np.ndarray, final: np.ndarray, gt_final: Optional[np.ndarray]) -> float:
+    def _evaluate_matching(self, first: np.ndarray, final: np.ndarray, gt_final: np.ndarray | None) -> float:
         """Check if animals are matched to correct outlines."""
         first_animals = self._detect_colored_animals(first)
         final_animals = self._detect_colored_animals(final)
@@ -1353,7 +1495,7 @@ class AnimalMatchingEvaluator(BaseEvaluator):
 
         return 0.5
 
-    def _evaluate_alignment(self, final: np.ndarray, gt_final: Optional[np.ndarray]) -> float:
+    def _evaluate_alignment(self, final: np.ndarray, gt_final: np.ndarray | None) -> float:
         """Check if animals are aligned with outlines."""
         final_animals = self._detect_colored_animals(final)
 
@@ -1367,7 +1509,9 @@ class AnimalMatchingEvaluator(BaseEvaluator):
                 for fa in final_animals:
                     min_dist = float("inf")
                     for ga in gt_animals:
-                        dist = np.sqrt((fa["center"][0] - ga["center"][0]) ** 2 + (fa["center"][1] - ga["center"][1]) ** 2)
+                        dist = np.sqrt(
+                            (fa["center"][0] - ga["center"][0]) ** 2 + (fa["center"][1] - ga["center"][1]) ** 2
+                        )
                         min_dist = min(min_dist, dist)
                     if min_dist < float("inf"):
                         total_dist += min_dist
@@ -1416,7 +1560,14 @@ class AnimalSizeSortingEvaluator(BaseEvaluator):
 
     TASK_WEIGHTS = {"sorting": 0.40, "alignment": 0.30, "fidelity": 0.20, "completeness": 0.10}
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         if len(video_frames) < 2:
             return 0.0
 
@@ -1432,7 +1583,7 @@ class AnimalSizeSortingEvaluator(BaseEvaluator):
         self._last_task_details = scores
         return sum(scores[k] * self.TASK_WEIGHTS[k] for k in self.TASK_WEIGHTS)
 
-    def _detect_animals(self, frame: np.ndarray) -> List[Dict]:
+    def _detect_animals(self, frame: np.ndarray) -> list[dict]:
         """Detect animal figures by color and size."""
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
@@ -1550,7 +1701,14 @@ class ObjectRotation2DEvaluator(BaseEvaluator):
 
     TASK_WEIGHTS = {"angle_accuracy": 0.40, "direction": 0.30, "center": 0.20, "fidelity": 0.10}
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         if len(video_frames) < 2:
             return 0.0
 
@@ -1566,7 +1724,7 @@ class ObjectRotation2DEvaluator(BaseEvaluator):
         self._last_task_details = scores
         return sum(scores[k] * self.TASK_WEIGHTS[k] for k in self.TASK_WEIGHTS)
 
-    def _detect_objects(self, frame: np.ndarray) -> List[Dict]:
+    def _detect_objects(self, frame: np.ndarray) -> list[dict]:
         """Detect colored objects and their orientations."""
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
@@ -1604,11 +1762,20 @@ class ObjectRotation2DEvaluator(BaseEvaluator):
             else:
                 color = (0, 0, 0)
 
-            objects.append({"center": (cx, cy), "area": area, "angle": np.degrees(angle), "rect_angle": rect_angle, "color": color, "bbox": (x, y, w, h)})
+            objects.append(
+                {
+                    "center": (cx, cy),
+                    "area": area,
+                    "angle": np.degrees(angle),
+                    "rect_angle": rect_angle,
+                    "color": color,
+                    "bbox": (x, y, w, h),
+                }
+            )
 
         return objects
 
-    def _evaluate_angle(self, first: np.ndarray, final: np.ndarray, gt_final: Optional[np.ndarray]) -> float:
+    def _evaluate_angle(self, first: np.ndarray, final: np.ndarray, gt_final: np.ndarray | None) -> float:
         """Check if rotation angle is correct."""
         first_objects = self._detect_objects(first)
         final_objects = self._detect_objects(final)
@@ -1660,7 +1827,7 @@ class ObjectRotation2DEvaluator(BaseEvaluator):
 
         return 0.0  # STRICT: No clear rotation detected
 
-    def _evaluate_direction(self, video_frames: List[np.ndarray]) -> float:
+    def _evaluate_direction(self, video_frames: list[np.ndarray]) -> float:
         """Check if rotation direction is correct."""
         if len(video_frames) < 5:
             return 0.0  # STRICT: Not enough frames
@@ -1711,7 +1878,9 @@ class ObjectRotation2DEvaluator(BaseEvaluator):
             for ffo in first_objects:
                 color_dist = np.sqrt(sum((a - b) ** 2 for a, b in zip(fo["color"], ffo["color"])))
                 if color_dist < 50:
-                    center_drift = np.sqrt((fo["center"][0] - ffo["center"][0]) ** 2 + (fo["center"][1] - ffo["center"][1]) ** 2)
+                    center_drift = np.sqrt(
+                        (fo["center"][0] - ffo["center"][0]) ** 2 + (fo["center"][1] - ffo["center"][1]) ** 2
+                    )
                     center_drifts.append(center_drift)
 
         if center_drifts:

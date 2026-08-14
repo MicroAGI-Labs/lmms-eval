@@ -1,5 +1,4 @@
 from numbers import Number
-from typing import Dict
 
 import numpy as np
 
@@ -8,7 +7,7 @@ class MeanAggregation:
     """Take the mean of all valid scores."""
 
     @staticmethod
-    def aggregate(scores: Dict[str, Number], weights: Dict[str, Number]) -> Number:
+    def aggregate(scores: dict[str, Number], weights: dict[str, Number]) -> Number:
         """Exact match between targets and responses."""
         filtered_scores = {f: s for f, s in scores.items() if s >= 0}
         if not filtered_scores:

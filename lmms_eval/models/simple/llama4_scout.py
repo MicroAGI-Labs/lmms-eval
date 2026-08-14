@@ -1,4 +1,3 @@
-from typing import List, Optional, Tuple, Union
 
 import numpy as np
 import PIL
@@ -6,23 +5,25 @@ import torch
 from accelerate import Accelerator, DistributedType
 from accelerate.state import AcceleratorState
 from decord import VideoReader, cpu
+from lmms_eval import utils
+from lmms_eval.api.instance import Instance
+from lmms_eval.api.model import lmms
+from lmms_eval.api.registry import register_model
+from lmms_eval.models.model_utils.media_encoder import encode_image_to_data_url
 from loguru import logger as eval_logger
 from PIL import Image
 from torchvision.transforms.functional import to_pil_image
 from tqdm import tqdm
 from transformers import AutoProcessor
 
-from lmms_eval import utils
-from lmms_eval.api.instance import Instance
-from lmms_eval.api.model import lmms
-from lmms_eval.api.registry import register_model
-from lmms_eval.models.model_utils.media_encoder import encode_image_to_data_url
-
 try:
     from transformers import Llama4ForConditionalGeneration
 except ImportError:
     Llama4ForConditionalGeneration = None
-    eval_logger.warning("Failed to import Llama4ForConditionalGeneration. " "Please install transformers>=4.51.0: pip install transformers>=4.51.0")
+    eval_logger.warning(
+        "Failed to import Llama4ForConditionalGeneration. "
+        "Please install transformers>=4.51.0: pip install transformers>=4.51.0"
+    )
 
 
 @register_model("llama4_scout")
@@ -45,13 +46,13 @@ class Llama4Scout(lmms):
     def __init__(
         self,
         pretrained: str = "meta-llama/Llama-4-Scout-17B-16E-Instruct",
-        device: Optional[str] = "cuda",
-        device_map: Optional[str] = "auto",
-        batch_size: Optional[Union[int, str]] = 1,
+        device: str | None = "cuda",
+        device_map: str | None = "auto",
+        batch_size: int | str | None = 1,
         use_cache: bool = True,
-        attn_implementation: Optional[str] = None,
+        attn_implementation: str | None = None,
         max_new_tokens: int = 4096,
-        system_prompt: Optional[str] = None,
+        system_prompt: str | None = None,
         max_frames_num: int = 32,
         **kwargs,
     ) -> None:
@@ -59,12 +60,17 @@ class Llama4Scout(lmms):
         assert kwargs == {}, f"Unexpected kwargs: {kwargs}"
 
         if Llama4ForConditionalGeneration is None:
-            raise ImportError("Llama4ForConditionalGeneration not available. " "Please install transformers>=4.51.0: pip install transformers>=4.51.0")
+            raise ImportError(
+                "Llama4ForConditionalGeneration not available. "
+                "Please install transformers>=4.51.0: pip install transformers>=4.51.0"
+            )
 
         # Validate attention implementation
         valid_attn_implementations = [None, "flex_attention", "sdpa", "eager"]
         if attn_implementation not in valid_attn_implementations:
-            raise ValueError(f"attn_implementation must be one of {valid_attn_implementations}, got {attn_implementation}")
+            raise ValueError(
+                f"attn_implementation must be one of {valid_attn_implementations}, got {attn_implementation}"
+            )
 
         accelerator = Accelerator()
         self.accelerator = accelerator
@@ -123,8 +129,13 @@ class Llama4Scout(lmms):
                     "train_batch_size": self.batch_size_per_gpu * accelerator.num_processes,
                 }
                 AcceleratorState().deepspeed_plugin.deepspeed_config_process(must_match=True, **kwargs)
-                eval_logger.info("Detected DistributedType.DEEPSPEED. Make sure you run `accelerate config` and set zero stage to 0")
-            if accelerator.distributed_type == DistributedType.FSDP or accelerator.distributed_type == DistributedType.DEEPSPEED:
+                eval_logger.info(
+                    "Detected DistributedType.DEEPSPEED. Make sure you run `accelerate config` and set zero stage to 0"
+                )
+            if (
+                accelerator.distributed_type == DistributedType.FSDP
+                or accelerator.distributed_type == DistributedType.DEEPSPEED
+            ):
                 self._model = accelerator.prepare(self.model)
             else:
                 self._model = accelerator.prepare_model(self.model, evaluation_mode=True)
@@ -176,7 +187,7 @@ class Llama4Scout(lmms):
     def world_size(self):
         return self._world_size
 
-    def loglikelihood(self, requests: List[Instance]) -> List[Tuple[float, bool]]:
+    def loglikelihood(self, requests: list[Instance]) -> list[tuple[float, bool]]:
         raise NotImplementedError("Loglikelihood is not implemented for Llama4Scout")
 
     def flatten(self, input):
@@ -207,7 +218,7 @@ class Llama4Scout(lmms):
             quality=85,
         )
 
-    def generate_until(self, requests: List[Instance]) -> List[str]:
+    def generate_until(self, requests: list[Instance]) -> list[str]:
         res = []
 
         def _collate(x):
@@ -229,7 +240,9 @@ class Llama4Scout(lmms):
             if isinstance(until, str):
                 until = [until]
             elif not isinstance(until, list):
-                raise ValueError(f"Expected `gen_kwargs['until']` to be of type Union[str, list], but got {type(until)}")
+                raise ValueError(
+                    f"Expected `gen_kwargs['until']` to be of type Union[str, list], but got {type(until)}"
+                )
 
             if isinstance(contexts, tuple):
                 contexts = list(contexts)
@@ -353,5 +366,5 @@ class Llama4Scout(lmms):
         pbar.close()
         return res
 
-    def generate_until_multi_round(self, requests: List[Instance]) -> List[str]:
+    def generate_until_multi_round(self, requests: list[Instance]) -> list[str]:
         raise NotImplementedError("Multi-round generation is not implemented for Llama4Scout")

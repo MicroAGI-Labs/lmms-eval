@@ -1,8 +1,4 @@
 import time
-from typing import List
-
-from loguru import logger as eval_logger
-from tqdm import tqdm
 
 from lmms_eval import utils
 from lmms_eval.api.instance import GenerationResult, Instance, TokenCounts
@@ -11,6 +7,8 @@ from lmms_eval.imports import optional_import
 from lmms_eval.models.model_utils.gen_metrics import log_metrics
 from lmms_eval.models.simple.qwen3_vl import Qwen3_VL as Qwen3_VLSimple
 from lmms_eval.protocol import ChatMessages
+from loguru import logger as eval_logger
+from tqdm import tqdm
 
 process_vision_info, _has_qwen_vl = optional_import("qwen_vl_utils", "process_vision_info")
 if not _has_qwen_vl:
@@ -21,7 +19,7 @@ if not _has_qwen_vl:
 class Qwen3_VL(Qwen3_VLSimple):
     is_simple = False
 
-    def generate_until(self, requests: List[Instance]) -> List[GenerationResult]:
+    def generate_until(self, requests: list[Instance]) -> list[GenerationResult]:
         res = []
 
         def _collate(x):
@@ -34,7 +32,11 @@ class Qwen3_VL(Qwen3_VLSimple):
             grouping=True,
         )
         chunks = re_ords.get_batched(n=self.batch_size, batch_fn=None)
-        num_iters = len(requests) // self.batch_size if len(requests) % self.batch_size == 0 else len(requests) // self.batch_size + 1
+        num_iters = (
+            len(requests) // self.batch_size
+            if len(requests) % self.batch_size == 0
+            else len(requests) // self.batch_size + 1
+        )
         pbar = tqdm(total=num_iters, disable=(self.rank != 0), desc="Model Responding")
         total_elapsed_time = 0
         total_tokens = 0
@@ -42,7 +44,7 @@ class Qwen3_VL(Qwen3_VLSimple):
         for chunk in chunks:
             ctx, doc_to_messages, all_gen_kwargs, doc_id, task, split = zip(*chunk)
 
-            chat_messages: List[ChatMessages] = []
+            chat_messages: list[ChatMessages] = []
             visuals = []
             videos = []
             for idx, (ids, task_name, split_name) in enumerate(zip(doc_id, task, split)):
@@ -59,7 +61,9 @@ class Qwen3_VL(Qwen3_VLSimple):
             gen_kwargs = all_gen_kwargs[0]
 
             video_kwargs = self._build_video_kwargs()
-            batched_messages = [chat_message.to_hf_messages(video_kwargs=video_kwargs) for chat_message in chat_messages]
+            batched_messages = [
+                chat_message.to_hf_messages(video_kwargs=video_kwargs) for chat_message in chat_messages
+            ]
 
             texts = self._apply_chat_template(batched_messages)
 
@@ -122,7 +126,9 @@ class Qwen3_VL(Qwen3_VLSimple):
 
             for i, (ans, context) in enumerate(zip(answers, texts)):
                 ans = self._strip_thinking(ans)
-                res.append(GenerationResult(text=ans, token_counts=TokenCounts(output_tokens=len(generated_ids_trimmed[i]))))
+                res.append(
+                    GenerationResult(text=ans, token_counts=TokenCounts(output_tokens=len(generated_ids_trimmed[i])))
+                )
                 self.cache_hook.add_partial("generate_until", (context, gen_kwargs), ans)
 
                 eval_logger.debug(f"Question: {context}")

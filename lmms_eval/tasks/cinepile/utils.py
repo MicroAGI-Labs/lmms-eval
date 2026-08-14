@@ -13,7 +13,7 @@ base_cache_dir = os.path.expanduser(hf_home)
 
 
 def cinepile_doc_to_visual(doc):
-    with open(Path(__file__).parent / "cinepile.yaml", "r") as f:
+    with open(Path(__file__).parent / "cinepile.yaml") as f:
         raw_data = f.readlines()
         safe_data = []
         for i, line in enumerate(raw_data):
@@ -103,7 +103,11 @@ def evaluate_semantic_similarity(response, answer_key_number, answer_key_text, n
         if answer_key_number == student_response_number:
             if answer_key_text and student_response_text:
                 # If both strings have option texts, they must match as well
-                return (1, student_response_number, student_response_text) if answer_key_text.lower() == student_response_text.lower() else (0, student_response_number, student_response_text)
+                return (
+                    (1, student_response_number, student_response_text)
+                    if answer_key_text.lower() == student_response_text.lower()
+                    else (0, student_response_number, student_response_text)
+                )
             # If only option numbers are provided or one string lacks option text, it's a match
             return (1, student_response_number, student_response_text)
     elif answer_key_text.lower() == student_response_text.lower():
@@ -148,7 +152,13 @@ def cinepile_process_results(doc, results):
     return {"cinepile_accuracy": data_dict}
 
 
-CATEGORIES = ["Character and\nRelationship Dynamics", "Narrative and\nPlot Analysis", "Setting and\nTechnical Analysis", "Temporal", "Theme Exploration"]
+CATEGORIES = [
+    "Character and\nRelationship Dynamics",
+    "Narrative and\nPlot Analysis",
+    "Setting and\nTechnical Analysis",
+    "Temporal",
+    "Theme Exploration",
+]
 HARD_SPLIT = ["True", "False"]
 
 

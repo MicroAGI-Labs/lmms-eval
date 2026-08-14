@@ -8,11 +8,10 @@ from pathlib import Path
 import torch
 import yaml
 from decord import VideoReader, cpu
-from loguru import logger as eval_logger
-from PIL import Image
-
 from lmms_eval import utils as lmms_utils
 from lmms_eval.tasks._task_utils.file_utils import generate_submission_file
+from loguru import logger as eval_logger
+from PIL import Image
 
 
 def timestamp_to_seconds(timestamp):
@@ -24,7 +23,6 @@ def timestamp_to_seconds(timestamp):
 
 
 def load_video(video_file, duration, max_num_frames=16):
-
     vr = VideoReader(video_file, ctx=cpu(0), num_threads=1)
     fps = vr.get_avg_fps()
     total_valid_frames = int(duration * fps)
@@ -108,7 +106,7 @@ def insert_subtitles_into_frames(frame_timestamps, subtitles, starting_timestamp
 
 
 def _load_task_config(task_yaml_name):
-    with open(Path(__file__).parent / task_yaml_name, "r") as f:
+    with open(Path(__file__).parent / task_yaml_name) as f:
         raw_data = f.readlines()
         safe_data = []
         for line in raw_data:
@@ -134,7 +132,11 @@ def longvideobench_doc_to_text(doc, lmms_eval_specific_kwargs):
         if candidate != "N/A":
             candidates.append(candidate)
 
-    question = doc["question"] + "\n" + "\n".join([". ".join([chr(ord("A") + i), candidate]) for i, candidate in enumerate(candidates)])
+    question = (
+        doc["question"]
+        + "\n"
+        + "\n".join([". ".join([chr(ord("A") + i), candidate]) for i, candidate in enumerate(candidates)])
+    )
     pre_prompt = lmms_eval_specific_kwargs["pre_prompt"]
     post_prompt = lmms_eval_specific_kwargs["post_prompt"]
 
@@ -146,7 +148,9 @@ def longvideobench_doc_to_text(doc, lmms_eval_specific_kwargs):
         max_num_frames = dataset_kwargs.get("max_num_frames", 16)
 
         frame_timestamps = compute_frame_timestamps(doc["duration"], max_num_frames)
-        interleaved_prefix = insert_subtitles_into_frames(frame_timestamps, subtitles, doc["starting_timestamp_for_subtitles"], doc["duration"])
+        interleaved_prefix = insert_subtitles_into_frames(
+            frame_timestamps, subtitles, doc["starting_timestamp_for_subtitles"], doc["duration"]
+        )
         return f"{pre_prompt}{interleaved_prefix}\n{question}\n{post_prompt}"
     else:
         return f"{pre_prompt}{question}\n{post_prompt}"
@@ -273,7 +277,13 @@ def longvideobench_process_results(doc, results):
 
     parsed_pred = parse_multi_choice_response(pred, all_choices, index2ans)
     id = doc["id"]
-    lvb_acc = {"id": id, "duration_group": doc["duration_group"], "question_category": doc["question_category"], "answer": chr(ord("A") + doc["correct_choice"]), "parsed_pred": parsed_pred}
+    lvb_acc = {
+        "id": id,
+        "duration_group": doc["duration_group"],
+        "question_category": doc["question_category"],
+        "answer": chr(ord("A") + doc["correct_choice"]),
+        "parsed_pred": parsed_pred,
+    }
     return {
         "lvb_acc": lvb_acc,
         "submission": {

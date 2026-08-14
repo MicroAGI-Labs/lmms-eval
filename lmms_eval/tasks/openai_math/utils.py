@@ -1,7 +1,6 @@
 import os
 import re
 from collections import Counter
-from typing import Dict, List, Optional
 
 import datasets
 
@@ -12,7 +11,9 @@ elif os.getenv("PROMPTTOKEN") is not None:
 elif os.getenv("PROMPTLONG") is not None:
     QUERY_TEMPLATE = "{Question}\n\nAnswer after a long amount of thinking. If you feel like you are finished early, spend the extra time trying to double-check your work until you are absolutely sure that you have the correct answer."
 elif os.getenv("PROMPTSHORT") is not None:
-    QUERY_TEMPLATE = "{Question}\n\nAnswer after a short amount of thinking. Do not spend excessive time double-checking your work."
+    QUERY_TEMPLATE = (
+        "{Question}\n\nAnswer after a short amount of thinking. Do not spend excessive time double-checking your work."
+    )
 else:
     QUERY_TEMPLATE = "{Question}"
 
@@ -117,7 +118,7 @@ Respond with only the index of the matching option starting from 1 or -1 if ther
 
 
 # https://github.com/openai/simple-evals/blob/580d359553a88584c11ce4efb97d49d9386e0d9e/common.py#L153C1-L156C45
-def extract_answer_idx(sampler, options: List[str], attempt: str):
+def extract_answer_idx(sampler, options: list[str], attempt: str):
     prompt = EXTRACTION_TEMPLATE_IDX % {"expression1": options, "expression2": attempt}
     response = sampler([dict(content=prompt, role="user")])
     return response
@@ -221,7 +222,9 @@ def process_docs_openai_math_cot_quality_check(dataset: datasets.Dataset) -> dat
         problem = doc.get("orig_problem", doc.get("orig_orig_problem"))
         solution = doc.get("orig_solution", doc.get("orig_orig_solution"))
         answer = doc.get("orig_answer", doc.get("orig_orig_answer"))
-        thinking_trajectory = doc.get("thinking_trajectory", doc.get("orig_thinking_trajectory", doc.get("refined_thinking_trajectory")))
+        thinking_trajectory = doc.get(
+            "thinking_trajectory", doc.get("orig_thinking_trajectory", doc.get("refined_thinking_trajectory"))
+        )
         try:
             out_doc = {
                 "problem": problem,
@@ -240,7 +243,7 @@ def process_docs_openai_math_cot_quality_check(dataset: datasets.Dataset) -> dat
     return processed_dataset
 
 
-def process_results(doc: dict, results: List[str]) -> Dict[str, int]:
+def process_results(doc: dict, results: list[str]) -> dict[str, int]:
     metrics = {"exact_match": None, "extracted_answers": []}
     # Multiple results -> we are measuring cov/maj etc
     if len(results) > 1:
@@ -259,7 +262,9 @@ def process_results(doc: dict, results: List[str]) -> Dict[str, int]:
     if os.getenv("PROCESSOR", "") == "gpt-4o-mini":
         sampler = ChatCompletionSampler(model="gpt-4o-mini")
     else:
-        print(f"Unknown processor: {os.getenv('PROCESSOR')}; set 'PROCESSOR=gpt-4o-mini' and 'OPENAI_API_KEY=YOUR_KEY' for best results.")
+        print(
+            f"Unknown processor: {os.getenv('PROCESSOR')}; set 'PROCESSOR=gpt-4o-mini' and 'OPENAI_API_KEY=YOUR_KEY' for best results."
+        )
         raise ValueError("MATH requires PROCESSOR atm. AIME is fine without it.")
         sampler = None
 
@@ -300,9 +305,25 @@ def process_results(doc: dict, results: List[str]) -> Dict[str, int]:
                     if len(options) > idx >= 0:
                         a = options[idx]
                     else:
-                        print("Warning: Index out of bounds; leaving answer unchanged\n", a, "\noptions", options_str, "\ndoc['answer']", gt, "\nidx", idx)
+                        print(
+                            "Warning: Index out of bounds; leaving answer unchanged\n",
+                            a,
+                            "\noptions",
+                            options_str,
+                            "\ndoc['answer']",
+                            gt,
+                            "\nidx",
+                            idx,
+                        )
                 else:
-                    print("Warning: Processing did not produce integer index\na", a, "\noptions", options_str, "\ndoc['answer']", gt)
+                    print(
+                        "Warning: Processing did not produce integer index\na",
+                        a,
+                        "\noptions",
+                        options_str,
+                        "\ndoc['answer']",
+                        gt,
+                    )
         else:
             pass  # TODO: Maybe add back legacy processing
 
@@ -323,7 +344,7 @@ def process_results(doc: dict, results: List[str]) -> Dict[str, int]:
     return metrics
 
 
-def last_boxed_only_string(string: str) -> Optional[str]:
+def last_boxed_only_string(string: str) -> str | None:
     idx = string.rfind("\\boxed")
     if "\\boxed " in string:
         return "\\boxed " + string.split("\\boxed ")[-1].split("$")[0]

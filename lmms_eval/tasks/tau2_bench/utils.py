@@ -165,7 +165,11 @@ def _build_agent_prompt(doc, state, tool_result=None):
         tool_result_text = f"\nTool result: {json.dumps(tool_result, ensure_ascii=False)}"
 
     target_state = doc.get("target_state", {})
-    goal_reached = isinstance(target_state, dict) and target_state and all(state.get(key) == value for key, value in target_state.items())
+    goal_reached = (
+        isinstance(target_state, dict)
+        and target_state
+        and all(state.get(key) == value for key, value in target_state.items())
+    )
 
     if goal_reached:
         return (
@@ -187,7 +191,9 @@ def _build_agent_prompt(doc, state, tool_result=None):
     )
 
 
-def tau2_doc_to_text(doc, lmms_eval_specific_kwargs=None, previous_output=None, round_idx=None, previous_round_info=None):
+def tau2_doc_to_text(
+    doc, lmms_eval_specific_kwargs=None, previous_output=None, round_idx=None, previous_round_info=None
+):
     if round_idx is None:
         init_state = copy.deepcopy(doc["initial_state"])
         return _build_agent_prompt(doc, init_state)

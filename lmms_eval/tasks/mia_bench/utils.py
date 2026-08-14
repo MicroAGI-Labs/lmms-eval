@@ -26,7 +26,7 @@ def mia_bench_doc_to_text(doc, lmms_eval_specific_kwargs=None):
 # Result Processing Functions
 # ============================
 
-with open(Path(__file__).parent / "mia_bench.yaml", "r") as f:
+with open(Path(__file__).parent / "mia_bench.yaml") as f:
     raw_data = f.readlines()
     safe_data = []
     for i, line in enumerate(raw_data):
@@ -98,11 +98,33 @@ def generate_prompt(d, response):
         components = """The first component is:' """ + d["components"][0] + "'"
         score = """The first component is worth """ + weight[0] + " scores."
     elif d["num_of_component"] == 2:
-        components = """The first component is:' """ + d["components"][0] + """', and the second component is:' """ + d["components"][1] + "'"
+        components = (
+            """The first component is:' """
+            + d["components"][0]
+            + """', and the second component is:' """
+            + d["components"][1]
+            + "'"
+        )
         score = """The first and second component is each worth """ + weight[0] + " and " + weight[1] + " scores."
     elif d["num_of_component"] == 3:
-        components = """The first component is:' """ + d["components"][0] + """', and the second component is:' """ + d["components"][1] + """', and the third component is:' """ + d["components"][2] + "'"
-        score = """The first second, and third component is each worth """ + weight[0] + ", " + weight[1] + " and " + weight[2] + " scores."
+        components = (
+            """The first component is:' """
+            + d["components"][0]
+            + """', and the second component is:' """
+            + d["components"][1]
+            + """', and the third component is:' """
+            + d["components"][2]
+            + "'"
+        )
+        score = (
+            """The first second, and third component is each worth """
+            + weight[0]
+            + ", "
+            + weight[1]
+            + " and "
+            + weight[2]
+            + " scores."
+        )
     elif d["num_of_component"] == 4:
         components = (
             """The first component is:' """
@@ -115,7 +137,17 @@ def generate_prompt(d, response):
             + d["components"][3]
             + "'"
         )
-        score = """The first second, third, and fourth component is each worth """ + weight[0] + ", " + weight[1] + ", " + weight[2] + " and " + weight[3] + " scores."
+        score = (
+            """The first second, third, and fourth component is each worth """
+            + weight[0]
+            + ", "
+            + weight[1]
+            + ", "
+            + weight[2]
+            + " and "
+            + weight[3]
+            + " scores."
+        )
     elif d["num_of_component"] == 5:
         components = (
             """The first component is:' """
@@ -130,7 +162,19 @@ def generate_prompt(d, response):
             + d["components"][4]
             + "'"
         )
-        score = """The first second, third, fourth and fifth component is each worth """ + weight[0] + ", " + weight[1] + ", " + weight[2] + ", " + weight[3] + " and " + weight[4] + " scores."
+        score = (
+            """The first second, third, fourth and fifth component is each worth """
+            + weight[0]
+            + ", "
+            + weight[1]
+            + ", "
+            + weight[2]
+            + ", "
+            + weight[3]
+            + " and "
+            + weight[4]
+            + " scores."
+        )
     return (
         """Here is an instruction for a multimodal LLM: ' """
         + instruction
@@ -187,7 +231,9 @@ def process_rawscore(component_type, raw_score):
                         score = max(0, min(1, score))
                         score_dict[component_type[component_num]] = score
                     else:
-                        eval_logger.warning(f"Component number {component_num + 1} out of range for {len(component_type)} components")
+                        eval_logger.warning(
+                            f"Component number {component_num + 1} out of range for {len(component_type)} components"
+                        )
                 except (ValueError, IndexError) as e:
                     eval_logger.warning(f"Error parsing component match {match}: {e}")
                     continue
@@ -225,7 +271,9 @@ def process_rawscore(component_type, raw_score):
         # Ensure total_score exists
         if "total_score" not in score_dict:
             if score_dict:
-                score_dict["total_score"] = sum(v for k, v in score_dict.items() if k != "total_score") / len([k for k in score_dict.keys() if k != "total_score"])
+                score_dict["total_score"] = sum(v for k, v in score_dict.items() if k != "total_score") / len(
+                    [k for k in score_dict.keys() if k != "total_score"]
+                )
             else:
                 score_dict["total_score"] = 0
 

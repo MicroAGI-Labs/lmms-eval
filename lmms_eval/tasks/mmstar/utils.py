@@ -12,9 +12,17 @@ dir_name = os.path.dirname(os.path.abspath(__file__))
 eval_type_dict = {
     "coarse perception": ["image scene and topic", "image style & quality", "image emotion"],
     "fine-grained perception": ["object counting", "recognition", "localization"],
-    "instance reasoning": ["single-instance reasoning", "cross-instance attribute reasoning", "cross-instance relation reasoning"],
+    "instance reasoning": [
+        "single-instance reasoning",
+        "cross-instance attribute reasoning",
+        "cross-instance relation reasoning",
+    ],
     "logical reasoning": ["code & sequence reasoning", "diagram reasoning", "common reasoning"],
-    "science & technology": ["biology & chemistry & physics", "electronics & energy & mechanical eng.", "geography & earth science & agriculture"],
+    "science & technology": [
+        "biology & chemistry & physics",
+        "electronics & energy & mechanical eng.",
+        "geography & earth science & agriculture",
+    ],
     "math": ["geometry", "numeric commonsense and calculation", "statistical reasoning"],
 }
 
@@ -103,7 +111,10 @@ def mmstar_process_results_ko(doc, results):
     score = exact_match_ko(pred, gt)
     category = doc["category"]
     l2_category = doc["l2_category"]
-    return {category: {"question_id": doc["index"], "l2_category": l2_category, "score": score}, "average": {"question_id": doc["index"], "l2_category": l2_category, "score": score}}
+    return {
+        category: {"question_id": doc["index"], "l2_category": l2_category, "score": score},
+        "average": {"question_id": doc["index"], "l2_category": l2_category, "score": score},
+    }
 
 
 def mmstar_process_results(doc, results):
@@ -120,7 +131,10 @@ def mmstar_process_results(doc, results):
     score = exact_match(pred, gt)
     category = doc["category"]
     l2_category = doc["l2_category"]
-    return {category: {"question_id": doc["index"], "l2_category": l2_category, "score": score}, "average": {"question_id": doc["index"], "l2_category": l2_category, "score": score}}
+    return {
+        category: {"question_id": doc["index"], "l2_category": l2_category, "score": score},
+        "average": {"question_id": doc["index"], "l2_category": l2_category, "score": score},
+    }
 
 
 def mmstar_aggregate_results(results):

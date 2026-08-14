@@ -159,7 +159,7 @@ def construct_param_to_obj(domain, action):
 def state_transition(current_state, effects, param_to_obj):
     for obj_cond in effects:
         for param in param_to_obj:
-            obj_cond = re.sub(r"\?{}(?=[^\w-])".format(param), param_to_obj[param], obj_cond)
+            obj_cond = re.sub(rf"\?{param}(?=[^\w-])", param_to_obj[param], obj_cond)
         _, reversed_cond = parse_pddl_attr_from_string(obj_cond, attr_starter="(not ")
         if reversed_cond:
             assert len(reversed_cond) == 1
@@ -173,8 +173,10 @@ def state_transition(current_state, effects, param_to_obj):
 def check_pre_conds_satisfy(current_state, pre_conds, param_to_obj):
     for obj_cond in pre_conds:
         for param in param_to_obj:
-            obj_cond = re.sub(r"\?{}(?=[^\w-])".format(param), param_to_obj[param], obj_cond)
-        if (obj_cond.startswith("(not ") and obj_cond in current_state) or (not obj_cond.startswith("(not ") and obj_cond not in current_state):
+            obj_cond = re.sub(rf"\?{param}(?=[^\w-])", param_to_obj[param], obj_cond)
+        if (obj_cond.startswith("(not ") and obj_cond in current_state) or (
+            not obj_cond.startswith("(not ") and obj_cond not in current_state
+        ):
             return False
     return True
 
@@ -222,7 +224,9 @@ class SymbolicPlanningMetricTest:
             ## Check if goal conditions are reached in the final state
             if score == 1:
                 for g_state in goal_state:
-                    if (g_state.startswith("(not ") and g_state in cur_state) or (not g_state.startswith("(not ") and g_state not in cur_state):
+                    if (g_state.startswith("(not ") and g_state in cur_state) or (
+                        not g_state.startswith("(not ") and g_state not in cur_state
+                    ):
                         print(f"goal state {g_state} is not reached!")
                         score = 0
                         break

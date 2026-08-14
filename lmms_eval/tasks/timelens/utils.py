@@ -9,7 +9,7 @@ from loguru import logger as eval_logger
 hf_home = os.getenv("HF_HOME", "~/.cache/huggingface/")
 base_cache_dir = os.path.expanduser(hf_home)
 
-with open(Path(__file__).parent / "_default_yaml_template", "r") as f:
+with open(Path(__file__).parent / "_default_yaml_template") as f:
     raw_data = f.readlines()
     safe_data = []
     for i, line in enumerate(raw_data):
@@ -115,7 +115,7 @@ TIMELENS_METRICS = ["IOU@3", "IOU@5", "IOU@7", "mIOU"]
 def timelens_process_results(doc, result):
     pred = result[0]
 
-    key = f'{doc["video_path"]}>>>{doc["query"]}>>>{doc["span"]}'
+    key = f"{doc['video_path']}>>>{doc['query']}>>>{doc['span']}"
 
     data_dict = {key: pred}
 
@@ -123,7 +123,6 @@ def timelens_process_results(doc, result):
 
 
 def _timelens_compute_metrics(results, args=None):
-
     combined_submission = {}
     for submission_dict in results:
         combined_submission.update(submission_dict)
@@ -154,7 +153,7 @@ def _timelens_compute_metrics(results, args=None):
     metrics = {}
     for thr in [0.3, 0.5, 0.7]:
         count = sum(1 for v in ious if v >= thr)
-        metrics[f"IOU@{int(thr*10)}"] = count * 100 / num_annos if num_annos > 0 else 0
+        metrics[f"IOU@{int(thr * 10)}"] = count * 100 / num_annos if num_annos > 0 else 0
 
     metrics["mIOU"] = sum(ious) * 100 / num_annos if num_annos > 0 else 0
 

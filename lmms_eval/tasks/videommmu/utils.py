@@ -5,15 +5,11 @@ from collections import defaultdict
 from pathlib import Path
 
 import yaml
-
 from lmms_eval.tasks._task_utils.mmmu_mcq_utils import (
     get_multi_choice_info as shared_get_multi_choice_info,
 )
-from lmms_eval.tasks._task_utils.mmmu_mcq_utils import (
-    parse_videommmu_multi_choice_response,
-)
 
-with open(Path(__file__).parent / "_default_template_yaml", "r") as f:
+with open(Path(__file__).parent / "_default_template_yaml") as f:
     raw_data = f.readlines()
     safe_data = []
     for i, line in enumerate(raw_data):
@@ -39,9 +35,23 @@ def get_cache_dir(subject):
         return "Science"
     elif subject in ["History", "Literature", "Sociology", "Psychology"]:
         return "Humanities"
-    elif subject in ["Agriculture", "Architecture_and_Engineering", "Computer_Science", "Electronics", "Energy_and_Power", "Materials", "Mechanical_Engineering"]:
+    elif subject in [
+        "Agriculture",
+        "Architecture_and_Engineering",
+        "Computer_Science",
+        "Electronics",
+        "Energy_and_Power",
+        "Materials",
+        "Mechanical_Engineering",
+    ]:
         return "Engineering"
-    elif subject in ["Basic_Medical_Science", "Clinical_Medicine", "Diagnostics_and_Laboratory_Medicine", "Pharmacy", "Public_Health"]:
+    elif subject in [
+        "Basic_Medical_Science",
+        "Clinical_Medicine",
+        "Diagnostics_and_Laboratory_Medicine",
+        "Pharmacy",
+        "Public_Health",
+    ]:
         return "Medicine"
     elif subject in ["Accounting", "Economics", "Finance", "Manage", "Marketing"]:
         return "Business"
@@ -145,12 +155,18 @@ def videommmu_process_results(doc, results):
 
     question_type = doc.get("question_type", "None")
     if question_type == "multiple-choice":
-        index2ans, all_choices = get_multi_choice_info((doc["options"]))
+        index2ans, all_choices = get_multi_choice_info(doc["options"])
         parsed_pred = parse_multi_choice_response(pred, all_choices, index2ans)
     else:
         parsed_pred = parse_open_response(pred)
 
-    mmmu_acc = {"id": doc["id"], "subdomain": extract_subset_name(doc["id"]), "question_type": question_type, "answer": doc["answer"], "parsed_pred": parsed_pred}
+    mmmu_acc = {
+        "id": doc["id"],
+        "subdomain": extract_subset_name(doc["id"]),
+        "question_type": question_type,
+        "answer": doc["answer"],
+        "parsed_pred": parsed_pred,
+    }
     return {"mmmu_acc": mmmu_acc}
 
 
@@ -356,7 +372,17 @@ def _extract_from_reasoning(response, all_choices):
                 scores[ch] += 10.0 * recency
 
     # 2. Option discussed near conclusion indicators (medium weight)
-    indicators = ["therefore", "thus", "hence", "so the", "this means", "which gives", "we get", "the result is", "confirms"]
+    indicators = [
+        "therefore",
+        "thus",
+        "hence",
+        "so the",
+        "this means",
+        "which gives",
+        "we get",
+        "the result is",
+        "confirms",
+    ]
     for indicator in indicators:
         idx = resp_lower.rfind(indicator)
         if idx == -1:
@@ -504,7 +530,9 @@ def parse_open_response(response):
             # if last one, accept it's an equation (the entire response can be just one sentence with equation)
             if index == len(sub_responses) - 1:
                 indicators_of_keys.extend(["="])
-            shortest_key_response = None  # the shortest response that may contain the answer (tail part of the response)
+            shortest_key_response = (
+                None  # the shortest response that may contain the answer (tail part of the response)
+            )
             for indicator in indicators_of_keys:
                 if indicator in resp:
                     if not shortest_key_response:

@@ -10,10 +10,9 @@ import glob
 import json
 import os
 from datetime import datetime
-from typing import Dict, List
 
 
-def load_jsonl_data(jsonl_path: str) -> List[Dict]:
+def load_jsonl_data(jsonl_path: str) -> list[dict]:
     """Load data from a JSONL file.
 
     Args:
@@ -24,13 +23,13 @@ def load_jsonl_data(jsonl_path: str) -> List[Dict]:
 
     """
     data = []
-    with open(jsonl_path, "r", encoding="utf-8") as f:
+    with open(jsonl_path, encoding="utf-8") as f:
         for line in f:
             data.append(json.loads(line.strip()))
     return data
 
 
-def save_json_results(results: Dict, output_path: str) -> None:
+def save_json_results(results: dict, output_path: str) -> None:
     """Save evaluation results as JSON.
 
     Args:
@@ -47,7 +46,7 @@ def save_json_results(results: Dict, output_path: str) -> None:
     print(f"Results saved to {output_path}")
 
 
-def find_evaluation_files(eval_dir: str, pattern: str = "*.jsonl") -> List[str]:
+def find_evaluation_files(eval_dir: str, pattern: str = "*.jsonl") -> list[str]:
     """Find all evaluation files matching a pattern in a directory.
 
     Args:
@@ -61,7 +60,7 @@ def find_evaluation_files(eval_dir: str, pattern: str = "*.jsonl") -> List[str]:
     return glob.glob(os.path.join(eval_dir, pattern))
 
 
-def create_output_paths(base_name: str, output_dir: str) -> Dict[str, str]:
+def create_output_paths(base_name: str, output_dir: str) -> dict[str, str]:
     """Create standardized output paths for results.
 
     Args:
@@ -87,7 +86,7 @@ def create_output_paths(base_name: str, output_dir: str) -> Dict[str, str]:
     return paths
 
 
-def print_basic_results(results: Dict) -> None:
+def print_basic_results(results: dict) -> None:
     """Print basic evaluation results in a readable format.
 
     Args:
@@ -115,7 +114,7 @@ def print_basic_results(results: Dict) -> None:
         print(f"{setting.capitalize()}: {setting_accuracy * 100:.2f}% ({setting_correct}/{setting_total}){status}")
 
 
-def print_summary_line(results: Dict, model_name: str = "") -> None:
+def print_summary_line(results: dict, model_name: str = "") -> None:
     """Print a single summary line for quick comparison.
 
     Args:

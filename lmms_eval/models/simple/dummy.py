@@ -1,15 +1,14 @@
 import json
 import statistics
 import time
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable, List, Optional, Tuple
-
-from loguru import logger as eval_logger
-from tqdm import tqdm
 
 from lmms_eval.api.instance import Instance
 from lmms_eval.api.model import lmms
 from lmms_eval.api.registry import register_model
+from loguru import logger as eval_logger
+from tqdm import tqdm
 
 
 def _as_bool(value) -> bool:
@@ -31,7 +30,7 @@ def _as_int(value, default: int) -> int:
         return default
 
 
-def _as_optional_float(value) -> Optional[float]:
+def _as_optional_float(value) -> float | None:
     if value is None:
         return None
     if isinstance(value, str):
@@ -44,7 +43,7 @@ def _as_optional_float(value) -> Optional[float]:
         return None
 
 
-def _percentile(values: List[float], ratio: float) -> float:
+def _percentile(values: list[float], ratio: float) -> float:
     if not values:
         return 0.0
     sorted_vals = sorted(values)
@@ -72,7 +71,7 @@ class Dummy(lmms):
         allow_remote: bool = False,
         fail_on_missing: bool = True,
         decode_num_frames: int = 0,
-        decode_fps: Optional[float] = None,
+        decode_fps: float | None = None,
         metrics_output_path: str = "",
         **kwargs,
     ) -> None:
@@ -84,7 +83,7 @@ class Dummy(lmms):
         self._decode_num_frames = max(0, _as_int(decode_num_frames, 0))
         self._decode_fps = _as_optional_float(decode_fps)
         self._metrics_output_path = str(metrics_output_path).strip()
-        self._decode_fn: Optional[Callable] = None
+        self._decode_fn: Callable | None = None
 
         # Whether to process visuals at all.
         self._bench_video = self._read_bytes > 0 or self._decode_num_frames > 0
@@ -95,10 +94,10 @@ class Dummy(lmms):
         self._missing_count = 0
         self._decoded_frame_count = 0
 
-        self._resolve_latencies: List[float] = []
-        self._io_latencies: List[float] = []
-        self._decode_latencies: List[float] = []
-        self._total_latencies: List[float] = []
+        self._resolve_latencies: list[float] = []
+        self._io_latencies: list[float] = []
+        self._decode_latencies: list[float] = []
+        self._total_latencies: list[float] = []
 
     def _get_decode_fn(self) -> Callable:
         if self._decode_fn is None:
@@ -137,7 +136,7 @@ class Dummy(lmms):
             _ = file_obj.read(read_size)
         return 0.0
 
-    def _summarize_latency(self, values: List[float]) -> dict:
+    def _summarize_latency(self, values: list[float]) -> dict:
         if not values:
             return {"samples": 0}
 
@@ -168,9 +167,13 @@ class Dummy(lmms):
             },
         }
         if payload["latency"]["total"].get("total_s", 0.0) > 0 and payload["latency"]["total"].get("samples", 0) > 0:
-            payload["throughput_videos_per_s"] = payload["latency"]["total"]["samples"] / payload["latency"]["total"]["total_s"]
+            payload["throughput_videos_per_s"] = (
+                payload["latency"]["total"]["samples"] / payload["latency"]["total"]["total_s"]
+            )
         if payload["latency"]["decode"].get("total_s", 0.0) > 0:
-            payload["throughput_decode_frames_per_s"] = payload["decoded_frames"] / payload["latency"]["decode"]["total_s"]
+            payload["throughput_decode_frames_per_s"] = (
+                payload["decoded_frames"] / payload["latency"]["decode"]["total_s"]
+            )
         return payload
 
     def _maybe_write_metrics(self, payload: dict) -> None:
@@ -207,7 +210,7 @@ class Dummy(lmms):
                     metrics.get("throughput_decode_frames_per_s", 0.0),
                 )
 
-    def generate_until(self, requests) -> List[str]:
+    def generate_until(self, requests) -> list[str]:
         if not self._bench_video:
             return [self._response] * len(requests)
 
@@ -248,8 +251,8 @@ class Dummy(lmms):
         self._maybe_write_metrics(metrics)
         return responses
 
-    def loglikelihood(self, requests: List[Instance]) -> List[Tuple[float, bool]]:
+    def loglikelihood(self, requests: list[Instance]) -> list[tuple[float, bool]]:
         return [(0.0, False)] * len(requests)
 
-    def generate_until_multi_round(self, requests) -> List[str]:
+    def generate_until_multi_round(self, requests) -> list[str]:
         return self.generate_until(requests)

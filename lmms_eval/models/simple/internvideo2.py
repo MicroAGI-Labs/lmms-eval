@@ -1,5 +1,4 @@
 import logging
-from typing import List, Tuple
 
 import decord
 import numpy as np
@@ -10,13 +9,12 @@ from decord import VideoReader, cpu
 
 decord.bridge.set_bridge("torch")
 import torch.nn.functional as F
-from PIL import Image
-from tqdm import tqdm
-from transformers import AutoModel, AutoTokenizer
-
 from lmms_eval.api.instance import Instance
 from lmms_eval.api.model import lmms
 from lmms_eval.api.registry import register_model
+from PIL import Image
+from tqdm import tqdm
+from transformers import AutoModel, AutoTokenizer
 
 eval_logger = logging.getLogger("eval_logger")
 
@@ -51,7 +49,9 @@ def get_index(max_frame, num_segments, fps, first_idx=0, bound=None):
     start_idx = max(first_idx, round(start * fps))
     end_idx = min(round(end * fps), max_frame)
     seg_size = float(end_idx - start_idx) / num_segments
-    frame_indices = np.array([int(start_idx + (seg_size / 2) + np.round(seg_size * idx)) for idx in range(num_segments)])
+    frame_indices = np.array(
+        [int(start_idx + (seg_size / 2) + np.round(seg_size * idx)) for idx in range(num_segments)]
+    )
     return frame_indices
 
 
@@ -67,7 +67,12 @@ def load_image(image_path, resolution=224, hd_num=6):
     transform = T.Compose([T.Lambda(lambda x: x.float().div(255.0)), T.Normalize(mean, std)])
     image_tensor = transform(image_tensor)
 
-    sub_img = image_tensor.reshape(1, T_, 3, H // resolution, resolution, W // resolution, resolution).permute(0, 3, 5, 1, 2, 4, 6).reshape(-1, T_, 3, resolution, resolution).contiguous()
+    sub_img = (
+        image_tensor.reshape(1, T_, 3, H // resolution, resolution, W // resolution, resolution)
+        .permute(0, 3, 5, 1, 2, 4, 6)
+        .reshape(-1, T_, 3, resolution, resolution)
+        .contiguous()
+    )
 
     glb_img = (
         F.interpolate(
@@ -118,7 +123,12 @@ def load_video(
     frames = transform(frames)
     T_, C, H, W = frames.shape
 
-    sub_img = frames.reshape(1, T_, 3, H // resolution, resolution, W // resolution, resolution).permute(0, 3, 5, 1, 2, 4, 6).reshape(-1, T_, 3, resolution, resolution).contiguous()
+    sub_img = (
+        frames.reshape(1, T_, 3, H // resolution, resolution, W // resolution, resolution)
+        .permute(0, 3, 5, 1, 2, 4, 6)
+        .reshape(-1, T_, 3, resolution, resolution)
+        .contiguous()
+    )
 
     glb_img = (
         F.interpolate(
@@ -209,14 +219,22 @@ def HD_transform_no_padding(frames, image_size=224, hd_num=6, fix_ratio=(2, 1)):
     aspect_ratio = orig_width / orig_height
 
     # calculate the existing video aspect ratio
-    target_ratios = set((i, j) for n in range(min_num, max_num + 1) for i in range(1, n + 1) for j in range(1, n + 1) if i * j <= max_num and i * j >= min_num)
+    target_ratios = set(
+        (i, j)
+        for n in range(min_num, max_num + 1)
+        for i in range(1, n + 1)
+        for j in range(1, n + 1)
+        if i * j <= max_num and i * j >= min_num
+    )
     target_ratios = sorted(target_ratios, key=lambda x: x[0] * x[1])
 
     # find the closest aspect ratio to the target
     if fix_ratio:
         target_aspect_ratio = fix_ratio
     else:
-        target_aspect_ratio = find_closest_aspect_ratio(aspect_ratio, target_ratios, orig_width, orig_height, image_size)
+        target_aspect_ratio = find_closest_aspect_ratio(
+            aspect_ratio, target_ratios, orig_width, orig_height, image_size
+        )
 
     # calculate the target width and height
     target_width = image_size * target_aspect_ratio[0]
@@ -246,7 +264,11 @@ class InternVideo2(lmms):
         self.instruction = "Carefully watch the video and pay attention to the cause and sequence of events, the detail and movement of objects, and the action and pose of persons.\n"
 
         self._tokenizer = AutoTokenizer.from_pretrained(self.path, trust_remote_code=True, use_fast=False)
-        self._model = AutoModel.from_pretrained(self.path, torch_dtype=torch.bfloat16, trust_remote_code=True).eval().to(self._device)
+        self._model = (
+            AutoModel.from_pretrained(self.path, torch_dtype=torch.bfloat16, trust_remote_code=True)
+            .eval()
+            .to(self._device)
+        )
         batch_size = int(batch_size)
         self.num_segments = int(num_segments)
         self.hd_num = int(hd_num)
@@ -280,9 +302,14 @@ class InternVideo2(lmms):
                     "train_batch_size": self.batch_size_per_gpu * accelerator.num_processes,
                 }
                 AcceleratorState().deepspeed_plugin.deepspeed_config_process(must_match=True, **kwargs)
-                eval_logger.info("Detected that you are using DistributedType.DEEPSPEED. Make sure you run `accelerate config` and set zero stage to 0")
+                eval_logger.info(
+                    "Detected that you are using DistributedType.DEEPSPEED. Make sure you run `accelerate config` and set zero stage to 0"
+                )
 
-            if accelerator.distributed_type == DistributedType.FSDP or accelerator.distributed_type == DistributedType.DEEPSPEED:
+            if (
+                accelerator.distributed_type == DistributedType.FSDP
+                or accelerator.distributed_type == DistributedType.DEEPSPEED
+            ):
                 self._model = accelerator.prepare(self.model)
             else:
                 self._model = accelerator.prepare_model(self.model, evaluation_mode=True)
@@ -343,7 +370,7 @@ class InternVideo2(lmms):
                 new_list.append(j)
         return new_list
 
-    def generate_until(self, requests) -> List[str]:
+    def generate_until(self, requests) -> list[str]:
         res = []
         pbar = tqdm(total=len(requests), disable=(self.rank != 0), desc="Model Responding")
 
@@ -381,7 +408,9 @@ class InternVideo2(lmms):
                     **gen_kwargs,
                 )
             elif self.modality == "video":
-                assert len(visuals) == 1, f"Only one video is supported, but got {len(visuals)} videos. [META-INFO]{visuals}"
+                assert len(visuals) == 1, (
+                    f"Only one video is supported, but got {len(visuals)} videos. [META-INFO]{visuals}"
+                )
                 video_path = visuals[0]
                 if "mvbench" in task:
                     answer_prompt = "Best Option:("
@@ -414,8 +443,8 @@ class InternVideo2(lmms):
         pbar.close()
         return res
 
-    def loglikelihood(self, requests: List[Instance]) -> List[Tuple[float, bool]]:
+    def loglikelihood(self, requests: list[Instance]) -> list[tuple[float, bool]]:
         assert False, "Not implemented yet."
 
-    def generate_until_multi_round(self, requests) -> List[str]:
+    def generate_until_multi_round(self, requests) -> list[str]:
         raise NotImplementedError("TODO: Implement multi-round generation for InternVideo2")

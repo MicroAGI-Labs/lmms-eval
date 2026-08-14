@@ -52,7 +52,13 @@ def erqa_process_results(doc, results):
     pred_letter = _extract_answer_letter(response)
     flag = pred_letter == grounded_output
 
-    omnispatial_submission = {"id": doc["question_id"], "gt_content": grounded_output, "pred": response, "sub_task": doc["question_type"], "is_correct": flag}
+    omnispatial_submission = {
+        "id": doc["question_id"],
+        "gt_content": grounded_output,
+        "pred": response,
+        "sub_task": doc["question_type"],
+        "is_correct": flag,
+    }
     return {key_name: omnispatial_submission}
 
 

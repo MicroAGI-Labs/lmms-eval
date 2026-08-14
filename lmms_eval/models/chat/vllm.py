@@ -1,9 +1,6 @@
 import os
 import time
 from concurrent.futures import ThreadPoolExecutor
-from typing import List, Optional, Tuple
-
-from tqdm import tqdm
 
 from lmms_eval.api.instance import GenerationResult, Instance, TokenCounts
 from lmms_eval.api.registry import register_model
@@ -11,6 +8,7 @@ from lmms_eval.imports import optional_import
 from lmms_eval.models.model_utils.gen_metrics import log_metrics
 from lmms_eval.models.simple.vllm import VLLM as VLLMSimple
 from lmms_eval.protocol import ChatMessages
+from tqdm import tqdm
 
 LLM, _ = optional_import("vllm", "LLM")
 SamplingParams, _ = optional_import("vllm", "SamplingParams")
@@ -34,8 +32,8 @@ class VLLM(VLLMSimple):
         chat_template=None,
         max_pixels: int = 1605632,
         min_image_pixels=28,
-        fps: Optional[int] = None,
-        nframes: Optional[int] = 32,
+        fps: int | None = None,
+        nframes: int | None = 32,
         max_new_tokens: int = 4096,
         **kwargs,
     ):
@@ -56,7 +54,7 @@ class VLLM(VLLMSimple):
         self.max_pixels = max_pixels
         self.nframes = nframes
 
-    def make_one_request(self, request: Instance) -> Tuple[list[dict], dict]:
+    def make_one_request(self, request: Instance) -> tuple[list[dict], dict]:
         """
         Build OpenAI-style messages and per-request sampling params from an Instance.
         Returns (messages, params_dict). Does not mutate input.
@@ -83,14 +81,14 @@ class VLLM(VLLMSimple):
         messages = chat_messages.to_openai_messages(video_kwargs=video_kwargs)
         return messages, params
 
-    def generate_until(self, requests) -> List[GenerationResult]:
+    def generate_until(self, requests) -> list[GenerationResult]:
         res = []
         pbar = tqdm(total=len(requests), disable=(self.rank != 0), desc="Model Responding")
 
         batch_size = self.batch_size_per_gpu
         batched_requests = [requests[i : i + batch_size] for i in range(0, len(requests), batch_size)]
         total_elapsed_time = 0
-        sample_token_counts: Optional[TokenCounts] = None
+        sample_token_counts: TokenCounts | None = None
         for batch_requests in batched_requests:
             batched_messages = []
             with ThreadPoolExecutor(max_workers=WORKERS) as executor:
@@ -117,7 +115,9 @@ class VLLM(VLLMSimple):
             total_elapsed_time += end_time - start_time
 
             assert len(response_text) == len(batch_requests)
-            res.extend([GenerationResult(text=resp_text, token_counts=sample_token_counts) for resp_text in response_text])
+            res.extend(
+                [GenerationResult(text=resp_text, token_counts=sample_token_counts) for resp_text in response_text]
+            )
             pbar.update(len(batch_requests))
 
         if not self.disable_log_stats:
@@ -139,11 +139,11 @@ class VLLM(VLLMSimple):
         pbar.close()
         return res
 
-    def loglikelihood(self, requests: List[Instance]) -> List[Tuple[float, bool]]:
+    def loglikelihood(self, requests: list[Instance]) -> list[tuple[float, bool]]:
         # TODO
         assert False, "GPT4V not support"
 
-    def generate_until_multi_round(self, requests) -> List[str]:
+    def generate_until_multi_round(self, requests) -> list[str]:
         raise NotImplementedError("TODO: Implement multi-round generation")
 
     def get_format_metrics(self):

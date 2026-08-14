@@ -1,16 +1,14 @@
-from typing import List, Optional, Tuple, Union
 
 import torch
 from accelerate import Accelerator, DistributedType
-from loguru import logger as eval_logger
-from tqdm import tqdm
-from transformers import AutoProcessor, Qwen2AudioForConditionalGeneration
-
 from lmms_eval import utils
 from lmms_eval.api.instance import Instance
 from lmms_eval.api.model import lmms
 from lmms_eval.api.registry import register_model
 from lmms_eval.models.model_utils.audio_processing import downsample_audio, split_audio
+from loguru import logger as eval_logger
+from tqdm import tqdm
+from transformers import AutoProcessor, Qwen2AudioForConditionalGeneration
 
 
 @register_model("qwen2_audio")
@@ -23,9 +21,9 @@ class Qwen2_Audio(lmms):
     def __init__(
         self,
         pretrained: str = "Qwen/Qwen2-Audio-7B-Instruct",  # Qwen/Qwen2-Audio-7B-Instruct
-        device: Optional[str] = "cuda",
-        device_map: Optional[str] = "cuda",
-        batch_size: Optional[Union[int, str]] = 1,
+        device: str | None = "cuda",
+        device_map: str | None = "cuda",
+        batch_size: int | str | None = 1,
         use_cache=True,
         add_generation_prompt: bool = True,
         add_system_prompt: bool = True,
@@ -151,7 +149,7 @@ class Qwen2_Audio(lmms):
     def world_size(self):
         return self._world_size
 
-    def loglikelihood(self, requests: List[Instance]) -> List[Tuple[float, bool]]:
+    def loglikelihood(self, requests: list[Instance]) -> list[tuple[float, bool]]:
         raise NotImplementedError("Loglikelihood is not implemented for Qwen2_Audio")
 
     def flatten(self, input):
@@ -161,7 +159,7 @@ class Qwen2_Audio(lmms):
                 new_list.append(j)
         return new_list
 
-    def generate_until(self, requests: List[Instance]) -> List[str]:
+    def generate_until(self, requests: list[Instance]) -> list[str]:
         res = []
 
         def _collate(x):
@@ -191,7 +189,9 @@ class Qwen2_Audio(lmms):
             for audios in batched_audios:
                 new_audios = []
                 for audio in audios:
-                    splitted_audio = split_audio(downsample_audio(audio["array"], audio["sampling_rate"], sampling_rate), chunk_lim=chunk_lim)
+                    splitted_audio = split_audio(
+                        downsample_audio(audio["array"], audio["sampling_rate"], sampling_rate), chunk_lim=chunk_lim
+                    )
                     new_audios.extend(splitted_audio)
                 new_batched_audios.append(new_audios)
             batched_audios = new_batched_audios
@@ -210,7 +210,9 @@ class Qwen2_Audio(lmms):
                 if isinstance(until, str):
                     until = [until]
                 elif not isinstance(until, list):
-                    raise ValueError(f"Expected `gen_kwargs['until']` to be of type Union[str,list] but got {type(until)}")
+                    raise ValueError(
+                        f"Expected `gen_kwargs['until']` to be of type Union[str,list] but got {type(until)}"
+                    )
 
             # contexts = "<|audio_bos|><|AUDIO|><|audio_eos|>" + contexts
 
@@ -229,11 +231,22 @@ class Qwen2_Audio(lmms):
                     conv[0]["content"].append({"type": "text", "text": context})
                     conversations.append(conv)
 
-                text = [self.processor.apply_chat_template(conversation, add_generation_prompt=self.add_generation_prompt, tokenize=False) for conversation in conversations]
+                text = [
+                    self.processor.apply_chat_template(
+                        conversation, add_generation_prompt=self.add_generation_prompt, tokenize=False
+                    )
+                    for conversation in conversations
+                ]
             else:
                 text = ["<|audio_bos|><|AUDIO|><|audio_eos|>" + context for context in contexts]
 
-            inputs = self.processor(text=text, audio=audios, return_tensors="pt", padding=True, sampling_rate=self.processor.feature_extractor.sampling_rate)
+            inputs = self.processor(
+                text=text,
+                audio=audios,
+                return_tensors="pt",
+                padding=True,
+                sampling_rate=self.processor.feature_extractor.sampling_rate,
+            )
 
             if self.device_map == "auto":
                 inputs = inputs.to("cuda")
@@ -265,7 +278,9 @@ class Qwen2_Audio(lmms):
 
                 generated_ids_trimmed = [out_ids[len(in_ids) :] for in_ids, out_ids in zip(inputs.input_ids, cont)]
                 # generated_ids_trimmed = cont[:, inputs.input_ids.size(1):]
-                answers = self.processor.batch_decode(generated_ids_trimmed, skip_special_tokens=True, clean_up_tokenization_spaces=False)
+                answers = self.processor.batch_decode(
+                    generated_ids_trimmed, skip_special_tokens=True, clean_up_tokenization_spaces=False
+                )
                 for i, ans in enumerate(answers):
                     for term in until:
                         if len(term) > 0:
@@ -287,5 +302,5 @@ class Qwen2_Audio(lmms):
         pbar.close()
         return res
 
-    def generate_until_multi_round(self, requests) -> List[str]:
+    def generate_until_multi_round(self, requests) -> list[str]:
         raise NotImplementedError("TODO: Implement multi-round generation")

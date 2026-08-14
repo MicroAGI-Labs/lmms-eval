@@ -6,16 +6,22 @@ from pathlib import Path
 
 
 def _parse_args():
-    parser = argparse.ArgumentParser(description="Build MINERVA video Lance dataset from local metadata and downloaded videos")
+    parser = argparse.ArgumentParser(
+        description="Build MINERVA video Lance dataset from local metadata and downloaded videos"
+    )
     parser.add_argument("--metadata-json", type=Path, required=True, help="Path to minerva.json")
     parser.add_argument("--videos-dir", type=Path, required=True, help="Directory containing downloaded videos")
     parser.add_argument("--output", type=Path, required=True, help="Output Lance directory, e.g. data/train.lance")
     parser.add_argument("--batch-size", type=int, default=8, help="Rows per write batch")
-    parser.add_argument("--mode", type=str, default="create", choices=["create", "overwrite", "append"], help="Lance write mode")
+    parser.add_argument(
+        "--mode", type=str, default="create", choices=["create", "overwrite", "append"], help="Lance write mode"
+    )
     parser.add_argument("--max-rows-per-file", type=int, default=512, help="Maximum rows per data file")
     parser.add_argument("--max-rows-per-group", type=int, default=64, help="Maximum rows per row group")
     parser.add_argument("--max-bytes-per-file-gb", type=int, default=4, help="Maximum file size in GiB")
-    parser.add_argument("--data-storage-version", type=str, default="stable", help="Lance storage version, e.g. stable or legacy")
+    parser.add_argument(
+        "--data-storage-version", type=str, default="stable", help="Lance storage version, e.g. stable or legacy"
+    )
     return parser.parse_args()
 
 
@@ -53,7 +59,9 @@ def _build_schema(pa):
     )
 
 
-def _batch_iterator(pa, video_ids, videos_dir: Path, batch_size: int, stats: dict, missing_samples: list[str], missing_sample_limit: int):
+def _batch_iterator(
+    pa, video_ids, videos_dir: Path, batch_size: int, stats: dict, missing_samples: list[str], missing_sample_limit: int
+):
     idx = 0
     total = len(video_ids)
     while idx < total:
@@ -91,12 +99,16 @@ def main():
     schema = _build_schema(pa)
     stats = {"scanned": 0, "missing": 0, "written": 0}
     missing_samples: list[str] = []
-    iterator = _batch_iterator(pa, video_ids, args.videos_dir, args.batch_size, stats, missing_samples, missing_sample_limit=10)
+    iterator = _batch_iterator(
+        pa, video_ids, args.videos_dir, args.batch_size, stats, missing_samples, missing_sample_limit=10
+    )
 
     try:
         first_batch = next(iterator)
     except StopIteration as exc:
-        raise ValueError(f"No local videos found under {args.videos_dir}. Checked {len(video_ids)} video_id entries from {args.metadata_json}.") from exc
+        raise ValueError(
+            f"No local videos found under {args.videos_dir}. Checked {len(video_ids)} video_id entries from {args.metadata_json}."
+        ) from exc
 
     lance.write_dataset(
         itertools.chain([first_batch], iterator),

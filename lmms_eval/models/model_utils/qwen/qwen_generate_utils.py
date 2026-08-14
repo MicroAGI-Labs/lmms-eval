@@ -4,12 +4,13 @@
 # LICENSE file in the root directory of this source tree.
 
 """Generation support."""
+
 import warnings
 
 warnings.simplefilter("ignore", category=DeprecationWarning)
 warnings.filterwarnings("ignore")
 
-from typing import Iterable, List, Tuple, Union
+from collections.abc import Iterable
 
 import numpy as np
 import torch
@@ -18,9 +19,9 @@ from transformers import PreTrainedTokenizer
 from transformers.generation import LogitsProcessor
 
 # Types.
-HistoryType = List[Tuple[str, str]]
-TokensType = List[int]
-BatchTokensType = List[List[int]]
+HistoryType = list[tuple[str, str]]
+TokensType = list[int]
+BatchTokensType = list[list[int]]
 
 
 def pad_batch(batch: BatchTokensType, pad_id: int, seq_length: int) -> BatchTokensType:
@@ -48,7 +49,9 @@ def get_ltor_masks_and_position_ids(
         att_mask_batch = micro_batch_size
     else:
         att_mask_batch = 1
-    attention_mask = torch.tril(torch.ones((att_mask_batch, seq_length, seq_length), device=data.device)).view(att_mask_batch, 1, seq_length, seq_length)
+    attention_mask = torch.tril(torch.ones((att_mask_batch, seq_length, seq_length), device=data.device)).view(
+        att_mask_batch, 1, seq_length, seq_length
+    )
 
     # Loss mask.
     loss_mask = torch.ones(data.size(), dtype=torch.float, device=data.device)
@@ -117,7 +120,7 @@ def get_stop_words_ids(chat_format, tokenizer):
 def make_context(
     tokenizer: PreTrainedTokenizer,
     query: str,
-    history: List[Tuple[str, str]] = None,
+    history: list[tuple[str, str]] = None,
     system: str = "",
     max_window_size: int = 6144,
     chat_format: str = "chatml",
@@ -132,7 +135,9 @@ def make_context(
         nl_tokens = tokenizer.encode("\n")
 
         def _tokenize_str(role, content):
-            return f"{role}\n{content}", tokenizer.encode(role, allowed_special=set(tokenizer.IMAGE_ST)) + nl_tokens + tokenizer.encode(content, allowed_special=set(tokenizer.IMAGE_ST))
+            return f"{role}\n{content}", tokenizer.encode(
+                role, allowed_special=set(tokenizer.IMAGE_ST)
+            ) + nl_tokens + tokenizer.encode(content, allowed_special=set(tokenizer.IMAGE_ST))
 
         system_text, system_tokens_part = _tokenize_str("system", system)
         system_tokens = im_start_tokens + system_tokens_part + im_end_tokens
@@ -162,7 +167,16 @@ def make_context(
 
         context_tokens = system_tokens + context_tokens
         raw_text = f"{im_start}{system_text}{im_end}" + raw_text
-        context_tokens += nl_tokens + im_start_tokens + _tokenize_str("user", query)[1] + im_end_tokens + nl_tokens + im_start_tokens + tokenizer.encode("assistant") + nl_tokens
+        context_tokens += (
+            nl_tokens
+            + im_start_tokens
+            + _tokenize_str("user", query)[1]
+            + im_end_tokens
+            + nl_tokens
+            + im_start_tokens
+            + tokenizer.encode("assistant")
+            + nl_tokens
+        )
         raw_text += f"\n{im_start}user\n{query}{im_end}\n{im_start}assistant\n"
 
     elif chat_format == "raw":
@@ -175,10 +189,10 @@ def make_context(
 
 
 def _decode_default(
-    tokens: List[int],
+    tokens: list[int],
     *,
-    stop_words: List[str],
-    eod_words: List[str],
+    stop_words: list[str],
+    eod_words: list[str],
     tokenizer: PreTrainedTokenizer,
     raw_text_len: int,
     verbose: bool = False,
@@ -208,7 +222,16 @@ def _decode_default(
 
 
 def _decode_chatml(
-    tokens: List[int], *, stop_words: List[str], eod_token_ids: List[int], tokenizer: PreTrainedTokenizer, raw_text_len: int, context_length: int, verbose: bool = False, return_end_reason: bool = False, errors: str = "replace"
+    tokens: list[int],
+    *,
+    stop_words: list[str],
+    eod_token_ids: list[int],
+    tokenizer: PreTrainedTokenizer,
+    raw_text_len: int,
+    context_length: int,
+    verbose: bool = False,
+    return_end_reason: bool = False,
+    errors: str = "replace",
 ):
     end_reason = f"Gen length {len(tokens)}"
     eod_token_idx = context_length
@@ -235,7 +258,7 @@ def _decode_chatml(
 
 
 def decode_tokens(
-    tokens: Union[torch.LongTensor, TokensType],
+    tokens: torch.LongTensor | TokensType,
     tokenizer: PreTrainedTokenizer,
     raw_text_len: int,
     context_length: int,
@@ -287,17 +310,22 @@ class StopWordsLogitsProcessor(LogitsProcessor):
     """
 
     def __init__(self, stop_words_ids: Iterable[Iterable[int]], eos_token_id: int):
-        if not isinstance(stop_words_ids, List) or len(stop_words_ids) == 0:
+        if not isinstance(stop_words_ids, list) or len(stop_words_ids) == 0:
             raise ValueError(f"`stop_words_ids` has to be a non-emtpy list, but is {stop_words_ids}.")
         if any(not isinstance(bad_word_ids, list) for bad_word_ids in stop_words_ids):
             raise ValueError(f"`stop_words_ids` has to be a list of lists, but is {stop_words_ids}.")
-        if any(any((not isinstance(token_id, (int, np.integer)) or token_id < 0) for token_id in stop_word_ids) for stop_word_ids in stop_words_ids):
-            raise ValueError(f"Each list in `stop_words_ids` has to be a list of positive integers, but is {stop_words_ids}.")
+        if any(
+            any((not isinstance(token_id, (int, np.integer)) or token_id < 0) for token_id in stop_word_ids)
+            for stop_word_ids in stop_words_ids
+        ):
+            raise ValueError(
+                f"Each list in `stop_words_ids` has to be a list of positive integers, but is {stop_words_ids}."
+            )
 
         self.stop_words_ids = list(filter(lambda bad_token_seq: bad_token_seq != [eos_token_id], stop_words_ids))
         self.eos_token_id = eos_token_id
         for stop_token_seq in self.stop_words_ids:
-            assert len(stop_token_seq) > 0, "Stop words token sequences {} cannot have an empty list".format(stop_words_ids)
+            assert len(stop_token_seq) > 0, f"Stop words token sequences {stop_words_ids} cannot have an empty list"
 
     def __call__(self, input_ids: torch.LongTensor, scores: torch.FloatTensor) -> torch.FloatTensor:
         stopped_samples = self._calc_stopped_samples(input_ids)
@@ -306,7 +334,7 @@ class StopWordsLogitsProcessor(LogitsProcessor):
                 scores[i, self.eos_token_id] = float(2**15)
         return scores
 
-    def _tokens_match(self, prev_tokens: torch.LongTensor, tokens: List[int]) -> bool:
+    def _tokens_match(self, prev_tokens: torch.LongTensor, tokens: list[int]) -> bool:
         if len(tokens) == 0:
             # if bad word tokens is just one token always ban it
             return True

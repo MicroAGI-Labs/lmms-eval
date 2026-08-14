@@ -7,8 +7,9 @@ import json
 import os
 import re
 import time
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any
 
 from google import genai
 from loguru import logger as eval_logger
@@ -90,7 +91,7 @@ def ueval_doc_to_target(doc):
     return doc["text_ref"]
 
 
-def parse_gemini_response(response_text: str) -> Dict[str, Any]:
+def parse_gemini_response(response_text: str) -> dict[str, Any]:
     """Parse JSON from Gemini response with better error handling."""
     start = response_text.find("{")
     end = response_text.rfind("}") + 1
@@ -108,10 +109,10 @@ def parse_gemini_response(response_text: str) -> Dict[str, Any]:
             fixed_json = re.sub(r'(?<!\\)\\(?!["\\/bfnrtu])', r"\\\\", json_str)
             return json.loads(fixed_json)
         except Exception:
-            raise ValueError(f"Failed to parse JSON. Original error: {e}\n" f"JSON (first 500 chars): {json_str[:500]}")
+            raise ValueError(f"Failed to parse JSON. Original error: {e}\nJSON (first 500 chars): {json_str[:500]}")
 
 
-def send_to_gemini(prompt: str, image_paths: Optional[Sequence[str]], retries: int = 5) -> Optional[Dict[str, Any]]:
+def send_to_gemini(prompt: str, image_paths: Sequence[str] | None, retries: int = 5) -> dict[str, Any] | None:
     """
     Send prompt and images to Gemini API for evaluation
 
@@ -123,7 +124,7 @@ def send_to_gemini(prompt: str, image_paths: Optional[Sequence[str]], retries: i
     Returns:
         Parsed JSON response from Gemini
     """
-    contents: List[Any] = [prompt]
+    contents: list[Any] = [prompt]
     if image_paths:
         for rel_path in image_paths:
             img_path = Path(rel_path)
@@ -143,7 +144,7 @@ def send_to_gemini(prompt: str, image_paths: Optional[Sequence[str]], retries: i
             parsed = parse_gemini_response(response.text)
             return parsed
         except Exception as e:
-            eval_logger.error(f"Gemini API error (attempt {attempt+1}): {e}")
+            eval_logger.error(f"Gemini API error (attempt {attempt + 1}): {e}")
             if attempt < retries - 1:
                 time.sleep(2**attempt)
             else:
@@ -181,12 +182,16 @@ def get_eval(doc, model_text, model_images):
     question = doc["prompt"]
     question_type = doc.get("question_type", "open")
 
-    all_results: List[Dict[str, Any]] = []
+    all_results: list[dict[str, Any]] = []
 
     # Evaluate text rubrics
     for rubric in doc.get("text_rubrics", []):
         template = TEXT_TEMPLATE
-        prompt = template.replace("<<question>>", question).replace("<<text_answer>>", model_text or "").replace("<<rubric_item>>", rubric.get("criterion", ""))
+        prompt = (
+            template.replace("<<question>>", question)
+            .replace("<<text_answer>>", model_text or "")
+            .replace("<<rubric_item>>", rubric.get("criterion", ""))
+        )
 
         parsed = send_to_gemini(prompt, image_paths=None)
         print(parsed)
@@ -211,7 +216,11 @@ def get_eval(doc, model_text, model_images):
             prompt = template.replace("<<question>>", question).replace("<<rubric_item>>", rubric.get("criterion", ""))
         else:  # open type
             template = IMAGE_TEMPLATE_OPEN
-            prompt = template.replace("<<question>>", question).replace("<<text_answer>>", model_text or "").replace("<<rubric_item>>", rubric.get("criterion", ""))
+            prompt = (
+                template.replace("<<question>>", question)
+                .replace("<<text_answer>>", model_text or "")
+                .replace("<<rubric_item>>", rubric.get("criterion", ""))
+            )
 
         parsed = send_to_gemini(prompt, image_paths=model_images)
         print(parsed)
@@ -272,7 +281,12 @@ def ueval_process_results(doc, results):
     # Extract domain from task_type field
     domain = doc.get("task_type", "unknown")
 
-    eval_logger.info(f"[{domain}] Sample {doc.get('id', 'N/A')}: " f"Text={text_met}/{text_total}, " f"Image={image_met}/{image_total}, " f"Overall={overall_score:.4f}")
+    eval_logger.info(
+        f"[{domain}] Sample {doc.get('id', 'N/A')}: "
+        f"Text={text_met}/{text_total}, "
+        f"Image={image_met}/{image_total}, "
+        f"Overall={overall_score:.4f}"
+    )
 
     return {
         "text_score": {"score": text_score, "domain": domain, "id": doc.get("id", "N/A")},
@@ -281,7 +295,7 @@ def ueval_process_results(doc, results):
     }
 
 
-def _compute_domain_breakdown(results: List[Dict], metric_key: str) -> Dict:
+def _compute_domain_breakdown(results: list[dict], metric_key: str) -> dict:
     """
     Helper function to compute per-domain statistics
 

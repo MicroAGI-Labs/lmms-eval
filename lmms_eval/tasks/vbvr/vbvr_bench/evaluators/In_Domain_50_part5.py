@@ -2,7 +2,6 @@
 Specific evaluators for In-Domain_50 tasks (Part 5).
 """
 
-from typing import Any, Dict, List, Optional, Tuple
 
 import cv2
 import numpy as np
@@ -28,9 +27,22 @@ class GridShiftEvaluator(BaseEvaluator):
 
     def __init__(self, device: str = "cuda", task_name: str = ""):
         super().__init__(device, task_name)
-        self.DEFAULT_WEIGHTS = {"direction_correctness": 0.30, "step_accuracy": 0.30, "synchronization": 0.20, "position_precision": 0.15, "completeness": 0.05}
+        self.DEFAULT_WEIGHTS = {
+            "direction_correctness": 0.30,
+            "step_accuracy": 0.30,
+            "synchronization": 0.20,
+            "position_precision": 0.15,
+            "completeness": 0.05,
+        }
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         """Evaluate grid shift movement."""
 
         if not video_frames or gt_final_frame is None:
@@ -56,7 +68,9 @@ class GridShiftEvaluator(BaseEvaluator):
         completeness_score = self._evaluate_completeness(first_blocks, gen_final_blocks)
 
         # Also check pattern preservation
-        pattern_score = self._evaluate_block_pattern_preservation(first_frame, gen_final, first_blocks, gen_final_blocks)
+        pattern_score = self._evaluate_block_pattern_preservation(
+            first_frame, gen_final, first_blocks, gen_final_blocks
+        )
 
         # Combine: blocks must be preserved AND patterns must be unchanged
         block_preserved = min(completeness_score, pattern_score) > 0.5
@@ -88,7 +102,7 @@ class GridShiftEvaluator(BaseEvaluator):
         self._last_task_details = scores
         return sum(scores[k] * self.DEFAULT_WEIGHTS[k] for k in self.DEFAULT_WEIGHTS)
 
-    def _detect_colored_blocks(self, frame: np.ndarray) -> List[Dict]:
+    def _detect_colored_blocks(self, frame: np.ndarray) -> list[dict]:
         """Detect colored blocks in the frame."""
         blocks = []
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
@@ -161,7 +175,7 @@ class GridShiftEvaluator(BaseEvaluator):
 
         return blocks
 
-    def _evaluate_direction(self, first_blocks: List[Dict], gen_blocks: List[Dict], gt_blocks: List[Dict]) -> float:
+    def _evaluate_direction(self, first_blocks: list[dict], gen_blocks: list[dict], gt_blocks: list[dict]) -> float:
         """Evaluate if blocks moved in correct direction."""
         if not first_blocks or not gen_blocks or not gt_blocks:
             return 0.0
@@ -221,7 +235,9 @@ class GridShiftEvaluator(BaseEvaluator):
 
         return direction_match
 
-    def _evaluate_step_accuracy(self, first_blocks: List[Dict], gen_blocks: List[Dict], gt_blocks: List[Dict], frame: np.ndarray) -> float:
+    def _evaluate_step_accuracy(
+        self, first_blocks: list[dict], gen_blocks: list[dict], gt_blocks: list[dict], frame: np.ndarray
+    ) -> float:
         """Evaluate if blocks moved correct number of steps."""
         if not first_blocks or not gen_blocks or not gt_blocks:
             return 0.0
@@ -272,7 +288,7 @@ class GridShiftEvaluator(BaseEvaluator):
         else:
             return 0.2
 
-    def _evaluate_synchronization(self, frames: List[np.ndarray]) -> float:
+    def _evaluate_synchronization(self, frames: list[np.ndarray]) -> float:
         """Check if all blocks move synchronously."""
         if len(frames) < 3:
             return 0.5
@@ -319,7 +335,7 @@ class GridShiftEvaluator(BaseEvaluator):
 
         return np.mean(sync_scores) if sync_scores else 0.5
 
-    def _evaluate_position_precision(self, gen_blocks: List[Dict], gt_blocks: List[Dict]) -> float:
+    def _evaluate_position_precision(self, gen_blocks: list[dict], gt_blocks: list[dict]) -> float:
         """Evaluate final position accuracy."""
         if not gen_blocks or not gt_blocks:
             return 0.0
@@ -346,7 +362,7 @@ class GridShiftEvaluator(BaseEvaluator):
 
         return np.mean(matched_scores) if matched_scores else 0.0
 
-    def _evaluate_completeness(self, first_blocks: List[Dict], gen_blocks: List[Dict]) -> float:
+    def _evaluate_completeness(self, first_blocks: list[dict], gen_blocks: list[dict]) -> float:
         """Evaluate if all blocks are preserved with same colors."""
         if not first_blocks:
             return 0.0
@@ -367,7 +383,9 @@ class GridShiftEvaluator(BaseEvaluator):
 
         return 1.0  # All blocks preserved with same colors
 
-    def _evaluate_block_pattern_preservation(self, first_frame: np.ndarray, gen_final: np.ndarray, first_blocks: List[Dict], gen_blocks: List[Dict]) -> float:
+    def _evaluate_block_pattern_preservation(
+        self, first_frame: np.ndarray, gen_final: np.ndarray, first_blocks: list[dict], gen_blocks: list[dict]
+    ) -> float:
         """Check if block patterns/content remain unchanged during shift."""
         if not first_blocks or not gen_blocks:
             return 0.0
@@ -433,9 +451,21 @@ class LightSequenceEvaluator(BaseEvaluator):
 
     def __init__(self, device: str = "cuda", task_name: str = ""):
         super().__init__(device, task_name)
-        self.DEFAULT_WEIGHTS = {"rule_understanding": 0.35, "position_identification": 0.30, "state_transition": 0.25, "visual_quality": 0.10}
+        self.DEFAULT_WEIGHTS = {
+            "rule_understanding": 0.35,
+            "position_identification": 0.30,
+            "state_transition": 0.25,
+            "visual_quality": 0.10,
+        }
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         """Evaluate light sequence state control - RULE-BASED comparison."""
         if not video_frames or gt_final_frame is None or gt_first_frame is None:
             return 0.0
@@ -502,7 +532,7 @@ class LightSequenceEvaluator(BaseEvaluator):
 
         return sum(scores[k] * self.DEFAULT_WEIGHTS[k] for k in self.DEFAULT_WEIGHTS)
 
-    def _detect_all_light_positions(self, frame: np.ndarray) -> List[Tuple[int, int]]:
+    def _detect_all_light_positions(self, frame: np.ndarray) -> list[tuple[int, int]]:
         """Detect all light positions (both on and off) from the frame."""
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         # Find non-white regions (lights are colored, background is white)
@@ -524,7 +554,7 @@ class LightSequenceEvaluator(BaseEvaluator):
         positions.sort(key=lambda p: p[0])
         return positions
 
-    def _get_light_states(self, frame: np.ndarray, positions: List[Tuple[int, int]]) -> List[bool]:
+    def _get_light_states(self, frame: np.ndarray, positions: list[tuple[int, int]]) -> list[bool]:
         """Get ON/OFF state for each light position."""
         states = []
         for cx, cy in positions:
@@ -544,7 +574,7 @@ class LightSequenceEvaluator(BaseEvaluator):
 
         return states
 
-    def _detect_light_states(self, frame: np.ndarray) -> List[Dict]:
+    def _detect_light_states(self, frame: np.ndarray) -> list[dict]:
         """Detect lights and their on/off states using non-white region detection."""
         lights = []
 
@@ -579,7 +609,11 @@ class LightSequenceEvaluator(BaseEvaluator):
 
             # ON lights have high color difference (gold/orange is saturated)
             # OFF lights have low color difference (gray is desaturated)
-            is_on = (r_val > 200 and g_val > 150 and b_val < 100) or (r_val > 220 and g_val > 180) or (color_diff > 50 and r_val > 180)  # Saturated warm color
+            is_on = (
+                (r_val > 200 and g_val > 150 and b_val < 100)
+                or (r_val > 220 and g_val > 180)
+                or (color_diff > 50 and r_val > 180)
+            )  # Saturated warm color
 
             lights.append({"center": (cx, cy), "area": area, "is_on": is_on, "color": mean_color})
 
@@ -587,7 +621,7 @@ class LightSequenceEvaluator(BaseEvaluator):
         lights.sort(key=lambda l: l["center"][0])
         return lights
 
-    def _detect_lights_by_color(self, frame: np.ndarray) -> List[Dict]:
+    def _detect_lights_by_color(self, frame: np.ndarray) -> list[dict]:
         """Fallback detection by color."""
         lights = []
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
@@ -642,7 +676,7 @@ class LightSequenceEvaluator(BaseEvaluator):
         lights.sort(key=lambda l: l["center"][0])
         return lights
 
-    def _evaluate_rule_understanding(self, gen_lights: List[Dict], gt_lights: List[Dict]) -> float:
+    def _evaluate_rule_understanding(self, gen_lights: list[dict], gt_lights: list[dict]) -> float:
         """Evaluate if the rule was correctly understood and applied."""
         if not gt_lights:
             return 0.5
@@ -659,7 +693,7 @@ class LightSequenceEvaluator(BaseEvaluator):
         matches = sum(1 for g, gt in zip(gen_pattern, gt_pattern) if g == gt)
         return matches / len(gt_pattern)
 
-    def _evaluate_position_identification(self, gen_lights: List[Dict], gt_lights: List[Dict]) -> float:
+    def _evaluate_position_identification(self, gen_lights: list[dict], gt_lights: list[dict]) -> float:
         """Evaluate if lights are in correct positions."""
         if not gt_lights or not gen_lights:
             return 0.0 if not gen_lights else 0.5
@@ -681,7 +715,7 @@ class LightSequenceEvaluator(BaseEvaluator):
 
         return np.mean(position_scores) if position_scores else 0.0
 
-    def _evaluate_state_transition(self, gen_lights: List[Dict], gt_lights: List[Dict]) -> float:
+    def _evaluate_state_transition(self, gen_lights: list[dict], gt_lights: list[dict]) -> float:
         """Evaluate on/off state accuracy."""
         if not gt_lights or not gen_lights:
             return 0.0
@@ -707,7 +741,9 @@ class LightSequenceEvaluator(BaseEvaluator):
 
         return correct_states / total if total > 0 else 0.0
 
-    def _evaluate_light_visual_quality(self, gen_frame: np.ndarray, gt_frame: np.ndarray, gen_lights: List[Dict], gt_lights: List[Dict]) -> float:
+    def _evaluate_light_visual_quality(
+        self, gen_frame: np.ndarray, gt_frame: np.ndarray, gen_lights: list[dict], gt_lights: list[dict]
+    ) -> float:
         """Evaluate visual quality of lights (renamed to avoid conflict with base class)."""
         if not gen_lights:
             return 0.0
@@ -745,7 +781,11 @@ class MajorityColorEvaluator(BaseEvaluator):
 
     def __init__(self, device: str = "cuda", task_name: str = ""):
         super().__init__(device, task_name)
-        self.DEFAULT_WEIGHTS = {"shapes_preserved": 0.30, "single_color": 0.55, "correct_majority": 0.15}  # Same number of shapes  # Only one color in final - MOST IMPORTANT  # Correct majority color
+        self.DEFAULT_WEIGHTS = {
+            "shapes_preserved": 0.30,
+            "single_color": 0.55,
+            "correct_majority": 0.15,
+        }  # Same number of shapes  # Only one color in final - MOST IMPORTANT  # Correct majority color
 
     def _count_total_shapes(self, frame: np.ndarray) -> int:
         """Count total number of colored shapes."""
@@ -755,7 +795,14 @@ class MajorityColorEvaluator(BaseEvaluator):
         contours, _ = cv2.findContours(sat_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         return len([c for c in contours if cv2.contourArea(c) > 200])
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         """Evaluate majority color identification.
 
         CRITICAL RULES:
@@ -820,7 +867,7 @@ class MajorityColorEvaluator(BaseEvaluator):
         self._last_task_details = scores
         return sum(scores[k] * self.DEFAULT_WEIGHTS[k] for k in self.DEFAULT_WEIGHTS)
 
-    def _count_shapes_by_color(self, frame: np.ndarray) -> Dict[str, int]:
+    def _count_shapes_by_color(self, frame: np.ndarray) -> dict[str, int]:
         """Count shapes by color."""
         color_counts = {}
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
@@ -855,7 +902,9 @@ class MajorityColorEvaluator(BaseEvaluator):
 
         return color_counts
 
-    def _evaluate_majority_identification(self, initial_colors: Dict[str, int], gen_colors: Dict[str, int], gt_colors: Dict[str, int]) -> float:
+    def _evaluate_majority_identification(
+        self, initial_colors: dict[str, int], gen_colors: dict[str, int], gt_colors: dict[str, int]
+    ) -> float:
         """Evaluate if correct majority color was identified."""
         if not gt_colors:
             return 0.0  # STRICT: No GT to compare
@@ -879,7 +928,7 @@ class MajorityColorEvaluator(BaseEvaluator):
 
         return 0.0
 
-    def _evaluate_non_majority_removal(self, gen_colors: Dict[str, int], gt_colors: Dict[str, int]) -> float:
+    def _evaluate_non_majority_removal(self, gen_colors: dict[str, int], gt_colors: dict[str, int]) -> float:
         """Evaluate if non-majority colors were removed."""
         if not gt_colors:
             return 0.5
@@ -898,7 +947,7 @@ class MajorityColorEvaluator(BaseEvaluator):
 
         return 0.5
 
-    def _evaluate_majority_preservation(self, gen_colors: Dict[str, int], gt_colors: Dict[str, int]) -> float:
+    def _evaluate_majority_preservation(self, gen_colors: dict[str, int], gt_colors: dict[str, int]) -> float:
         """Evaluate if all majority color shapes were preserved."""
         if not gt_colors:
             return 0.5
@@ -953,9 +1002,21 @@ class RotationPuzzleEvaluator(BaseEvaluator):
 
     def __init__(self, device: str = "cuda", task_name: str = ""):
         super().__init__(device, task_name)
-        self.DEFAULT_WEIGHTS = {"path_connection": 0.40, "rotation_accuracy": 0.30, "position_preservation": 0.20, "alignment_precision": 0.10}
+        self.DEFAULT_WEIGHTS = {
+            "path_connection": 0.40,
+            "rotation_accuracy": 0.30,
+            "position_preservation": 0.20,
+            "alignment_precision": 0.10,
+        }
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         """Evaluate rotation puzzle solution."""
 
         if not video_frames or gt_final_frame is None:
@@ -1117,9 +1178,21 @@ class SequenceCompletionEvaluator(BaseEvaluator):
 
     def __init__(self, device: str = "cuda", task_name: str = ""):
         super().__init__(device, task_name)
-        self.DEFAULT_WEIGHTS = {"sequence_type_identification": 0.35, "element_calculation": 0.35, "element_rendering": 0.20, "sequence_integrity": 0.10}
+        self.DEFAULT_WEIGHTS = {
+            "sequence_type_identification": 0.35,
+            "element_calculation": 0.35,
+            "element_rendering": 0.20,
+            "sequence_integrity": 0.10,
+        }
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         """Evaluate sequence completion accuracy - RULE-BASED."""
 
         if not video_frames or gt_final_frame is None or gt_first_frame is None:
@@ -1221,7 +1294,7 @@ class SequenceCompletionEvaluator(BaseEvaluator):
 
         return sum(scores[k] * self.DEFAULT_WEIGHTS[k] for k in self.DEFAULT_WEIGHTS)
 
-    def _detect_sequence_elements(self, frame: np.ndarray) -> List[Tuple[int, int, Tuple]]:
+    def _detect_sequence_elements(self, frame: np.ndarray) -> list[tuple[int, int, tuple]]:
         """Detect sequence elements (colored shapes OR numbers) with their colors."""
         elements = []
 
@@ -1324,7 +1397,7 @@ class SequenceCompletionEvaluator(BaseEvaluator):
         else:
             return 0.2
 
-    def _get_dominant_color(self, region: np.ndarray) -> Optional[Tuple[int, int, int]]:
+    def _get_dominant_color(self, region: np.ndarray) -> tuple[int, int, int] | None:
         """Get dominant non-white color in region."""
         # Exclude white/near-white pixels
         mask = np.all(region < 240, axis=2)
@@ -1377,7 +1450,7 @@ class SequenceCompletionEvaluator(BaseEvaluator):
 
         return 0.5
 
-    def _detect_shapes(self, region: np.ndarray) -> List[Dict]:
+    def _detect_shapes(self, region: np.ndarray) -> list[dict]:
         """Detect shapes in a region."""
         gray = cv2.cvtColor(region, cv2.COLOR_BGR2GRAY)
         _, thresh = cv2.threshold(gray, 200, 255, cv2.THRESH_BINARY_INV)
@@ -1428,9 +1501,21 @@ class SlidingPuzzleEvaluator(BaseEvaluator):
 
     def __init__(self, device: str = "cuda", task_name: str = ""):
         super().__init__(device, task_name)
-        self.DEFAULT_WEIGHTS = {"target_state_accuracy": 0.40, "move_count_constraint": 0.30, "move_legality": 0.20, "grid_structure": 0.10}
+        self.DEFAULT_WEIGHTS = {
+            "target_state_accuracy": 0.40,
+            "move_count_constraint": 0.30,
+            "move_legality": 0.20,
+            "grid_structure": 0.10,
+        }
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         """Evaluate sliding puzzle solution."""
 
         if not video_frames or gt_final_frame is None:
@@ -1491,7 +1576,7 @@ class SlidingPuzzleEvaluator(BaseEvaluator):
         else:
             return 0.0  # Wrong arrangement
 
-    def _detect_tile_positions(self, frame: np.ndarray) -> List[Dict]:
+    def _detect_tile_positions(self, frame: np.ndarray) -> list[dict]:
         """Detect tile positions in the puzzle."""
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
@@ -1527,7 +1612,7 @@ class SlidingPuzzleEvaluator(BaseEvaluator):
         else:
             return 0.0  # Wrong arrangement
 
-    def _evaluate_move_count(self, frames: List[np.ndarray]) -> float:
+    def _evaluate_move_count(self, frames: list[np.ndarray]) -> float:
         """Evaluate number of tile movements."""
         if len(frames) < 2:
             return 0.5
@@ -1566,7 +1651,7 @@ class SlidingPuzzleEvaluator(BaseEvaluator):
         else:
             return max(0.3, 1.0 - (move_count - 30) / 30)
 
-    def _evaluate_move_legality(self, frames: List[np.ndarray]) -> float:
+    def _evaluate_move_legality(self, frames: list[np.ndarray]) -> float:
         """Evaluate if moves are legal (only adjacent tiles)."""
         if len(frames) < 2:
             return 0.5
@@ -1646,9 +1731,21 @@ class TrafficLightEvaluator(BaseEvaluator):
 
     def __init__(self, device: str = "cuda", task_name: str = ""):
         super().__init__(device, task_name)
-        self.DEFAULT_WEIGHTS = {"final_state_accuracy": 0.35, "countdown_correctness": 0.30, "switch_timing": 0.25, "opposite_rule": 0.10}
+        self.DEFAULT_WEIGHTS = {
+            "final_state_accuracy": 0.35,
+            "countdown_correctness": 0.30,
+            "switch_timing": 0.25,
+            "opposite_rule": 0.10,
+        }
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         """Evaluate traffic light state reasoning."""
 
         if not video_frames or gt_final_frame is None:
@@ -1682,7 +1779,7 @@ class TrafficLightEvaluator(BaseEvaluator):
         self._last_task_details = scores
         return sum(scores[k] * self.DEFAULT_WEIGHTS[k] for k in self.DEFAULT_WEIGHTS)
 
-    def _detect_traffic_lights(self, frame: np.ndarray) -> Dict:
+    def _detect_traffic_lights(self, frame: np.ndarray) -> dict:
         """Detect traffic light colors."""
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
         h, w = frame.shape[:2]
@@ -1734,7 +1831,7 @@ class TrafficLightEvaluator(BaseEvaluator):
         # STRICT: If no lights detected or no match, return 0
         return matches / total if total > 0 else 0.0
 
-    def _evaluate_countdown(self, frames: List[np.ndarray]) -> float:
+    def _evaluate_countdown(self, frames: list[np.ndarray]) -> float:
         """Evaluate countdown behavior through video."""
         if len(frames) < 5:
             return 0.0  # STRICT: Not enough frames
@@ -1759,7 +1856,7 @@ class TrafficLightEvaluator(BaseEvaluator):
         else:
             return 0.4
 
-    def _evaluate_switch_timing(self, frames: List[np.ndarray]) -> float:
+    def _evaluate_switch_timing(self, frames: list[np.ndarray]) -> float:
         """Evaluate if state switch happens at appropriate time."""
         if len(frames) < 3:
             return 0.0  # STRICT: Not enough frames
@@ -1820,9 +1917,21 @@ class ClockTimeEvaluator(BaseEvaluator):
 
     def __init__(self, device: str = "cuda", task_name: str = ""):
         super().__init__(device, task_name)
-        self.DEFAULT_WEIGHTS = {"time_calculation_accuracy": 0.50, "hand_position_accuracy": 0.30, "rotation_direction": 0.15, "clock_fidelity": 0.05}
+        self.DEFAULT_WEIGHTS = {
+            "time_calculation_accuracy": 0.50,
+            "hand_position_accuracy": 0.30,
+            "rotation_direction": 0.15,
+            "clock_fidelity": 0.05,
+        }
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         """Evaluate clock time reasoning."""
 
         if not video_frames or gt_final_frame is None:
@@ -1857,7 +1966,7 @@ class ClockTimeEvaluator(BaseEvaluator):
         self._last_task_details = scores
         return sum(scores[k] * self.DEFAULT_WEIGHTS[k] for k in self.DEFAULT_WEIGHTS)
 
-    def _detect_hand_angle(self, frame: np.ndarray) -> Optional[float]:
+    def _detect_hand_angle(self, frame: np.ndarray) -> float | None:
         """Detect hour hand angle."""
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
@@ -1894,7 +2003,9 @@ class ClockTimeEvaluator(BaseEvaluator):
         x1, y1, x2, y2 = best_line
 
         # Calculate angle from center
-        if np.sqrt((x1 - center[0]) ** 2 + (y1 - center[1]) ** 2) < np.sqrt((x2 - center[0]) ** 2 + (y2 - center[1]) ** 2):
+        if np.sqrt((x1 - center[0]) ** 2 + (y1 - center[1]) ** 2) < np.sqrt(
+            (x2 - center[0]) ** 2 + (y2 - center[1]) ** 2
+        ):
             # x1, y1 is closer to center
             dx, dy = x2 - center[0], y2 - center[1]
         else:
@@ -1953,7 +2064,7 @@ class ClockTimeEvaluator(BaseEvaluator):
         else:
             return max(0.1, 1.0 - diff / 90)
 
-    def _evaluate_rotation_direction(self, frames: List[np.ndarray]) -> float:
+    def _evaluate_rotation_direction(self, frames: list[np.ndarray]) -> float:
         """Evaluate if rotation is clockwise."""
         if len(frames) < 3:
             return 0.5
@@ -1988,8 +2099,12 @@ class ClockTimeEvaluator(BaseEvaluator):
         gen_gray = cv2.cvtColor(gen_frame, cv2.COLOR_BGR2GRAY)
         gt_gray = cv2.cvtColor(gt_frame, cv2.COLOR_BGR2GRAY)
 
-        gen_circles = cv2.HoughCircles(gen_gray, cv2.HOUGH_GRADIENT, 1, 50, param1=50, param2=30, minRadius=50, maxRadius=200)
-        gt_circles = cv2.HoughCircles(gt_gray, cv2.HOUGH_GRADIENT, 1, 50, param1=50, param2=30, minRadius=50, maxRadius=200)
+        gen_circles = cv2.HoughCircles(
+            gen_gray, cv2.HOUGH_GRADIENT, 1, 50, param1=50, param2=30, minRadius=50, maxRadius=200
+        )
+        gt_circles = cv2.HoughCircles(
+            gt_gray, cv2.HOUGH_GRADIENT, 1, 50, param1=50, param2=30, minRadius=50, maxRadius=200
+        )
 
         if gen_circles is not None and gt_circles is not None:
             return 1.0
@@ -2015,9 +2130,21 @@ class RotationEvaluator(BaseEvaluator):
 
     def __init__(self, device: str = "cuda", task_name: str = ""):
         super().__init__(device, task_name)
-        self.DEFAULT_WEIGHTS = {"spatial_understanding": 0.35, "rotation_angle_accuracy": 0.35, "view_consistency": 0.20, "rendering_quality": 0.10}
+        self.DEFAULT_WEIGHTS = {
+            "spatial_understanding": 0.35,
+            "rotation_angle_accuracy": 0.35,
+            "view_consistency": 0.20,
+            "rendering_quality": 0.10,
+        }
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         """Evaluate 3D rotation view."""
 
         if not video_frames or gt_final_frame is None:
@@ -2153,9 +2280,21 @@ class CommunicatingVesselsEvaluator(BaseEvaluator):
 
     def __init__(self, device: str = "cuda", task_name: str = ""):
         super().__init__(device, task_name)
-        self.DEFAULT_WEIGHTS = {"final_equilibrium": 0.40, "flow_process": 0.30, "volume_conservation": 0.20, "visual_fidelity": 0.10}
+        self.DEFAULT_WEIGHTS = {
+            "final_equilibrium": 0.40,
+            "flow_process": 0.30,
+            "volume_conservation": 0.20,
+            "visual_fidelity": 0.10,
+        }
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         """Evaluate communicating vessels simulation.
 
         CRITICAL RULE: The final frame MUST show equilibrium (all liquid levels equal).
@@ -2214,7 +2353,7 @@ class CommunicatingVesselsEvaluator(BaseEvaluator):
         self._last_task_details = scores
         return sum(scores[k] * self.DEFAULT_WEIGHTS[k] for k in self.DEFAULT_WEIGHTS)
 
-    def _evaluate_final_equilibrium_vs_gt(self, gen_levels: List[int], gt_levels: List[int]) -> float:
+    def _evaluate_final_equilibrium_vs_gt(self, gen_levels: list[int], gt_levels: list[int]) -> float:
         """Compare generated levels against GT target levels.
 
         CRITICAL: GT levels are the target equilibrium state (all equal).
@@ -2254,7 +2393,7 @@ class CommunicatingVesselsEvaluator(BaseEvaluator):
             # Not at equilibrium - levels are too different
             return 0.1
 
-    def _detect_liquid_levels(self, frame: np.ndarray, n_vessels: int = None) -> List[int]:
+    def _detect_liquid_levels(self, frame: np.ndarray, n_vessels: int = None) -> list[int]:
         """Detect liquid levels in vessels using pixel color detection.
 
         Detect vessels by finding columns with significant colored (saturated) pixels.
@@ -2324,7 +2463,7 @@ class CommunicatingVesselsEvaluator(BaseEvaluator):
 
         return levels
 
-    def _evaluate_flow_process(self, frames: List[np.ndarray]) -> float:
+    def _evaluate_flow_process(self, frames: list[np.ndarray]) -> float:
         """Evaluate if flow process is realistic."""
         if len(frames) < 5:
             return 0.5

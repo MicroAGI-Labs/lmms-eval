@@ -2,7 +2,7 @@
 
 import base64
 import hashlib
-from typing import Any, Dict
+from typing import Any
 
 
 def derive_key(password: str, length: int) -> bytes:
@@ -46,7 +46,7 @@ def decrypt_text(ciphertext_b64: str, password: str) -> str:
         return ciphertext_b64  # Return original if decryption fails
 
 
-def decrypt_sample(sample: Dict[str, Any], canary: str) -> Dict[str, Any]:
+def decrypt_sample(sample: dict[str, Any], canary: str) -> dict[str, Any]:
     """
     Decrypt text fields in a single sample using the provided canary password.
 

@@ -1,12 +1,8 @@
 import os
 import time
 from copy import deepcopy
-from typing import List, Tuple
 
 from accelerate import Accelerator, DistributedType
-from PIL import Image
-from tqdm import tqdm
-
 from lmms_eval.api.instance import GenerationResult, Instance, TokenCounts
 from lmms_eval.api.model import lmms
 from lmms_eval.api.registry import register_model
@@ -15,6 +11,8 @@ from lmms_eval.models.model_utils.media_encoder import (
     encode_image_to_bytes,
 )
 from lmms_eval.models.model_utils.usage_metrics import is_budget_exceeded, log_usage
+from PIL import Image
+from tqdm import tqdm
 
 NUM_SECONDS_TO_SLEEP = 5
 
@@ -52,7 +50,11 @@ class Claude(lmms):
         self.max_frames_num = max_frames_num
         accelerator = Accelerator()
         if accelerator.num_processes > 1:
-            assert accelerator.distributed_type in [DistributedType.FSDP, DistributedType.MULTI_GPU, DistributedType.DEEPSPEED], "Unsupported distributed type provided. Only DDP and FSDP are supported."
+            assert accelerator.distributed_type in [
+                DistributedType.FSDP,
+                DistributedType.MULTI_GPU,
+                DistributedType.DEEPSPEED,
+            ], "Unsupported distributed type provided. Only DDP and FSDP are supported."
             self.accelerator = accelerator
             if self.accelerator.is_local_main_process:
                 eval_logger.info(f"Using {accelerator.num_processes} devices with data parallelism")
@@ -127,7 +129,7 @@ class Claude(lmms):
 
         return base64_frames
 
-    def generate_until(self, requests) -> List[GenerationResult]:
+    def generate_until(self, requests) -> list[GenerationResult]:
         client = anthropic.Anthropic()
 
         res = []
@@ -207,7 +209,14 @@ class Claude(lmms):
             for attempt in range(5):
                 retry_flag = True
                 try:
-                    message = client.messages.create(model=self.model_version, max_tokens=gen_kwargs["max_new_tokens"], system=self.system_prompt, temperature=gen_kwargs["temperature"], top_p=gen_kwargs["top_p"], messages=messages)
+                    message = client.messages.create(
+                        model=self.model_version,
+                        max_tokens=gen_kwargs["max_new_tokens"],
+                        system=self.system_prompt,
+                        temperature=gen_kwargs["temperature"],
+                        top_p=gen_kwargs["top_p"],
+                        messages=messages,
+                    )
                     retry_flag = False
                 except Exception as e:
                     eval_logger.info(f"Attempt {attempt + 1} failed with error: {str(e)}")
@@ -244,8 +253,8 @@ class Claude(lmms):
 
         return res
 
-    def loglikelihood(self, requests: List[Instance]) -> List[Tuple[float, bool]]:
+    def loglikelihood(self, requests: list[Instance]) -> list[tuple[float, bool]]:
         assert False, "Not supported for claude"
 
-    def generate_until_multi_round(self, requests) -> List[str]:
+    def generate_until_multi_round(self, requests) -> list[str]:
         raise NotImplementedError("TODO: Implement multi-round generation for Claude")

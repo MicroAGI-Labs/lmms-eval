@@ -1,13 +1,11 @@
 import os
 import tempfile
 import time
-from typing import List, Tuple
-
-from tqdm import tqdm
 
 from lmms_eval.api.instance import Instance
 from lmms_eval.api.model import lmms
 from lmms_eval.api.registry import register_model
+from tqdm import tqdm
 
 NUM_SECONDS_TO_SLEEP = 5
 from loguru import logger as eval_logger
@@ -49,7 +47,7 @@ class Qwen_VL_API(lmms):
         image.save(temp_file.name)
         return temp_file
 
-    def generate_until(self, requests) -> List[str]:
+    def generate_until(self, requests) -> list[str]:
         res = []
         pbar = tqdm(total=len(requests), disable=(self.rank != 0), desc="Model Responding")
 
@@ -91,7 +89,13 @@ class Qwen_VL_API(lmms):
 
                 for attempt in range(5):
                     try:
-                        response_data = dashscope.MultiModalConversation.call(model=self.model_version, messages=messages, api_key=API_KEY, max_length=gen_kwargs["max_new_tokens"], temperature=gen_kwargs["temperature"])
+                        response_data = dashscope.MultiModalConversation.call(
+                            model=self.model_version,
+                            messages=messages,
+                            api_key=API_KEY,
+                            max_length=gen_kwargs["max_new_tokens"],
+                            temperature=gen_kwargs["temperature"],
+                        )
                         break
                     except Exception as e:
                         eval_logger.info(f"Attempt {attempt + 1} failed with error: {str(e)}")
@@ -119,7 +123,7 @@ class Qwen_VL_API(lmms):
 
         return res
 
-    def loglikelihood(self, requests: List[Instance]) -> List[Tuple[float, bool]]:
+    def loglikelihood(self, requests: list[Instance]) -> list[tuple[float, bool]]:
         assert False, "Not supported for claude"
 
     def flatten(self, input):
@@ -129,5 +133,5 @@ class Qwen_VL_API(lmms):
                 new_list.append(j)
         return new_list
 
-    def generate_until_multi_round(self, requests) -> List[str]:
+    def generate_until_multi_round(self, requests) -> list[str]:
         raise NotImplementedError("TODO: Implement multi-round generation")

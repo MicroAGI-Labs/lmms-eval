@@ -3,19 +3,18 @@ import re
 import string
 import sys
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
 import yaml
-from loguru import logger as eval_logger
-
 from lmms_eval.llm_judge import ServerConfig, get_server
+from loguru import logger as eval_logger
 
 hf_home = os.getenv("HF_HOME", "~/.cache/huggingface")
 
 base_cache_dir = os.path.expanduser(hf_home)
 
 
-with open(Path(__file__).parent / "mmvu_val.yaml", "r") as f:
+with open(Path(__file__).parent / "mmvu_val.yaml") as f:
     raw_data_val = f.readlines()
     safe_data_val = []
     for i, line in enumerate(raw_data_val):
@@ -97,7 +96,9 @@ def mmvu_doc_to_text(doc, lmms_eval_specific_kwargs=None):
     if question_type == "multiple-choice":
         question = doc["question"]
         choices = doc["choices"]
-        full_prompt = multiple_choice_prompt.format(question=question, a=choices["A"], b=choices["B"], c=choices["C"], d=choices["D"], e=choices["E"])
+        full_prompt = multiple_choice_prompt.format(
+            question=question, a=choices["A"], b=choices["B"], c=choices["C"], d=choices["D"], e=choices["E"]
+        )
     else:
         question = doc["question"]
         full_prompt = open_ended_prompt.format(question=question)
@@ -109,7 +110,9 @@ def mmvu_doc_to_text_cot(doc, lmms_eval_specific_kwargs=None):
     if question_type == "multiple-choice":
         question = doc["question"]
         choices = doc["choices"]
-        full_prompt = multiple_choice_prompt_cot.format(question=question, a=choices["A"], b=choices["B"], c=choices["C"], d=choices["D"], e=choices["E"])
+        full_prompt = multiple_choice_prompt_cot.format(
+            question=question, a=choices["A"], b=choices["B"], c=choices["C"], d=choices["D"], e=choices["E"]
+        )
     else:
         question = doc["question"]
         full_prompt = open_ended_prompt_cot.format(question=question)
@@ -134,14 +137,25 @@ E: {choices["E"]}"""
 def normalize_math_notation(text: str) -> str:
     """Normalize mathematical notation for comparison (e.g., n² -> n^2, n³ -> n^3)"""
     # Convert superscript numbers to caret notation
-    superscript_map = {"²": "^2", "³": "^3", "¹": "^1", "⁰": "^0", "⁴": "^4", "⁵": "^5", "⁶": "^6", "⁷": "^7", "⁸": "^8", "⁹": "^9"}
+    superscript_map = {
+        "²": "^2",
+        "³": "^3",
+        "¹": "^1",
+        "⁰": "^0",
+        "⁴": "^4",
+        "⁵": "^5",
+        "⁶": "^6",
+        "⁷": "^7",
+        "⁸": "^8",
+        "⁹": "^9",
+    }
     normalized = text
     for sup, caret in superscript_map.items():
         normalized = normalized.replace(sup, caret)
     return normalized
 
 
-def evaluate_with_rule_based(doc: Dict[str, Any], prediction: str) -> bool:
+def evaluate_with_rule_based(doc: dict[str, Any], prediction: str) -> bool:
     """Rule-based evaluation - returns True if correct, False otherwise"""
     answer = doc["answer"]
     question_type = doc["question_type"]
@@ -174,7 +188,9 @@ def evaluate_with_rule_based(doc: Dict[str, Any], prediction: str) -> bool:
             # Check if prediction contains both the letter and key words from choice
             if answer_str.upper() in pred_str.upper():
                 # Extract key words from choice (remove common words)
-                words = [w.strip(string.punctuation) for w in choice_text.split() if len(w.strip(string.punctuation)) > 2]
+                words = [
+                    w.strip(string.punctuation) for w in choice_text.split() if len(w.strip(string.punctuation)) > 2
+                ]
                 if len(words) > 0:
                     # Check if at least one key word appears in prediction
                     if any(word in pred_lower for word in words):
@@ -245,7 +261,7 @@ def evaluate_with_rule_based(doc: Dict[str, Any], prediction: str) -> bool:
         return False
 
 
-def evaluate_with_llm_judge(doc: Dict[str, Any], prediction: str) -> tuple[bool, str]:
+def evaluate_with_llm_judge(doc: dict[str, Any], prediction: str) -> tuple[bool, str]:
     """
     Hybrid evaluation: first try rule-based, if rule-based returns False, use GPT judge only for open-ended questions.
     For multiple-choice questions, only use rule-based evaluation.
@@ -288,7 +304,13 @@ def evaluate_with_llm_judge(doc: Dict[str, Any], prediction: str) -> tuple[bool,
 
 Return only "1" or "0" with no additional text or formatting."""
 
-        result = server.evaluate_binary(question=formatted_question, answer=full_answer, prediction=prediction, output_format="0/1", custom_prompt=custom_prompt)
+        result = server.evaluate_binary(
+            question=formatted_question,
+            answer=full_answer,
+            prediction=prediction,
+            output_format="0/1",
+            custom_prompt=custom_prompt,
+        )
 
         if result["success"]:
             judge_response = result["result"]
@@ -343,7 +365,14 @@ def mmvu_process_results(doc, results):
         # For open-ended, just use the prediction as-is (truncated for logging)
         extracted_answer = pred_ans[:100] + "..." if len(pred_ans) > 100 else pred_ans
 
-    data_dict = {"question_id": doc["id"], "category": category, "pred_answer": extracted_answer, "answer": doc["answer"], "correct": int(correct), "eval_method": eval_method}  # "rule-based" or "gpt-based"
+    data_dict = {
+        "question_id": doc["id"],
+        "category": category,
+        "pred_answer": extracted_answer,
+        "answer": doc["answer"],
+        "correct": int(correct),
+        "eval_method": eval_method,
+    }  # "rule-based" or "gpt-based"
 
     return {"accuracy": data_dict}
 

@@ -22,7 +22,9 @@ class LanceVideoBlobResolver:
         try:
             lance = importlib.import_module("lance")
         except ModuleNotFoundError as exc:
-            raise ImportError("Lance video resolver requires Python package `pylance` (module import name: `lance`) and `pyarrow`. Install via: uv add pylance pyarrow") from exc
+            raise ImportError(
+                "Lance video resolver requires Python package `pylance` (module import name: `lance`) and `pyarrow`. Install via: uv add pylance pyarrow"
+            ) from exc
 
         self._lance = lance
         self._dataset_uri = dataset_uri
@@ -65,9 +67,13 @@ class LanceVideoBlobResolver:
             with_row_address=True,
         ).to_table()
         if table.num_rows == 0:
-            raise FileNotFoundError(f"Video ID {video_id} not found in {self._source_name} dataset: {self._dataset_uri}")
+            raise FileNotFoundError(
+                f"Video ID {video_id} not found in {self._source_name} dataset: {self._dataset_uri}"
+            )
         if table.num_rows != 1:
-            raise ValueError(f"Video ID {video_id} expected 1 row but found {table.num_rows} rows in {self._source_name} dataset: {self._dataset_uri}")
+            raise ValueError(
+                f"Video ID {video_id} expected 1 row but found {table.num_rows} rows in {self._source_name} dataset: {self._dataset_uri}"
+            )
 
         blob_obj = table[self._blob_column][0].as_py()
         ext_obj = table[self._ext_column][0].as_py()
@@ -119,5 +125,7 @@ class LanceVideoBlobResolver:
             tmp_path = Path(tmp.name)
         os.replace(tmp_path, target_path)
 
-        eval_logger.debug(f"{self._source_name} resolve miss - video_id={video_id}, ext={ext}, bytes={len(blob)}, elapsed_s={time.perf_counter() - start_time:.4f}")
+        eval_logger.debug(
+            f"{self._source_name} resolve miss - video_id={video_id}, ext={ext}, bytes={len(blob)}, elapsed_s={time.perf_counter() - start_time:.4f}"
+        )
         return str(target_path)

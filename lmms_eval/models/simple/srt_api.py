@@ -1,11 +1,14 @@
 import asyncio
 import time
 from multiprocessing import cpu_count
-from typing import List, Tuple
 
 import numpy as np
 from accelerate import Accelerator, DistributedType
 from decord import VideoReader, cpu
+from lmms_eval.api.instance import Instance
+from lmms_eval.api.model import lmms
+from lmms_eval.api.registry import register_model
+from lmms_eval.models.model_utils.media_encoder import encode_image_to_base64
 from loguru import logger as eval_logger
 from openai import AsyncOpenAI, OpenAI
 from PIL import Image
@@ -15,11 +18,6 @@ from sglang.test.test_utils import (
     popen_launch_server,
 )
 from tqdm import tqdm
-
-from lmms_eval.api.instance import Instance
-from lmms_eval.api.model import lmms
-from lmms_eval.api.registry import register_model
-from lmms_eval.models.model_utils.media_encoder import encode_image_to_base64
 
 NUM_SECONDS_TO_SLEEP = 5
 
@@ -83,7 +81,11 @@ class SRT_API(lmms):
         self.num_processes = num_processes
         # assert self.batch_size_per_gpu == 1, "Llava currently does not support batched generation. See https://github.com/haotian-liu/LLaVA/issues/754. HF Llava also has this issue."
         if accelerator.num_processes > 1:
-            assert accelerator.distributed_type in [DistributedType.FSDP, DistributedType.MULTI_GPU, DistributedType.DEEPSPEED], "Unsupported distributed type provided. Only DDP and FSDP are supported."
+            assert accelerator.distributed_type in [
+                DistributedType.FSDP,
+                DistributedType.MULTI_GPU,
+                DistributedType.DEEPSPEED,
+            ], "Unsupported distributed type provided. Only DDP and FSDP are supported."
             self.accelerator = accelerator
             if self.accelerator.is_local_main_process:
                 eval_logger.info(f"Using {accelerator.num_processes} devices with data parallelism")
@@ -164,9 +166,7 @@ class SRT_API(lmms):
                     imgs = None
                     break
 
-                time_instruction = (
-                    f"The video lasts for {video_time:.2f} seconds, and {len(frames)} frames are uniformly sampled from it. These frames are located at {frame_time}.Please answer the following questions related to this video."
-                )
+                time_instruction = f"The video lasts for {video_time:.2f} seconds, and {len(frames)} frames are uniformly sampled from it. These frames are located at {frame_time}.Please answer the following questions related to this video."
         if self.add_time_instruction and self.modality == "video" and imgs is not None:
             contexts = f"{time_instruction}\n{contexts}"
         else:
@@ -182,7 +182,9 @@ class SRT_API(lmms):
         # put the images in the first place
         content = []
         for img in imgs:
-            content.append({"type": "image_url", "image_url": {"url": f"data:image/png;base64,{img}"}, "modalities": self.modality})
+            content.append(
+                {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{img}"}, "modalities": self.modality}
+            )
 
         content.append({"type": "text", "text": contexts})
         messages.append({"role": "user", "content": content})
@@ -195,7 +197,13 @@ class SRT_API(lmms):
 
         for attempt in range(5):
             try:
-                response = await self.client.chat.completions.create(model=self.model_version, messages=messages, temperature=gen_kwargs["temperature"], max_tokens=gen_kwargs["max_new_tokens"], timeout=self.timeout)
+                response = await self.client.chat.completions.create(
+                    model=self.model_version,
+                    messages=messages,
+                    temperature=gen_kwargs["temperature"],
+                    max_tokens=gen_kwargs["max_new_tokens"],
+                    timeout=self.timeout,
+                )
                 response_text = response.choices[0].message.content.strip()
                 break  # If successful, break out of the loop
 
@@ -227,9 +235,7 @@ class SRT_API(lmms):
                     imgs = None
                     break
 
-                time_instruction = (
-                    f"The video lasts for {video_time:.2f} seconds, and {len(frames)} frames are uniformly sampled from it. These frames are located at {frame_time}.Please answer the following questions related to this video."
-                )
+                time_instruction = f"The video lasts for {video_time:.2f} seconds, and {len(frames)} frames are uniformly sampled from it. These frames are located at {frame_time}.Please answer the following questions related to this video."
         if self.add_time_instruction and self.modality == "video" and imgs is not None:
             contexts = f"{time_instruction}\n{contexts}"
         else:
@@ -245,7 +251,9 @@ class SRT_API(lmms):
         # put the images in the first place
         content = []
         for img in imgs:
-            content.append({"type": "image_url", "image_url": {"url": f"data:image/png;base64,{img}"}, "modalities": self.modality})
+            content.append(
+                {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{img}"}, "modalities": self.modality}
+            )
 
         content.append({"type": "text", "text": contexts})
         messages.append({"role": "user", "content": content})
@@ -258,7 +266,13 @@ class SRT_API(lmms):
 
         for attempt in range(5):
             try:
-                response = self.client.chat.completions.create(model=self.model_version, messages=messages, temperature=gen_kwargs["temperature"], max_tokens=gen_kwargs["max_new_tokens"], timeout=self.timeout)
+                response = self.client.chat.completions.create(
+                    model=self.model_version,
+                    messages=messages,
+                    temperature=gen_kwargs["temperature"],
+                    max_tokens=gen_kwargs["max_new_tokens"],
+                    timeout=self.timeout,
+                )
                 response_text = response.choices[0].message.content.strip()
                 break  # If successful, break out of the loop
 
@@ -275,7 +289,7 @@ class SRT_API(lmms):
 
         return response_text
 
-    def generate_until(self, requests) -> List[str]:
+    def generate_until(self, requests) -> list[str]:
         res = []
         pbar = tqdm(total=len(requests), disable=(self.rank != 0), desc="Model Responding")
 
@@ -303,9 +317,9 @@ class SRT_API(lmms):
 
         return res
 
-    def loglikelihood(self, requests: List[Instance]) -> List[Tuple[float, bool]]:
+    def loglikelihood(self, requests: list[Instance]) -> list[tuple[float, bool]]:
         # TODO
         assert False, "GPT4V not support"
 
-    def generate_until_multi_round(self, requests) -> List[str]:
+    def generate_until_multi_round(self, requests) -> list[str]:
         raise NotImplementedError("TODO: Implement multi-round generation")

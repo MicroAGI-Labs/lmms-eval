@@ -1,5 +1,4 @@
 from datasets import Dataset
-
 from lmms_eval.tasks._task_utils.reasoning_utils import (
     make_reasoning_doc_to_messages,
     make_reasoning_process_results,
@@ -33,7 +32,9 @@ def charxiv_reasoning_doc_to_text_cot(doc, lmms_eval_specific_kwargs=None):
         question = REASONING_RESP_INST[inst_category].format(doc["reasoning_q"])
     # 4: number-in-general -> need to specify the number of decimal places
     elif inst_category == 4:
-        question = REASONING_RESP_INST[inst_category].format(doc["reasoning_q"], get_number_instruction(doc["reasoning_a"]))
+        question = REASONING_RESP_INST[inst_category].format(
+            doc["reasoning_q"], get_number_instruction(doc["reasoning_a"])
+        )
     return question
 
 
@@ -86,13 +87,21 @@ def charxiv_doc_to_visual(doc):
     return [doc["image"].convert("RGB")]
 
 
-charxiv_descriptive_doc_to_messages_cot = make_reasoning_doc_to_messages(charxiv_doc_to_visual, charxiv_descriptive_doc_to_text_cot, system_prompt=SYSTEM_PROMPT)
+charxiv_descriptive_doc_to_messages_cot = make_reasoning_doc_to_messages(
+    charxiv_doc_to_visual, charxiv_descriptive_doc_to_text_cot, system_prompt=SYSTEM_PROMPT
+)
 
 
-charxiv_reasoning_doc_to_messages_cot = make_reasoning_doc_to_messages(charxiv_doc_to_visual, charxiv_reasoning_doc_to_text_cot, system_prompt=SYSTEM_PROMPT)
+charxiv_reasoning_doc_to_messages_cot = make_reasoning_doc_to_messages(
+    charxiv_doc_to_visual, charxiv_reasoning_doc_to_text_cot, system_prompt=SYSTEM_PROMPT
+)
 
 
-charxiv_reasoning_process_results = make_reasoning_process_results("charxiv", charxiv_reasoning_doc_to_text_cot, gt_key="reasoning_a")
+charxiv_reasoning_process_results = make_reasoning_process_results(
+    "charxiv", charxiv_reasoning_doc_to_text_cot, gt_key="reasoning_a"
+)
 
 
-charxiv_descriptive_process_results = make_reasoning_process_results("charxiv", charxiv_descriptive_doc_to_text_cot, gt_key="descriptive_a")
+charxiv_descriptive_process_results = make_reasoning_process_results(
+    "charxiv", charxiv_descriptive_doc_to_text_cot, gt_key="descriptive_a"
+)

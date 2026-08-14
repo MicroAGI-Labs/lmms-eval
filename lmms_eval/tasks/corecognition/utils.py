@@ -9,7 +9,7 @@ import os
 import re
 from collections import defaultdict
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 import yaml
 
@@ -21,7 +21,7 @@ _corecognition_config_path = Path(__file__).parent / "corecognition.yaml"
 
 
 def _load_yaml_stripped(path: Path) -> dict:
-    with open(path, "r") as f:
+    with open(path) as f:
         raw_data = f.readlines()
     safe_data = [line for line in raw_data if "!function" not in line]
     return yaml.safe_load("".join(safe_data)) or {}
@@ -140,7 +140,7 @@ def corecognition_doc_to_visual(doc: dict[str, Any]) -> list:
     return [img]
 
 
-def corecognition_doc_to_text(doc: dict[str, Any], lmms_eval_specific_kwargs: Optional[Dict[str, str]] = None) -> str:
+def corecognition_doc_to_text(doc: dict[str, Any], lmms_eval_specific_kwargs: dict[str, str] | None = None) -> str:
     """Format question text with optional prompt additions.
     Args:
         doc: Document containing prompt field

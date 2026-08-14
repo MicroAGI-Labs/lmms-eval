@@ -2,29 +2,12 @@ import os
 
 import numpy as np
 from decord import VideoReader, cpu
-from loguru import logger as eval_logger
-from PIL import Image
-
 from lmms_eval.tasks.sitebench.utils import (
-    UpperLetters,
-    aggregate_3d_information_understanding_acc,
-    aggregate_3d_information_understanding_caa,
-    aggregate_counting_and_existence_acc,
-    aggregate_counting_and_existence_caa,
-    aggregate_movement_prediction_and_navigation_acc,
-    aggregate_movement_prediction_and_navigation_caa,
-    aggregate_multiview_and_crossimage_reasoning_acc,
-    aggregate_multiview_and_crossimage_reasoning_caa,
-    aggregate_object_localization_and_positioning_acc,
-    aggregate_object_localization_and_positioning_caa,
-    aggregate_spatial_relationship_reasoning_acc,
-    aggregate_spatial_relationship_reasoning_caa,
     base_cache_dir,
     cache_name,
-    spatial_aggregate_results,
     spatial_doc_to_text_video,
-    spatial_process_results,
 )
+from PIL import Image
 
 
 def spatial_doc_to_visual_video_as_images(doc, lmms_eval_specific_kwargs=None):

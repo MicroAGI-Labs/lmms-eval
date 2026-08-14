@@ -5,12 +5,11 @@ from pathlib import Path
 
 import requests
 import yaml
-from loguru import logger as eval_logger
-
 from lmms_eval.llm_judge import ServerConfig, get_server
 from lmms_eval.tasks._task_utils.file_utils import generate_submission_file
+from loguru import logger as eval_logger
 
-with open(Path(__file__).parent / "d170_en.yaml", "r") as f:
+with open(Path(__file__).parent / "d170_en.yaml") as f:
     raw_data = f.readlines()
     safe_data = []
     for i, line in enumerate(raw_data):
@@ -111,7 +110,9 @@ Return only "1" or "0" with no additional text or formatting."""
 
     try:
         # Use the llm_judge API for binary evaluation
-        result = server.evaluate_binary(question=question, answer=str(answer), prediction=pred, output_format="0/1", custom_prompt=custom_prompt)
+        result = server.evaluate_binary(
+            question=question, answer=str(answer), prediction=pred, output_format="0/1", custom_prompt=custom_prompt
+        )
 
         # Parse the result
         if result["success"]:

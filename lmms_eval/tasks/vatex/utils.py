@@ -4,12 +4,11 @@ import sys
 from pathlib import Path
 
 import yaml
+from lmms_eval.tasks._task_utils.file_utils import generate_submission_file
 from loguru import logger as eval_logger
 from pycocoevalcap.eval import Bleu, Cider, COCOEvalCap, Meteor, Rouge
 from pycocoevalcap.tokenizer.ptbtokenizer import PTBTokenizer
 from pycocotools.coco import COCO
-
-from lmms_eval.tasks._task_utils.file_utils import generate_submission_file
 
 dir_name = os.path.dirname(os.path.abspath(__file__))
 
@@ -32,7 +31,7 @@ base_cache_dir = os.path.expanduser(hf_home)
 
 
 def vatex_ZH_doc_to_visual(doc):
-    with open(Path(__file__).parent / "vatex_val_zh.yaml", "r") as f:
+    with open(Path(__file__).parent / "vatex_val_zh.yaml") as f:
         raw_data = f.readlines()
         safe_data = []
         for i, line in enumerate(raw_data):
@@ -55,7 +54,7 @@ def vatex_ZH_doc_to_visual(doc):
 
 
 def vatex_test_doc_to_visual(doc):
-    with open(Path(__file__).parent / "vatex_test.yaml", "r") as f:
+    with open(Path(__file__).parent / "vatex_test.yaml") as f:
         raw_data = f.readlines()
         safe_data = []
         for i, line in enumerate(raw_data):
@@ -118,7 +117,15 @@ def vatex_process_CN_result(doc, result):
 
 
 def vatex_aggregation_result(results, metric, args=None):
-    scorers = [(Bleu(4), "Bleu_1"), (Bleu(4), "Bleu_2"), (Bleu(4), "Bleu_3"), (Bleu(4), "Bleu_4"), (Meteor(), "METEOR"), (Rouge(), "ROUGE_L"), (Cider(), "CIDEr")]  # , (Spice(), "SPICE")]
+    scorers = [
+        (Bleu(4), "Bleu_1"),
+        (Bleu(4), "Bleu_2"),
+        (Bleu(4), "Bleu_3"),
+        (Bleu(4), "Bleu_4"),
+        (Meteor(), "METEOR"),
+        (Rouge(), "ROUGE_L"),
+        (Cider(), "CIDEr"),
+    ]  # , (Spice(), "SPICE")]
     scorers_dict = {s[1]: s for s in scorers}
 
     stored_results = []
@@ -227,4 +234,6 @@ def vatex_test_aggregation_result(results, args):
     with open(path, "w") as f:
         json.dump(stored_results, f, indent=4)
 
-    eval_logger.info(f"Your test result has been stored into {path}. Make sure you also have the val result stored to submit to the server on https://codalab.lisn.upsaclay.fr/competitions/7404#participate.")
+    eval_logger.info(
+        f"Your test result has been stored into {path}. Make sure you also have the val result stored to submit to the server on https://codalab.lisn.upsaclay.fr/competitions/7404#participate."
+    )

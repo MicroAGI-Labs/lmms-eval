@@ -9,7 +9,7 @@ hf_home = os.getenv("HF_HOME", "~/.cache/huggingface")
 base_cache_dir = os.path.expanduser(hf_home)
 
 
-with open(Path(__file__).parent / "paibench_u.yaml", "r") as f:
+with open(Path(__file__).parent / "paibench_u.yaml") as f:
     raw_data_test = f.readlines()
     safe_data_test = []
     for i, line in enumerate(raw_data_test):
@@ -102,7 +102,13 @@ def paibench_u_process_results(doc, results):
 
     category = doc["category"]
     subcategory = doc["subcategory"]
-    data_dict = {"question_id": doc["question"], "pred_answer": pred_ans, "answer": doc["answer"], "category": category, "subcategory": subcategory}
+    data_dict = {
+        "question_id": doc["question"],
+        "pred_answer": pred_ans,
+        "answer": doc["answer"],
+        "category": category,
+        "subcategory": subcategory,
+    }
 
     return {"paibench_u_perception_score": data_dict}
 

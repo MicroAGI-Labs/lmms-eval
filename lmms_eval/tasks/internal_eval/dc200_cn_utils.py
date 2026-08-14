@@ -7,7 +7,6 @@ from pathlib import Path
 
 import requests
 import yaml
-
 from lmms_eval.llm_judge import ServerConfig, get_server
 from lmms_eval.tasks._task_utils.file_utils import generate_submission_file
 
@@ -21,7 +20,7 @@ def doc_to_visual(doc):
 from loguru import logger as eval_logger
 
 # Assuming the config is loaded similarly as in d170_en/utils.py
-with open(Path(__file__).parent / "dc200_cn.yaml", "r") as f:
+with open(Path(__file__).parent / "dc200_cn.yaml") as f:
     raw_data = f.readlines()
     safe_data = []
     for i, line in enumerate(raw_data):
@@ -81,13 +80,13 @@ def get_chat_response(base64_image, prompt, max_retries=5, wait_time=10):
             response_data = response.json()
             return response_data["choices"][0]["message"]["content"]
         except requests.exceptions.RequestException as e:
-            eval_logger.warning(f"Request failed on attempt {attempt+1}: {e}")
+            eval_logger.warning(f"Request failed on attempt {attempt + 1}: {e}")
             time.sleep(wait_time)
             if attempt == max_retries - 1:
                 eval_logger.error(f"Failed to get response after {max_retries} attempts")
                 return ""
         except Exception as e:
-            eval_logger.error(f"Error on attempt {attempt+1}: {e}")
+            eval_logger.error(f"Error on attempt {attempt + 1}: {e}")
             return ""
 
 
@@ -122,7 +121,13 @@ Return only "1" or "0" with no additional text or formatting."""
 
     try:
         # Use the llm_judge API for binary evaluation
-        result = server.evaluate_binary(question=question, answer=str(answer), prediction=prediction, output_format="0/1", custom_prompt=custom_prompt)
+        result = server.evaluate_binary(
+            question=question,
+            answer=str(answer),
+            prediction=prediction,
+            output_format="0/1",
+            custom_prompt=custom_prompt,
+        )
 
         # Parse the result
         if result["success"]:

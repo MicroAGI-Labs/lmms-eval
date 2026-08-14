@@ -1,34 +1,36 @@
 import base64
 import os
 import time
-from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
-from typing import List, Optional, Tuple, Union
+from concurrent.futures import FIRST_COMPLETED
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import wait
+from typing import Literal
 from urllib.parse import unquote
 
 import numpy as np
-from accelerate import Accelerator, DistributedType
+from accelerate import Accelerator
+from accelerate import DistributedType
 from dotenv import load_dotenv
-from loguru import logger as eval_logger
-from openai import AzureOpenAI, OpenAI
-from PIL import Image
-from tqdm import tqdm
-
-from lmms_eval.api.instance import GenerationResult, Instance, TokenCounts
+from lmms_eval.api.instance import GenerationResult
+from lmms_eval.api.instance import Instance
+from lmms_eval.api.instance import TokenCounts
 from lmms_eval.api.model import lmms
 from lmms_eval.api.registry import register_model
 from lmms_eval.imports import optional_import
-from lmms_eval.models.model_utils.concurrency_control import (
-    AdaptiveConcurrencyConfig,
-    decide_next_concurrency,
-    is_rate_limit_error,
-    make_prefix_hash,
-    parse_bool,
-)
-from lmms_eval.models.model_utils.media_encoder import (
-    encode_image_to_base64,
-    encode_image_to_base64_with_size_limit,
-)
-from lmms_eval.models.model_utils.usage_metrics import is_budget_exceeded, log_usage
+from lmms_eval.models.model_utils.concurrency_control import AdaptiveConcurrencyConfig
+from lmms_eval.models.model_utils.concurrency_control import decide_next_concurrency
+from lmms_eval.models.model_utils.concurrency_control import is_rate_limit_error
+from lmms_eval.models.model_utils.concurrency_control import make_prefix_hash
+from lmms_eval.models.model_utils.concurrency_control import parse_bool
+from lmms_eval.models.model_utils.media_encoder import encode_image_to_base64
+from lmms_eval.models.model_utils.media_encoder import encode_image_to_base64_with_size_limit
+from lmms_eval.models.model_utils.usage_metrics import is_budget_exceeded
+from lmms_eval.models.model_utils.usage_metrics import log_usage
+from loguru import logger as eval_logger
+from openai import AzureOpenAI
+from openai import OpenAI
+from PIL import Image
+from tqdm import tqdm
 
 try:
     from openai import DefaultHttpxClient
@@ -72,16 +74,16 @@ class OpenAICompatible(lmms):
     def __init__(
         self,
         model_version: str = "grok-2-latest",
-        model: Optional[str] = None,
-        base_url: Optional[str] = None,
-        api_key: Optional[str] = None,
+        model: str | None = None,
+        base_url: str | None = None,
+        api_key: str | None = None,
         timeout: int = 10,
         retry_backoff_s: float = 1.0,
         max_retries: int = 5,
         max_size_in_mb: int = 20,
         azure_openai: bool = False,
         max_frames_num: int = 10,
-        video_fps: Optional[float] = None,
+        video_fps: float | None = None,
         httpx_trust_env: bool = True,
         batch_size: int = 64,
         num_concurrent: int = 32,
@@ -94,6 +96,8 @@ class OpenAICompatible(lmms):
         adaptive_failure_threshold: float = 0.05,
         prefix_aware_queue: bool = True,
         prefix_hash_chars: int = 256,
+        thinking_mode: Literal["enabled", "disabled", "adaptive"] | None = None,
+        cache_identity: str | None = None,
         **kwargs,
     ) -> None:
         """
@@ -102,6 +106,9 @@ class OpenAICompatible(lmms):
             False value of this param constructs a httpx.Client with trust_env set to
             False.  Such a httpx.Client ignores environment variables (HTTP_PROXY,
             HTTPS_PROXY, ALL_PROXY) and macOS proxy server settings.
+        :param cache_identity: str | None
+            Immutable serving-revision salt retained in model arguments so response
+            caches cannot mix requests across endpoint deployments.
         """
         super().__init__()
         # Accept both `model` and `model_version` for convenience, since
@@ -109,7 +116,10 @@ class OpenAICompatible(lmms):
         if model is not None:
             model_version = model
         if kwargs:
-            eval_logger.warning(f"Unknown model_args ignored: {list(kwargs.keys())}. " f"Check the supported parameters for the 'openai' backend.")
+            eval_logger.warning(
+                f"Unknown model_args ignored: {list(kwargs.keys())}. "
+                f"Check the supported parameters for the 'openai' backend."
+            )
         self.model_version = model_version
         self.timeout = timeout
         self.retry_backoff_s = max(0.0, float(retry_backoff_s))
@@ -117,6 +127,7 @@ class OpenAICompatible(lmms):
         self.max_size_in_mb = max_size_in_mb  # some models have a limit on the size of the image
         self.max_frames_num = max_frames_num
         self.video_fps = float(video_fps) if video_fps is not None else None
+        self.cache_identity = cache_identity
         self.num_concurrent = max(1, int(num_concurrent))
         self.adaptive_concurrency = parse_bool(adaptive_concurrency)
         self.adaptive_config = AdaptiveConcurrencyConfig.from_raw(
@@ -129,13 +140,19 @@ class OpenAICompatible(lmms):
         )
         self.prefix_aware_queue = parse_bool(prefix_aware_queue)
         self.prefix_hash_chars = max(32, int(prefix_hash_chars))
+        if thinking_mode not in (None, "enabled", "disabled", "adaptive"):
+            raise ValueError(f"Unsupported thinking_mode: {thinking_mode}")
+        self.thinking_mode = thinking_mode
         # In China mainland, people usually use a VPN client to access international web
         # sites such as Google. Such a client usually configures macOS proxy server
         # settings. openai-python uses a httpx.Client with trust_env set to True. Such a
         # httpx.Client uses macOS proxy server settings. Adding httpx_trust_env option
         # allows httpx to ignore proxy server settings set by VPN clients.
         if not httpx_trust_env and DefaultHttpxClient is None:
-            eval_logger.warning("DefaultHttpxClient is unavailable in current openai package; " "falling back to default HTTP client with trust_env=True.")
+            eval_logger.warning(
+                "DefaultHttpxClient is unavailable in current openai package; "
+                "falling back to default HTTP client with trust_env=True."
+            )
             http_client = None
         else:
             if not httpx_trust_env and DefaultHttpxClient is not None:
@@ -206,7 +223,7 @@ class OpenAICompatible(lmms):
         return self._rank
 
     # Function to encode the image
-    def encode_image(self, image: Union[Image.Image, str]):
+    def encode_image(self, image: Image.Image | str):
         if isinstance(image, str):
             with Image.open(image) as loaded_image:
                 return encode_image_to_base64_with_size_limit(
@@ -292,7 +309,7 @@ class OpenAICompatible(lmms):
                 new_list.append(j)
         return new_list
 
-    def generate_until(self, requests) -> List[GenerationResult]:
+    def generate_until(self, requests) -> list[GenerationResult]:
         def _collate(x):
             toks = self.tok_encode(x[0])
             return -len(toks), x[0]
@@ -312,7 +329,7 @@ class OpenAICompatible(lmms):
             disable=(self.rank != 0),
             desc="Model Responding",
         )
-        reordered_responses: List[Union[GenerationResult, None]] = [None] * len(ordered_requests)
+        reordered_responses: list[GenerationResult | None] = [None] * len(ordered_requests)
         current_concurrency = min(
             self.num_concurrent,
             self.adaptive_config.max_concurrency,
@@ -328,7 +345,7 @@ class OpenAICompatible(lmms):
         cursor = 0
         failed_requests = 0
         rate_limited_requests = 0
-        request_latencies: List[float] = []
+        request_latencies: list[float] = []
         completed_since_adapt = 0
         in_flight = {}
         max_workers = max(
@@ -345,6 +362,9 @@ class OpenAICompatible(lmms):
                 try:
                     response = self.client.chat.completions.create(**payload)
                     response_text = _normalize_openai_message_content(response.choices[0].message.content)
+                    if not response_text.strip():
+                        finish_reason = response.choices[0].finish_reason
+                        raise ValueError(f"OpenAI-compatible endpoint returned empty content ({finish_reason=})")
                     token_counts = None
                     if hasattr(response, "usage") and response.usage:
                         log_usage(
@@ -352,13 +372,23 @@ class OpenAICompatible(lmms):
                             task_name=None,
                             input_tokens=getattr(response.usage, "prompt_tokens", 0) or 0,
                             output_tokens=getattr(response.usage, "completion_tokens", 0) or 0,
-                            reasoning_tokens=(getattr(response.usage.completion_tokens_details, "reasoning_tokens", 0) or 0) if hasattr(response.usage, "completion_tokens_details") and response.usage.completion_tokens_details else 0,
+                            reasoning_tokens=(
+                                getattr(response.usage.completion_tokens_details, "reasoning_tokens", 0) or 0
+                            )
+                            if hasattr(response.usage, "completion_tokens_details")
+                            and response.usage.completion_tokens_details
+                            else 0,
                             source="model",
                         )
                         token_counts = TokenCounts(
                             input_tokens=getattr(response.usage, "prompt_tokens", 0) or 0,
                             output_tokens=getattr(response.usage, "completion_tokens", 0) or 0,
-                            reasoning_tokens=(getattr(response.usage.completion_tokens_details, "reasoning_tokens", 0) or 0) if hasattr(response.usage, "completion_tokens_details") and response.usage.completion_tokens_details else 0,
+                            reasoning_tokens=(
+                                getattr(response.usage.completion_tokens_details, "reasoning_tokens", 0) or 0
+                            )
+                            if hasattr(response.usage, "completion_tokens_details")
+                            and response.usage.completion_tokens_details
+                            else 0,
                         )
                     latency = time.time() - started_at
                     return response_text, local_index, True, rate_limited, latency, token_counts
@@ -432,13 +462,36 @@ class OpenAICompatible(lmms):
                 visuals = self.flatten(visuals)
                 imgs = []
                 for visual in visuals:
-                    if isinstance(visual, str) and (".mp4" in visual or ".avi" in visual or ".mov" in visual or ".flv" in visual or ".wmv" in visual or ".webm" in visual or ".mkv" in visual):
+                    if isinstance(visual, str) and (
+                        ".mp4" in visual
+                        or ".avi" in visual
+                        or ".mov" in visual
+                        or ".flv" in visual
+                        or ".wmv" in visual
+                        or ".webm" in visual
+                        or ".mkv" in visual
+                    ):
                         frames = self.encode_video(visual, self.max_frames_num)
                         imgs.extend(frames)
-                    elif isinstance(visual, str) and (".wav" in visual or ".mp3" in visual or ".flac" in visual or ".aac" in visual or ".ogg" in visual or ".m4a" in visual):
+                    elif isinstance(visual, str) and (
+                        ".wav" in visual
+                        or ".mp3" in visual
+                        or ".flac" in visual
+                        or ".aac" in visual
+                        or ".ogg" in visual
+                        or ".m4a" in visual
+                    ):
                         audio_b64, audio_format = self.encode_audio_file(visual)
                         imgs.append({"audio_b64": audio_b64, "audio_format": audio_format})
-                    elif isinstance(visual, str) and (".jpg" in visual or ".jpeg" in visual or ".png" in visual or ".gif" in visual or ".bmp" in visual or ".tiff" in visual or ".webp" in visual):
+                    elif isinstance(visual, str) and (
+                        ".jpg" in visual
+                        or ".jpeg" in visual
+                        or ".png" in visual
+                        or ".gif" in visual
+                        or ".bmp" in visual
+                        or ".tiff" in visual
+                        or ".webp" in visual
+                    ):
                         imgs.append(self.encode_image(visual))
                     elif isinstance(visual, Image.Image):
                         imgs.append(self.encode_image(visual))
@@ -453,6 +506,8 @@ class OpenAICompatible(lmms):
                 "max_tokens": max_new_tokens,
                 "temperature": temperature,
             }
+            if self.thinking_mode is not None:
+                payload["extra_body"] = {"chat_template_kwargs": {"thinking_mode": self.thinking_mode}}
             payload["messages"][0]["content"].append({"type": "text", "text": context})
             for img in imgs:
                 if isinstance(img, dict) and "audio_b64" in img:
@@ -520,11 +575,14 @@ class OpenAICompatible(lmms):
         maybe_update_concurrency(force=True)
 
         pbar.close()
-        completed_responses = [response if response is not None else GenerationResult(text="", token_counts=None) for response in reordered_responses]
+        completed_responses = [
+            response if response is not None else GenerationResult(text="", token_counts=None)
+            for response in reordered_responses
+        ]
         return re_ords.get_original(completed_responses)
 
-    def generate_until_multi_round(self, requests) -> List[str]:
+    def generate_until_multi_round(self, requests) -> list[str]:
         raise NotImplementedError("TODO: Implement multi-round generation for OpenAI compatible models")
 
-    def loglikelihood(self, requests: List[Instance]) -> List[Tuple[float, bool]]:
+    def loglikelihood(self, requests: list[Instance]) -> list[tuple[float, bool]]:
         raise NotImplementedError("TODO: Implement loglikelihood for OpenAI compatible models")

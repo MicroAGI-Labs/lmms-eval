@@ -3,7 +3,7 @@ import copy
 import json
 import os
 import re
-from typing import Any, Dict, List, Literal, Tuple, Union
+from typing import Any, Literal
 
 import numpy as np
 import pandas as pd
@@ -20,7 +20,11 @@ try:
     if Version(wandb.__version__) < Version("0.13.6"):
         wandb.require("report-editing:v0")
 except Exception as e:
-    logger.warning("To use the wandb reporting functionality please install wandb>=0.13.6.\n" "To install the latest version of wandb run `pip install wandb --upgrade`\n" f"{e}")
+    logger.warning(
+        "To use the wandb reporting functionality please install wandb>=0.13.6.\n"
+        "To install the latest version of wandb run `pip install wandb --upgrade`\n"
+        f"{e}"
+    )
 
 
 def remove_none_pattern(input_string):
@@ -36,7 +40,7 @@ def remove_none_pattern(input_string):
     return result, removed
 
 
-def _handle_non_serializable(o: Any) -> Union[int, str, list]:
+def _handle_non_serializable(o: Any) -> int | str | list:
     """Handle non-serializable objects by converting them to serializable types.
 
     Args:
@@ -85,7 +89,11 @@ class WandbLogger:
     def init_run(self):
         if "name" not in self.wandb_args:
             if "config" in self.all_args_dict and self.all_args_dict["config"] != "":
-                self.wandb_args["name"] = self.all_args_dict["config"].split("/")[-1].replace(".yaml", "") + "/" + self.args.log_samples_suffix
+                self.wandb_args["name"] = (
+                    self.all_args_dict["config"].split("/")[-1].replace(".yaml", "")
+                    + "/"
+                    + self.args.log_samples_suffix
+                )
             else:
                 task_names = self.args.tasks.replace(",", "/")
                 self.wandb_args["name"] = f"{self.args.model}/<{task_names}>/{self.args.log_samples_suffix}"
@@ -96,12 +104,12 @@ class WandbLogger:
         # initialize a W&B run
         self.run = wandb.init(**self.wandb_args)
 
-    def post_init(self, results: Dict[str, Any]) -> None:
-        self.results: Dict[str, Any] = copy.deepcopy(results)
-        self.task_names: List[str] = list(results.get("results", {}).keys())
-        self.group_names: List[str] = list(results.get("groups", {}).keys())
+    def post_init(self, results: dict[str, Any]) -> None:
+        self.results: dict[str, Any] = copy.deepcopy(results)
+        self.task_names: list[str] = list(results.get("results", {}).keys())
+        self.group_names: list[str] = list(results.get("groups", {}).keys())
 
-    def _get_config(self) -> Dict[str, Any]:
+    def _get_config(self) -> dict[str, Any]:
         """Get configuration parameters."""
         self.task_configs = self.results.get("configs", {})
         cli_configs = self.results.get("config", {})
@@ -112,7 +120,7 @@ class WandbLogger:
 
         return configs
 
-    def _sanitize_results_dict(self) -> Tuple[Dict[str, str], Dict[str, Any]]:
+    def _sanitize_results_dict(self) -> tuple[dict[str, str], dict[str, Any]]:
         """Sanitize the results dictionary."""
         _results = copy.deepcopy(self.results.get("results", dict()))
         _results["model_configs"] = self.results.get("model_configs", dict())
@@ -166,7 +174,7 @@ class WandbLogger:
             "Stderr",
         ]
 
-        def make_table(columns: List[str], key: str = "results"):
+        def make_table(columns: list[str], key: str = "results"):
             table = wandb.Table(columns=columns)
             results = copy.deepcopy(self.results)
 
@@ -236,7 +244,7 @@ class WandbLogger:
         # Log the results dict as json to W&B Artifacts
         self._log_results_as_artifact()
 
-    def _generate_dataset(self, data: List[Dict[str, Any]], config: Dict[str, Any]) -> pd.DataFrame:
+    def _generate_dataset(self, data: list[dict[str, Any]], config: dict[str, Any]) -> pd.DataFrame:
         """Generate a dataset from evaluation data.
 
         Args:
@@ -269,8 +277,22 @@ class WandbLogger:
         if config["output_type"] == "loglikelihood":
             instance = [x["arguments"][0][0] for x in data]
             labels = [x["arguments"][0][1] for x in data]
-            resps = [f'log probability of continuation is {x["resps"][0][0][0]} ' + "\n\n" + "continuation will {} generated with greedy sampling".format("not be" if not x["resps"][0][0][1] else "be") for x in data]
-            filtered_resps = [f'log probability of continuation is {x["filtered_resps"][0][0]} ' + "\n\n" + "continuation will {} generated with greedy sampling".format("not be" if not x["filtered_resps"][0][1] else "be") for x in data]
+            resps = [
+                f"log probability of continuation is {x['resps'][0][0][0]} "
+                + "\n\n"
+                + "continuation will {} generated with greedy sampling".format(
+                    "not be" if not x["resps"][0][0][1] else "be"
+                )
+                for x in data
+            ]
+            filtered_resps = [
+                f"log probability of continuation is {x['filtered_resps'][0][0]} "
+                + "\n\n"
+                + "continuation will {} generated with greedy sampling".format(
+                    "not be" if not x["filtered_resps"][0][1] else "be"
+                )
+                for x in data
+            ]
         elif config["output_type"] == "multiple_choice":
             instance = [x["arguments"][0][0] for x in data]
             choices = ["\n".join([f"{idx}. {y[1]}" for idx, y in enumerate(x["arguments"])]) for x in data]
@@ -302,7 +324,7 @@ class WandbLogger:
 
         return pd.DataFrame(df_data)
 
-    def _log_samples_as_artifact(self, data: List[Dict[str, Any]], task_name: str) -> None:
+    def _log_samples_as_artifact(self, data: list[dict[str, Any]], task_name: str) -> None:
         # log the samples as an artifact
         dumped = json.dumps(
             data,
@@ -316,13 +338,13 @@ class WandbLogger:
         self.run.log_artifact(artifact)
         # artifact.wait()
 
-    def log_eval_samples(self, samples: Dict[str, List[Dict[str, Any]]]) -> None:
+    def log_eval_samples(self, samples: dict[str, list[dict[str, Any]]]) -> None:
         """Log evaluation samples to W&B.
 
         Args:
             samples (Dict[str, List[Dict[str, Any]]]): Evaluation samples for each task.
         """
-        task_names: List[str] = [x for x in self.task_names if x not in self.group_names]
+        task_names: list[str] = [x for x in self.task_names if x not in self.group_names]
 
         ungrouped_tasks = []
         tasks_by_groups = {}

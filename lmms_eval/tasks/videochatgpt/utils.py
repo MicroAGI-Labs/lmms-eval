@@ -6,14 +6,13 @@ import sys
 import time
 from pathlib import Path
 
+import lmms_eval.tasks._task_utils.file_utils as file_utils
 import requests
 import yaml
 from loguru import logger as eval_logger
 from tqdm import tqdm
 
-import lmms_eval.tasks._task_utils.file_utils as file_utils
-
-with open(Path(__file__).parent / "_default_template_yaml", "r") as f:
+with open(Path(__file__).parent / "_default_template_yaml") as f:
     raw_data = f.readlines()
     safe_data = []
     for i, line in enumerate(raw_data):
@@ -131,9 +130,27 @@ def videochatgpt_process_results_generic(doc, result):
         score_context = 0
 
     return {
-        "gpt_eval_score_correctness": {"video_name": doc["video_name"], "Q": doc["question"], "A": doc["answer"], "pred": pred, "score": score_correctness},
-        "gpt_eval_score_detailed_orientation": {"video_name": doc["video_name"], "Q": doc["question"], "A": doc["answer"], "pred": pred, "score": score_detailed_orientation},
-        "gpt_eval_score_context": {"video_name": doc["video_name"], "Q": doc["question"], "A": doc["answer"], "pred": pred, "score": score_context},
+        "gpt_eval_score_correctness": {
+            "video_name": doc["video_name"],
+            "Q": doc["question"],
+            "A": doc["answer"],
+            "pred": pred,
+            "score": score_correctness,
+        },
+        "gpt_eval_score_detailed_orientation": {
+            "video_name": doc["video_name"],
+            "Q": doc["question"],
+            "A": doc["answer"],
+            "pred": pred,
+            "score": score_detailed_orientation,
+        },
+        "gpt_eval_score_context": {
+            "video_name": doc["video_name"],
+            "Q": doc["question"],
+            "A": doc["answer"],
+            "pred": pred,
+            "score": score_context,
+        },
     }
 
 
@@ -160,7 +177,15 @@ def videochatgpt_process_results_temporal(doc, result):
         model_name = "Failed Request"
         score = 0
 
-    return {"gpt_eval_score_temporal": {"video_name": doc["video_name"], "Q": doc["question"], "A": doc["answer"], "pred": pred, "score": score}}
+    return {
+        "gpt_eval_score_temporal": {
+            "video_name": doc["video_name"],
+            "Q": doc["question"],
+            "A": doc["answer"],
+            "pred": pred,
+            "score": score,
+        }
+    }
 
 
 # Process result for generation in consistency task
@@ -170,9 +195,23 @@ def videochatgpt_process_results_consistency(doc, result, full_docs=None):
     # if it is question_1, then assign prediction for the 1st question
     # else assign prediction for the 2nd question
     if doc["question_1"] != "None":
-        return {"gpt_eval_score_consistency": {"video_name": doc["video_name"], "Q1": doc["question_1"], "A": doc["answer"], "pred1": pred}}
+        return {
+            "gpt_eval_score_consistency": {
+                "video_name": doc["video_name"],
+                "Q1": doc["question_1"],
+                "A": doc["answer"],
+                "pred1": pred,
+            }
+        }
     else:
-        return {"gpt_eval_score_consistency": {"video_name": doc["video_name"], "Q2": doc["question_2"], "A": doc["answer"], "pred2": pred}}
+        return {
+            "gpt_eval_score_consistency": {
+                "video_name": doc["video_name"],
+                "Q2": doc["question_2"],
+                "A": doc["answer"],
+                "pred2": pred,
+            }
+        }
 
 
 def videochatgpt_aggregate_submissions_consistency(results, args, task):
@@ -440,7 +479,7 @@ def parse_score(review):
 
 def videochatgpt_print_scores(eval_file_path, args, task):
     # Load the predictions from the result file
-    with open(eval_file_path, "r") as file:
+    with open(eval_file_path) as file:
         evaluated_list = json.load(file)
 
     now_date_time = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
@@ -479,13 +518,13 @@ def videochatgpt_gpt_eval(result_file_path, args, task):
     eval_file_path = file_utils.generate_submission_file(eval_file_name, args)
 
     # Load the predictions from the result file
-    with open(result_file_path, "r") as file:
+    with open(result_file_path) as file:
         result_list = json.load(file)
 
     evaluated_results = []
 
     # Load the predictions from the result file
-    with open(result_file_path, "r") as file:
+    with open(result_file_path) as file:
         result_list = json.load(file)
 
     # Process each result to generate scores

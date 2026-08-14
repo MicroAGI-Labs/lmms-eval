@@ -34,7 +34,7 @@ hf_home = os.getenv("HF_HOME", "~/.cache/huggingface/")
 # cache_dir = os.path.join(hf_home, cache_dir)
 # base_cache_dir = config["dataset_kwargs"]["cache_dir"]
 base_cache_dir = os.path.expanduser(hf_home)
-with open(Path(__file__).parent / "site_image.yaml", "r") as f:
+with open(Path(__file__).parent / "site_image.yaml") as f:
     raw_data = f.readlines()
     safe_data = []
     for i, line in enumerate(raw_data):
@@ -161,7 +161,10 @@ def spatial_doc_to_messages_image(doc, lmms_eval_specific_kwargs=None):
         If 'interleave_visuals' is set to False in the 'default' section,
         the function will generate non-interleaved messages.
     """
-    if lmms_eval_specific_kwargs and lmms_eval_specific_kwargs.get("default", {}).get("interleave_visuals", True) is False:
+    if (
+        lmms_eval_specific_kwargs
+        and lmms_eval_specific_kwargs.get("default", {}).get("interleave_visuals", True) is False
+    ):
         # Fallback to non-interleaved format - content must be a list for ChatMessages
         question = spatial_doc_to_text_image(doc, lmms_eval_specific_kwargs)
         visuals = spatial_doc_to_visual_image(doc)
@@ -246,7 +249,12 @@ def spatial_process_results(doc, results):
     # Per-category accuracy and chance-adjusted accuracy
     for cat_name, metric_key in CATEGORY_TO_METRIC_KEY.items():
         result[f"{metric_key}_acc"] = {"score": score, "category": category, "target_category": cat_name}
-        result[f"{metric_key}_caa"] = {"score": adjusted_score, "category": category, "target_category": cat_name, "total": 1.0 - 1.0 / len(all_choices)}
+        result[f"{metric_key}_caa"] = {
+            "score": adjusted_score,
+            "category": category,
+            "target_category": cat_name,
+            "total": 1.0 - 1.0 / len(all_choices),
+        }
 
     return result
 
@@ -271,8 +279,14 @@ def spatial_aggregate_results(results):
                 dataset_total[key] += result["total"]
 
     overall_accuracy = (total_correct / total_examples) * 100 if total_examples > 0 else 0.0
-    category_accuracy = {category: (category_correct[category] / category_total[category]) * 100 if category_total[category] > 0 else 0.0 for category in category_correct}
-    dataset_accuracy = {dataset: (dataset_correct[dataset] / dataset_total[dataset]) * 100 if dataset_total[dataset] > 0 else 0.0 for dataset in dataset_correct}
+    category_accuracy = {
+        category: (category_correct[category] / category_total[category]) * 100 if category_total[category] > 0 else 0.0
+        for category in category_correct
+    }
+    dataset_accuracy = {
+        dataset: (dataset_correct[dataset] / dataset_total[dataset]) * 100 if dataset_total[dataset] > 0 else 0.0
+        for dataset in dataset_correct
+    }
 
     # eval_logger.info("=" * 50)
     # eval_logger.info(f"Overall Accuracy: {overall_accuracy:.2f}%")

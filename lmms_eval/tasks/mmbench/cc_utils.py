@@ -4,12 +4,11 @@ from pathlib import Path
 
 import pandas as pd
 import yaml
-from loguru import logger as eval_logger
-
 from lmms_eval.tasks._task_utils.file_utils import generate_submission_file
 from lmms_eval.tasks.mmbench.mmbench_evals import MMBench_Evaluator
+from loguru import logger as eval_logger
 
-with open(Path(__file__).parent / "mmbench.yaml", "r") as f:
+with open(Path(__file__).parent / "mmbench.yaml") as f:
     raw_data = f.readlines()
     safe_data = []
     for i, line in enumerate(raw_data):
@@ -32,7 +31,9 @@ else:
     API_URL = "YOUR_API_URL"
     API_KEY = "YOUR_API_KEY"
 
-mmbench_evaluator = MMBench_Evaluator(sys_prompt=config["metadata"]["sys_prompt"], API_KEY=API_KEY, API_URL=API_URL, model_version=GPT_EVAL_MODEL_NAME)
+mmbench_evaluator = MMBench_Evaluator(
+    sys_prompt=config["metadata"]["sys_prompt"], API_KEY=API_KEY, API_URL=API_URL, model_version=GPT_EVAL_MODEL_NAME
+)
 
 
 def mmbench_doc_to_visual(doc):

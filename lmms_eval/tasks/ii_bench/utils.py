@@ -2,9 +2,8 @@ import json
 import re
 from collections import Counter
 
-from loguru import logger
-
 from lmms_eval.tasks._task_utils.file_utils import generate_submission_file
+from loguru import logger
 
 PROMPT = """Question: {}
 (A) {}
@@ -16,7 +15,9 @@ PROMPT = """Question: {}
 
 
 def ii_bench_doc_to_text(doc, lmms_eval_specific_kwargs):
-    question = PROMPT.format(doc["question"], doc["option1"], doc["option2"], doc["option3"], doc["option4"], doc["option5"], doc["option6"])
+    question = PROMPT.format(
+        doc["question"], doc["option1"], doc["option2"], doc["option3"], doc["option4"], doc["option5"], doc["option6"]
+    )
     pre_prompt = lmms_eval_specific_kwargs["pre_prompt"]
     post_prompt = lmms_eval_specific_kwargs["post_prompt"]
     return f"{pre_prompt}{question}{post_prompt}"
@@ -62,7 +63,9 @@ def extract_option_labels(text, options=None):
 
 def ii_bench_process_results(doc, results):
     response = results[0]
-    predict = extract_option_labels(response, [doc["option1"], doc["option2"], doc["option3"], doc["option4"], doc["option5"], doc["option6"]])
+    predict = extract_option_labels(
+        response, [doc["option1"], doc["option2"], doc["option3"], doc["option4"], doc["option5"], doc["option6"]]
+    )
     return {"submission": {"id": doc["id"], "predict_answer": predict, "response": response}}
 
 

@@ -72,7 +72,7 @@ Select the best answer to the following multiple-choice question based on the vi
 Respond with only the letter (A, B, C, or D) of the correct option.
 """
 
-with open(Path(__file__).parent / "worldsense.yaml", "r") as f:
+with open(Path(__file__).parent / "worldsense.yaml") as f:
     raw_data = f.readlines()
     safe_data = []
     for i, line in enumerate(raw_data):
@@ -102,7 +102,7 @@ def extract_subtitles(video_path, subtitle_path):
 
 def load_subtitles(subtitle_path):
     subtitles = {}
-    with open(os.path.expanduser(subtitle_path), "r", encoding="utf-8") as file:
+    with open(os.path.expanduser(subtitle_path), encoding="utf-8") as file:
         content = file.read().split("\n\n")
         for section in content:
             if section.strip():
@@ -279,7 +279,16 @@ def worldsense_process_results(doc, results):
     key_name = "worldsense_score"
     # Note: the key name here is very important. It decides which aggregation function will receive the results
     # We note down the question id/category to help us aggregate the results later
-    return {key_name: {"question_id": doc["index"], "category": category, "score": score, "domain": domain, "duration": duration, "audio_class": audio_class}}
+    return {
+        key_name: {
+            "question_id": doc["index"],
+            "category": category,
+            "score": score,
+            "domain": domain,
+            "duration": duration,
+            "audio_class": audio_class,
+        }
+    }
 
 
 def worldsense_aggregate_results(results):

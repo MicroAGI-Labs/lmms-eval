@@ -1,9 +1,6 @@
 import re
-from collections import OrderedDict
 
 import datasets
-from loguru import logger as eval_logger
-
 from lmms_eval.tasks._task_utils.media_resolver import resolve_media_reference
 
 CACHE_DIR = "vsisuper_recall"
@@ -11,7 +8,9 @@ _OPTION_RE = re.compile(r"[A-D]")
 
 
 def doc_to_visual(doc):
-    video_path = resolve_media_reference(doc["video_path"], media_type="video", cache_dir=CACHE_DIR, env_vars=("VSISUPER_VIDEO_DIR",))
+    video_path = resolve_media_reference(
+        doc["video_path"], media_type="video", cache_dir=CACHE_DIR, env_vars=("VSISUPER_VIDEO_DIR",)
+    )
     return [video_path]
 
 
@@ -20,7 +19,9 @@ def doc_to_text(doc, lmms_eval_specific_kwargs=None):
     options = doc.get("options") or []
     options_text = "\n".join(str(option) for option in options)
 
-    return question + "\nOptions:\n" + options_text + "\nAnswer with the option's letter from the given choices directly."
+    return (
+        question + "\nOptions:\n" + options_text + "\nAnswer with the option's letter from the given choices directly."
+    )
 
 
 def process_docs_10mins(dataset: datasets.Dataset) -> datasets.Dataset:

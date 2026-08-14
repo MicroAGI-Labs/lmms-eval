@@ -33,7 +33,7 @@ on the results JSON to compute dataset-level MCC, pmF1, and cgF1.
 
 import json
 import math
-from typing import Any, Dict, List, Tuple
+from typing import Any
 
 import numpy as np
 from loguru import logger as eval_logger
@@ -49,7 +49,7 @@ IOU_THRESHOLDS = [0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95]
 # =========================================================================== #
 
 
-def decode_coco_rle(rle: Dict) -> np.ndarray:
+def decode_coco_rle(rle: dict) -> np.ndarray:
     """Decode a single COCO RLE dict to a binary (H, W) numpy mask."""
     rle_copy = rle.copy()
     if isinstance(rle_copy.get("counts"), str):
@@ -68,7 +68,7 @@ def compute_mask_iou(mask1: np.ndarray, mask2: np.ndarray) -> float:
     return float(intersection / union)
 
 
-def mask_nms(masks: List[np.ndarray], iou_threshold: float = 0.9) -> List[np.ndarray]:
+def mask_nms(masks: list[np.ndarray], iou_threshold: float = 0.9) -> list[np.ndarray]:
     """Remove duplicate masks via greedy NMS (keep larger mask)."""
     if len(masks) <= 1:
         return masks
@@ -89,7 +89,7 @@ def mask_nms(masks: List[np.ndarray], iou_threshold: float = 0.9) -> List[np.nda
 
     filtered = [masks[k] for k in sorted(keep)]
     if len(masks) != len(filtered):
-        eval_logger.debug(f"Mask NMS: {len(masks)} -> {len(filtered)} " f"(removed {len(masks) - len(filtered)})")
+        eval_logger.debug(f"Mask NMS: {len(masks)} -> {len(filtered)} (removed {len(masks) - len(filtered)})")
     return filtered
 
 
@@ -98,7 +98,7 @@ def mask_nms(masks: List[np.ndarray], iou_threshold: float = 0.9) -> List[np.nda
 # =========================================================================== #
 
 
-def parse_predicted_masks(response_text: str) -> List[Dict]:
+def parse_predicted_masks(response_text: str) -> list[dict]:
     """Extract COCO-RLE mask dicts from the model JSON response.
 
     Accepts::
@@ -156,9 +156,9 @@ def saco_doc_to_target(doc):
 
 
 def _evaluate_against_one_gt(
-    predicted_masks: List[np.ndarray],
-    gt_masks_rle: List[Dict],
-) -> Dict[str, Any]:
+    predicted_masks: list[np.ndarray],
+    gt_masks_rle: list[dict],
+) -> dict[str, Any]:
     """Evaluate predicted (decoded, NMS'd) masks against one annotator's GT.
 
     Returns a dict with:
@@ -267,7 +267,7 @@ def _evaluate_against_one_gt(
 # =========================================================================== #
 
 
-def _select_best_annotator(candidates: List[Dict[str, Any]]) -> Dict[str, Any]:
+def _select_best_annotator(candidates: list[dict[str, Any]]) -> dict[str, Any]:
     """Return the candidate dict that yields the best oracle score."""
     if len(candidates) == 1:
         return candidates[0]
@@ -317,7 +317,7 @@ def saco_process_results(doc, result):
     predicted_masks_rle = parse_predicted_masks(response_text)
 
     # Decode predicted masks (shared across all annotator evaluations)
-    predicted_masks: List[np.ndarray] = []
+    predicted_masks: list[np.ndarray] = []
     if predicted_masks_rle:
         predicted_masks = [decode_coco_rle(m) for m in predicted_masks_rle]
 
@@ -327,7 +327,7 @@ def saco_process_results(doc, result):
 
     # --- Evaluate against each annotator ---------------------------------- #
     annotator_keys = ["human_1_masks", "human_2_masks", "human_3_masks"]
-    candidates: List[Dict[str, Any]] = []
+    candidates: list[dict[str, Any]] = []
 
     for key in annotator_keys:
         gt_masks_rle = doc.get(key, [])
@@ -421,7 +421,7 @@ def compute_cgF1(pmf1: float, mcc: float) -> float:
     return 100.0 * pmf1 * mcc
 
 
-def compute_saco_final_metrics(results_path: str, save: bool = True) -> Dict:
+def compute_saco_final_metrics(results_path: str, save: bool = True) -> dict:
     """Compute dataset-level MCC, pmF1, and cgF1 from an lmms-eval results JSON.
 
     Reads the aggregated classification sums and per-threshold TP/FP/FN
@@ -435,10 +435,10 @@ def compute_saco_final_metrics(results_path: str, save: bool = True) -> Dict:
     Returns:
         ``{task_name: {"IL_MCC": …, "pmF1": …, "cgF1": …, …}}``
     """
-    with open(results_path, "r") as f:
+    with open(results_path) as f:
         data = json.load(f)
 
-    summary: Dict = {}
+    summary: dict = {}
 
     for task_name, task_results in data.get("results", {}).items():
         if not (task_name.startswith("saco_gold") or task_name.startswith("pbench")):

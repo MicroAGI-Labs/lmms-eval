@@ -2,7 +2,6 @@ import re
 
 import datasets
 import numpy as np
-
 from lmms_eval.tasks._task_utils.media_resolver import resolve_media_reference
 
 CACHE_DIR = "vsisuper_count"
@@ -10,7 +9,9 @@ _NUMBER_RE = re.compile(r"-?\d+(?:\.\d+)?")
 
 
 def doc_to_visual(doc):
-    video_path = resolve_media_reference(doc["video_path"], media_type="video", cache_dir=CACHE_DIR, env_vars=("VSISUPER_VIDEO_DIR",))
+    video_path = resolve_media_reference(
+        doc["video_path"], media_type="video", cache_dir=CACHE_DIR, env_vars=("VSISUPER_VIDEO_DIR",)
+    )
     return [video_path]
 
 

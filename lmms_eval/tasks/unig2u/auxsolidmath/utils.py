@@ -5,9 +5,7 @@ Evaluation for solid geometry problems with auxiliary line construction.
 
 import json
 import os
-import re
 import time
-from typing import Any, Dict, List, Optional
 
 from azure.identity import (
     AzureCliCredential,
@@ -15,11 +13,10 @@ from azure.identity import (
     ManagedIdentityCredential,
     get_bearer_token_provider,
 )
-from openai import AzureOpenAI, OpenAI
-from PIL import Image
-
 from lmms_eval.azure_openai_compat import build_client as build_azure_compat_client
 from lmms_eval.azure_openai_compat import has_endpoint_support
+from openai import AzureOpenAI, OpenAI
+from PIL import Image
 
 # ============================================================================
 # LLM Judge Client (Azure TRAPI or OpenAI)
@@ -95,7 +92,7 @@ def _get_judge_client() -> AzureJudgeClient | AzureEndpointJudgeClient | OpenAIJ
     return _JUDGE_CLIENT
 
 
-def _find_first_json_substring(text: str) -> Optional[str]:
+def _find_first_json_substring(text: str) -> str | None:
     """Extract first JSON object from text"""
     if not text:
         return None
@@ -119,7 +116,7 @@ def _find_first_json_substring(text: str) -> Optional[str]:
     return None
 
 
-def auxsolidmath_doc_to_visual(doc: Dict) -> List[Image.Image]:
+def auxsolidmath_doc_to_visual(doc: dict) -> list[Image.Image]:
     """Get visual input for auxsolidmath task (original diagram)"""
     original_image = doc.get("original_image")
     if original_image is not None:
@@ -128,7 +125,7 @@ def auxsolidmath_doc_to_visual(doc: Dict) -> List[Image.Image]:
     return []
 
 
-def auxsolidmath_doc_to_text(doc: Dict, lmms_eval_specific_kwargs: Optional[Dict] = None) -> str:
+def auxsolidmath_doc_to_text(doc: dict, lmms_eval_specific_kwargs: dict | None = None) -> str:
     """Get text prompt for auxsolidmath task"""
     question = doc.get("question", "")
     return f"""You are given a solid geometry problem with a 3D diagram.
@@ -162,12 +159,12 @@ Instructions:
 Please think step by step, starting with the auxiliary line construction."""
 
 
-def auxsolidmath_doc_to_target(doc: Dict) -> str:
+def auxsolidmath_doc_to_target(doc: dict) -> str:
     """Get target answer for auxsolidmath task"""
     return doc.get("answer", "")
 
 
-def auxsolidmath_doc_to_text_visual_cot(doc: Dict, lmms_eval_specific_kwargs: Optional[Dict] = None) -> str:
+def auxsolidmath_doc_to_text_visual_cot(doc: dict, lmms_eval_specific_kwargs: dict | None = None) -> str:
     """
     Get two-stage Visual Chain-of-Thought prompt for auxsolidmath task.
 
@@ -218,7 +215,7 @@ Solve this problem step by step using the auxiliary constructions."""
     return f"[GEN_PROMPT]{generation_prompt}[/GEN_PROMPT]\n[QUESTION]{question_prompt}[/QUESTION]"
 
 
-def auxsolidmath_process_results(doc: Dict, results: List[str]) -> Dict[str, float]:
+def auxsolidmath_process_results(doc: dict, results: list[str]) -> dict[str, float]:
     """
     Process auxsolidmath results with LLM Judge evaluation using Azure TRAPI.
 
@@ -305,7 +302,7 @@ Evaluate the candidate. Output JSON only."""
     }
 
 
-def auxsolidmath_aggregate(results: List[Optional[float]]) -> float:
+def auxsolidmath_aggregate(results: list[float | None]) -> float:
     """Aggregate results"""
     vals = [v for v in results if v is not None]
     if not vals:

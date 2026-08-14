@@ -5,10 +5,9 @@ import re
 from collections import defaultdict
 
 import numpy as np
+from lmms_eval.tasks._task_utils.file_utils import generate_submission_file
 from loguru import logger as eval_logger
 from PIL import Image
-
-from lmms_eval.tasks._task_utils.file_utils import generate_submission_file
 
 OPEN_ENDED_PROMPT = "Answer the question using a single word or phrase."
 
@@ -87,7 +86,9 @@ def websrc_aggregate_results(results):
             "num": int(evaluation_result[domain]["num_example"]),
             "f1": round(evaluation_result[domain]["f1"], 3),
         }
-    all_ins_f1 = np.sum([cat_results["f1"] * cat_results["num_example"] for cat_results in evaluation_result.values()]) / sum([cat_results["num_example"] for cat_results in evaluation_result.values()])
+    all_ins_f1 = np.sum(
+        [cat_results["f1"] * cat_results["num_example"] for cat_results in evaluation_result.values()]
+    ) / sum([cat_results["num_example"] for cat_results in evaluation_result.values()])
     printable_results["Overall"] = {
         "num": sum([cat_results["num_example"] for cat_results in evaluation_result.values()]),
         "f1": round(all_ins_f1, 3),

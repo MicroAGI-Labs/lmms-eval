@@ -1,18 +1,16 @@
 import os
 import time
-from typing import List, Tuple
 
 import numpy as np
 from accelerate import Accelerator, DistributedType
-from PIL import Image
-from tqdm import tqdm
-
 from lmms_eval.api.instance import GenerationResult, Instance, TokenCounts
 from lmms_eval.api.model import lmms
 from lmms_eval.api.registry import register_model
 from lmms_eval.imports import optional_import
 from lmms_eval.models.model_utils.media_encoder import encode_image_to_base64
 from lmms_eval.models.model_utils.usage_metrics import is_budget_exceeded, log_usage
+from PIL import Image
+from tqdm import tqdm
 
 NUM_SECONDS_TO_SLEEP = 30
 
@@ -105,7 +103,7 @@ class Reka(lmms):
 
         return base64_frames
 
-    def generate_until(self, requests) -> List[GenerationResult]:
+    def generate_until(self, requests) -> list[GenerationResult]:
         res = []
         pbar = tqdm(total=len(requests), disable=(self.rank != 0), desc="Model Responding")
 
@@ -128,7 +126,9 @@ class Reka(lmms):
                 message_content.append({"type": "text", "text": context})
                 assert len(visual) == 1, "Reka only supports one video per request"
                 media_urls = self.encode_video(visual[0])
-                assert len(media_urls) == self.max_frames_num, f"Reka only supports {self.max_frames_num} frames per request"
+                assert len(media_urls) == self.max_frames_num, (
+                    f"Reka only supports {self.max_frames_num} frames per request"
+                )
                 for media_url in media_urls:
                     message_content.append({"type": "image_url", "image_url": media_url})
 
@@ -183,9 +183,9 @@ class Reka(lmms):
         pbar.close()
         return res
 
-    def loglikelihood(self, requests: List[Instance]) -> List[Tuple[float, bool]]:
+    def loglikelihood(self, requests: list[Instance]) -> list[tuple[float, bool]]:
         # TODO
         assert False, "Reka not support loglikelihood"
 
-    def generate_until_multi_round(self, requests) -> List[str]:
+    def generate_until_multi_round(self, requests) -> list[str]:
         raise NotImplementedError("TODO: Implement multi-round generation")

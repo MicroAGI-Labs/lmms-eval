@@ -8,7 +8,7 @@ shim in ``__init__`` so every call routes through ``litellm.completion``.
 from __future__ import annotations
 
 import os
-from typing import Any, Optional
+from typing import Any
 
 from lmms_eval.api.registry import register_model
 from lmms_eval.models.chat.openai import OpenAICompatible as OpenAICompatibleChatBase
@@ -24,9 +24,9 @@ class LiteLLMCompatible(OpenAICompatibleChatBase):
     def __init__(
         self,
         model_version: str = "openai/gpt-4o-mini",
-        model: Optional[str] = None,
-        base_url: Optional[str] = None,
-        api_key: Optional[str] = None,
+        model: str | None = None,
+        base_url: str | None = None,
+        api_key: str | None = None,
         **kwargs: Any,
     ) -> None:
         resolved_api_key = api_key or os.getenv("OPENAI_API_KEY")

@@ -31,7 +31,13 @@ class VBVRBench:
     - Out_of_Domain: Out-of-domain test set (50 tasks)
     """
 
-    def __init__(self, gt_base_path: str, output_path: str = "./evaluation_results/", device: str = "cuda", rules_path: str = None):
+    def __init__(
+        self,
+        gt_base_path: str,
+        output_path: str = "./evaluation_results/",
+        device: str = "cuda",
+        rules_path: str = None,
+    ):
         """
         Initialize VBVRBench.
 
@@ -51,14 +57,14 @@ class VBVRBench:
         # Load task definitions
         self.tasks_info = self._load_tasks_info()
 
-    def _load_tasks_info(self) -> Dict:
+    def _load_tasks_info(self) -> dict:
         """Load task information from tasks.json if available."""
         tasks_json_path = os.path.join(self.gt_base_path, "tasks.json")
         if os.path.exists(tasks_json_path):
             return load_json(tasks_json_path)
         return {"In_Domain": [], "Out_of_Domain": []}
 
-    def get_all_tasks(self) -> List[str]:
+    def get_all_tasks(self) -> list[str]:
         """Get list of all task names."""
         all_tasks = []
         for split in ["In_Domain", "Out_of_Domain"]:
@@ -66,11 +72,13 @@ class VBVRBench:
                 all_tasks.extend(self.tasks_info[split])
         return list(set(all_tasks))
 
-    def get_split_tasks(self, split: str) -> List[str]:
+    def get_split_tasks(self, split: str) -> list[str]:
         """Get tasks for a specific split."""
         return self.tasks_info.get(split, [])
 
-    def build_evaluation_info(self, videos_path: str, task_list: Optional[List[str]] = None, split: Optional[str] = None) -> List[Dict]:
+    def build_evaluation_info(
+        self, videos_path: str, task_list: list[str] | None = None, split: str | None = None
+    ) -> list[dict]:
         """
         Build evaluation information for all videos to be evaluated.
 
@@ -129,14 +137,22 @@ class VBVRBench:
 
                     # Load prompt if available
                     if os.path.exists(eval_info["prompt_path"]):
-                        with open(eval_info["prompt_path"], "r") as f:
+                        with open(eval_info["prompt_path"]) as f:
                             eval_info["prompt"] = f.read().strip()
 
                     eval_info_list.append(eval_info)
 
         return eval_info_list
 
-    def evaluate(self, videos_path: str, name: Optional[str] = None, task_list: Optional[List[str]] = None, split: Optional[str] = None, save_detailed: bool = True, **kwargs) -> Dict[str, Any]:
+    def evaluate(
+        self,
+        videos_path: str,
+        name: str | None = None,
+        task_list: list[str] | None = None,
+        split: str | None = None,
+        save_detailed: bool = True,
+        **kwargs,
+    ) -> dict[str, Any]:
         """
         Run evaluation on videos.
 
@@ -168,7 +184,13 @@ class VBVRBench:
         from .evaluators import get_evaluator
 
         # Initialize results structure
-        results = {"overall": {}, "In_Domain": {"scores": [], "by_task": {}}, "Out_of_Domain": {"scores": [], "by_task": {}}, "by_task": {}, "detailed": []}
+        results = {
+            "overall": {},
+            "In_Domain": {"scores": [], "by_task": {}},
+            "Out_of_Domain": {"scores": [], "by_task": {}},
+            "by_task": {},
+            "detailed": [],
+        }
 
         # Process each video
         for i, eval_info in enumerate(eval_info_list):
@@ -233,7 +255,7 @@ class VBVRBench:
 
         return results
 
-    def _calculate_averages(self, results: Dict):
+    def _calculate_averages(self, results: dict):
         """Calculate average scores at all levels."""
         # Average for each split
         for split in ["In_Domain", "Out_of_Domain"]:
@@ -261,7 +283,10 @@ class VBVRBench:
         # Overall average (weighted by number of videos)
         total_videos = results["In_Domain"]["num_videos"] + results["Out_of_Domain"]["num_videos"]
         if total_videos > 0:
-            results["overall"]["mean_score"] = (results["In_Domain"]["mean_score"] * results["In_Domain"]["num_videos"] + results["Out_of_Domain"]["mean_score"] * results["Out_of_Domain"]["num_videos"]) / total_videos
+            results["overall"]["mean_score"] = (
+                results["In_Domain"]["mean_score"] * results["In_Domain"]["num_videos"]
+                + results["Out_of_Domain"]["mean_score"] * results["Out_of_Domain"]["num_videos"]
+            ) / total_videos
             results["overall"]["num_videos"] = total_videos
         else:
             results["overall"]["mean_score"] = 0.0
@@ -271,7 +296,7 @@ class VBVRBench:
         results["overall"]["In_Domain_score"] = results["In_Domain"]["mean_score"]
         results["overall"]["Out_of_Domain_score"] = results["Out_of_Domain"]["mean_score"]
 
-    def _calculate_category_scores(self, results: Dict):
+    def _calculate_category_scores(self, results: dict):
         """Calculate scores by task category."""
         from .evaluators import get_task_category
 
@@ -301,7 +326,7 @@ class VBVRBench:
         # Store in overall
         results["overall"]["by_category"] = {cat: data["mean_score"] for cat, data in results["by_category"].items()}
 
-    def _print_summary(self, results: Dict):
+    def _print_summary(self, results: dict):
         """Print evaluation summary."""
         print("\n" + "=" * 70)
         print("VBVR-Bench Evaluation Summary")
@@ -361,7 +386,9 @@ class VBVRBench:
 
 
 # Convenience function for quick evaluation
-def evaluate(videos_path: str, gt_base_path: str, output_path: str = "./evaluation_results/", **kwargs) -> Dict[str, Any]:
+def evaluate(
+    videos_path: str, gt_base_path: str, output_path: str = "./evaluation_results/", **kwargs
+) -> dict[str, Any]:
     """
     Convenience function to run VBVR-Bench evaluation.
 

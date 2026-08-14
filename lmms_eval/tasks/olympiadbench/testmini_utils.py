@@ -1,8 +1,7 @@
 import os
 
-from loguru import logger as eval_logger
-
 from lmms_eval.llm_judge import ServerConfig, get_server
+from loguru import logger as eval_logger
 
 dir_name = os.path.dirname(os.path.abspath(__file__))
 
@@ -41,9 +40,7 @@ def olympiadbench_doc_to_text(doc):
         post_prompt += f"The answer of the question should be {ans_type}.\n"
     else:
         post_prompt += f"The question has multiple answers, each of them should be {ans_type}.\n"
-    post_prompt += (
-        "Please calculate the answer according to the given requirements and the information provided. Please use LaTeX format to represent the variables and formulas used in the solution process and results. Please end your solution with "
-    )
+    post_prompt += "Please calculate the answer according to the given requirements and the information provided. Please use LaTeX format to represent the variables and formulas used in the solution process and results. Please end your solution with "
     if not mul_ans:
         post_prompt += '"So the final answer is \\boxed{answer}."\n'
     else:
@@ -73,7 +70,9 @@ Ground Truth: {answer}"""
 
     try:
         # Use the llm_judge API for binary evaluation
-        result = server.evaluate_binary(question=question, answer=answer, prediction=prediction, output_format="yes/no", custom_prompt=custom_prompt)
+        result = server.evaluate_binary(
+            question=question, answer=answer, prediction=prediction, output_format="yes/no", custom_prompt=custom_prompt
+        )
 
         # Parse the result
         if result["success"]:

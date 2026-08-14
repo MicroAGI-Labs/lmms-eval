@@ -4,13 +4,12 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import yaml
-from loguru import logger as eval_logger
-
 from lmms_eval.tasks._task_utils.video_loader import get_cache_dir, get_video
+from loguru import logger as eval_logger
 
 OPTIONS = ["A", "B", "C", "D", "E"]
 
-with open(Path(__file__).parent / "_default_template_yaml", "r") as f:
+with open(Path(__file__).parent / "_default_template_yaml") as f:
     raw_data = f.readlines()
     safe_data = []
     for i, line in enumerate(raw_data):
@@ -24,7 +23,9 @@ if config["metadata"]["load_package"]:
     try:
         from pywsd.utils import lemmatize_sentence
     except ImportError:
-        eval_logger.debug("pywsd not installed. Please install pywsd to use this module. You can install it by running 'pip install pywsd'")
+        eval_logger.debug(
+            "pywsd not installed. Please install pywsd to use this module. You can install it by running 'pip install pywsd'"
+        )
 
     try:
         import nltk
@@ -35,7 +36,9 @@ if config["metadata"]["load_package"]:
         nltk.download("wordnet", quiet=True)
         nltk.download("punkt", quiet=True)
     except ImportError:
-        eval_logger.debug("nltk not installed. Please install nltk to use this module. You can install it by running 'pip install nltk'")
+        eval_logger.debug(
+            "nltk not installed. Please install nltk to use this module. You can install it by running 'pip install nltk'"
+        )
 
 stopwords = set(pd.read_csv(Path(__file__).parent / "stopwords.csv").squeeze())
 

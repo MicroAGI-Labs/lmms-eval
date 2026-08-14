@@ -7,14 +7,13 @@ from pathlib import Path
 import numpy as np
 import requests
 import yaml
+from lmms_eval.tasks._task_utils.file_utils import generate_submission_file
+from lmms_eval.tasks.capability.prompt import Prompts
 from loguru import logger as eval_logger
 from PIL import Image
 from tqdm import tqdm
 
-from lmms_eval.tasks._task_utils.file_utils import generate_submission_file
-from lmms_eval.tasks.capability.prompt import Prompts
-
-with open(Path(__file__).parent / "_default_template_yaml", "r") as f:
+with open(Path(__file__).parent / "_default_template_yaml") as f:
     raw_data = f.readlines()
     safe_data = []
     for i, line in enumerate(raw_data):
@@ -103,7 +102,9 @@ def capability_aggregate_inference_result(results, args):
         save_path = os.path.join(config["metadata"]["eval_save_root"], f"inference/{task}.jsonl")
     else:
         suffix = args.model if args.log_samples_suffix == "model_outputs" else args.log_samples_suffix
-        save_path = generate_submission_file(file_name=f"{task}.jsonl", args=args, subpath=f"capability_results/{suffix}/inference")
+        save_path = generate_submission_file(
+            file_name=f"{task}.jsonl", args=args, subpath=f"capability_results/{suffix}/inference"
+        )
 
     # delete the invalid evaluation results as lmms-eval do not support auto-resume inference
     # to ensure re-run evaluation if re-run inference
@@ -131,14 +132,27 @@ def capability_aggregate_results(results, args):
         save_path = os.path.join(config["metadata"]["eval_save_root"], f"evaluation/{task}.jsonl")
     else:
         suffix = args.model if args.log_samples_suffix == "model_outputs" else args.log_samples_suffix
-        save_path = generate_submission_file(file_name=f"{task}.jsonl", args=args, subpath=f"capability_results/{suffix}/evaluation")
+        save_path = generate_submission_file(
+            file_name=f"{task}.jsonl", args=args, subpath=f"capability_results/{suffix}/evaluation"
+        )
     eval_model = config["metadata"]["eval_model_name"]
     num_process = config["metadata"]["eval_num_process"]
     max_allow_missing = config["metadata"]["eval_max_allow_missing"]
     max_retry_times = config["metadata"]["eval_max_retry_times"]
     auto_resume = config["metadata"]["eval_auto_resume"]
     strict_match = config["metadata"]["eval_strict_match"]
-    evaluator = Evaluator(task, results, save_path, eval_model, headers, num_process, max_allow_missing, max_retry_times, auto_resume, strict_match)
+    evaluator = Evaluator(
+        task,
+        results,
+        save_path,
+        eval_model,
+        headers,
+        num_process,
+        max_allow_missing,
+        max_retry_times,
+        auto_resume,
+        strict_match,
+    )
     score_dict = evaluator.evaluate_scores()
     metrics = evaluator.calculate_metric(score_dict)
     return metrics
@@ -426,7 +440,7 @@ class Evaluator:
 
     def load_saved_records(self):
         if os.path.exists(self.save_path):
-            with open(self.save_path, "r") as f:
+            with open(self.save_path) as f:
                 saved_responses = [json.loads(l.strip("\n")) for l in f.readlines()]
         else:
             saved_responses = []
@@ -542,7 +556,9 @@ class Evaluator:
                     with ThreadPoolExecutor(max_workers=self.num_process) as executor:
                         futures = {executor.submit(self.evaluate_sample_worker, arg): arg for arg in process_args}
                         buffer_counter = 0
-                        for future in tqdm(as_completed(futures), total=len(remaining_results), desc=f"Evaluating {self.task}"):
+                        for future in tqdm(
+                            as_completed(futures), total=len(remaining_results), desc=f"Evaluating {self.task}"
+                        ):
                             result = future.result()
                             if result is not None:
                                 buffer.append(json.dumps(result) + "\n")
@@ -597,11 +613,25 @@ if __name__ == "__main__":
     save_dir = "logs/capability_results/llava_onevision_7b/evaluation"
     os.makedirs(save_dir, exist_ok=True)
 
-    tasks = ["object_category", "object_number", "object_color", "spatial_relation", "scene", "camera_angle", "OCR", "style", "character_identification", "dynamic_object_number", "action", "camera_movement", "event"]
+    tasks = [
+        "object_category",
+        "object_number",
+        "object_color",
+        "spatial_relation",
+        "scene",
+        "camera_angle",
+        "OCR",
+        "style",
+        "character_identification",
+        "dynamic_object_number",
+        "action",
+        "camera_movement",
+        "event",
+    ]
 
     metrics = []
     for task in tasks:
-        with open(os.path.join(results_dir, f"{task}.jsonl"), "r") as f:
+        with open(os.path.join(results_dir, f"{task}.jsonl")) as f:
             result = [json.loads(l.strip()) for l in f.readlines()]
         save_path = os.path.join(save_dir, f"{task}.jsonl")
         eval_model = config["metadata"]["eval_model_name"]
@@ -610,7 +640,18 @@ if __name__ == "__main__":
         max_retry_times = config["metadata"]["eval_max_retry_times"]
         auto_resume = config["metadata"]["eval_auto_resume"]
         strict_match = config["metadata"]["eval_strict_match"]
-        evaluator = Evaluator(task, result, save_path, eval_model, headers, num_process, max_allow_missing, max_retry_times, auto_resume, strict_match)
+        evaluator = Evaluator(
+            task,
+            result,
+            save_path,
+            eval_model,
+            headers,
+            num_process,
+            max_allow_missing,
+            max_retry_times,
+            auto_resume,
+            strict_match,
+        )
         score_dict = evaluator.evaluate_scores()
         metric = evaluator.calculate_metric(score_dict)
         metrics.append(metric)
@@ -622,4 +663,6 @@ if __name__ == "__main__":
     avg_recall = np.mean([m["recall"] for m in metrics])
     avg_hit_rate = np.mean([m["hit_rate"] for m in metrics])
     avg_f1_score = np.mean([m["f1_score"] for m in metrics])
-    eval_logger.info(f"Average precision: {avg_precision:.3f}, recall: {avg_recall:.3f}, f1_score: {avg_f1_score:.3f}, hit_rate: {avg_hit_rate:.3f}")
+    eval_logger.info(
+        f"Average precision: {avg_precision:.3f}, recall: {avg_recall:.3f}, f1_score: {avg_f1_score:.3f}, hit_rate: {avg_hit_rate:.3f}"
+    )

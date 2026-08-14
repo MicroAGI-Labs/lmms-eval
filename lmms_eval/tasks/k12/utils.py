@@ -2,12 +2,11 @@ import os
 from pathlib import Path
 
 import yaml
+from lmms_eval.llm_judge import ServerConfig, get_server
 from loguru import logger as eval_logger
 
-from lmms_eval.llm_judge import ServerConfig, get_server
-
 # Load config from k12.yaml
-with open(Path(__file__).parent / "k12.yaml", "r") as f:
+with open(Path(__file__).parent / "k12.yaml") as f:
     raw_data = f.readlines()
     safe_data = []
     for i, line in enumerate(raw_data):

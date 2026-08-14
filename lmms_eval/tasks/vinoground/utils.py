@@ -8,7 +8,7 @@ from loguru import logger as eval_logger
 
 hf_home = os.getenv("HF_HOME", "~/.cache/huggingface/")
 base_cache_dir = os.path.expanduser(hf_home)
-with open(Path(__file__).parent / "vinoground.yaml", "r") as f:
+with open(Path(__file__).parent / "vinoground.yaml") as f:
     raw_data = f.readlines()
     safe_data = []
     for i, line in enumerate(raw_data):
@@ -83,7 +83,12 @@ def vinoground_aggregate_results(results):
     index_to_categories = {}
 
     for result in results:
-        idx, categories, question_type, pred = result["index"], result["categories"], result["question_type"], result["pred"]
+        idx, categories, question_type, pred = (
+            result["index"],
+            result["categories"],
+            result["question_type"],
+            result["pred"],
+        )
         matrix_col = 0 if "pos" in idx else 1
         if question_type == "video":
             matrix_col += 3
@@ -116,9 +121,7 @@ def vinoground_aggregate_results(results):
 
     loginfo = "Categorical results:\n"
     for category in category_all.keys():
-        loginfo += (
-            f"{category}: text: {category_text[category] / category_all[category] * 100:.2f}%, video: {category_video[category] / category_all[category] * 100:.2f}%, group: {category_group[category] / category_all[category] * 100:.2f}%\n"
-        )
+        loginfo += f"{category}: text: {category_text[category] / category_all[category] * 100:.2f}%, video: {category_video[category] / category_all[category] * 100:.2f}%, group: {category_group[category] / category_all[category] * 100:.2f}%\n"
     eval_logger.info(loginfo)
 
     return matrix[:, 2].mean() * 100, matrix[:, 5].mean() * 100, matrix[:, 6].mean() * 100

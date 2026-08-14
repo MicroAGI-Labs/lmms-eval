@@ -1,4 +1,3 @@
-from typing import Optional, Union
 
 from lmms_eval.api.registry import register_model
 from lmms_eval.models.simple.qwen3_vl import Qwen3_VL
@@ -25,8 +24,8 @@ class Qwen3_5(Qwen3_VL):
         max_pixels: int = 128 * 32 * 32,
         total_pixels: int = 224 * 1024 * 32 * 32,
         max_num_frames: int = 768,
-        max_frames: Optional[int] = None,
-        enable_thinking: Optional[bool] = True,
+        max_frames: int | None = None,
+        enable_thinking: bool | None = True,
         **kwargs,
     ):
         # Accept max_frames as backward-compat alias for max_num_frames

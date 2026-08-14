@@ -1,6 +1,5 @@
 import json
 import os
-from typing import List, Optional, Tuple
 
 import numpy as np
 import torch
@@ -8,22 +7,23 @@ from accelerate import (
     Accelerator,
 )
 from accelerate.utils import send_to_device
-from loguru import logger as eval_logger
-from PIL import Image
-from tqdm import tqdm
-from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
-
 from lmms_eval.api.instance import Instance
 from lmms_eval.api.model import lmms
 from lmms_eval.api.registry import register_model
 from lmms_eval.protocol import ChatMessages
+from loguru import logger as eval_logger
+from PIL import Image
+from tqdm import tqdm
+from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
 
 try:
     from lmms_engine.datasets.processor import BagelDataProcessor, ProcessorConfig
     from lmms_engine.models.bagel.inferencer import InterleaveInferencer
 except Exception as e:
     eval_logger.error(f"Failed to import Bagel dependencies. {e}")
-    eval_logger.error("Please install lmms-engine https://github.com/EvolvingLMMs-Lab/lmms-engine to use lmms-engine's bagel model")
+    eval_logger.error(
+        "Please install lmms-engine https://github.com/EvolvingLMMs-Lab/lmms-engine to use lmms-engine's bagel model"
+    )
 
 
 @register_model("bagel_lmms_engine")
@@ -48,7 +48,7 @@ class BagelLmmsEngine(lmms):
         pretrained: str,
         load_in_4bit: bool = False,
         load_in_8bit: bool = False,
-        output_image_dir: Optional[str] = None,
+        output_image_dir: str | None = None,
         show_thinking: bool = False,
         cfg_text_scale: float = 4.0,
         cfg_img_scale: float = 1.5,
@@ -62,8 +62,8 @@ class BagelLmmsEngine(lmms):
         text_temperature: float = 0.3,
         seed: int = 0,
         image_ratio: str = "1:1",
-        device: Optional[str] = "cuda",
-        device_map: Optional[str] = None,
+        device: str | None = "cuda",
+        device_map: str | None = None,
         **kwargs,
     ) -> None:
         super().__init__()
@@ -169,7 +169,14 @@ class BagelLmmsEngine(lmms):
 
     def _patch_prepare_methods(self, model, device):
         """Patch model's prepare_* methods to auto-move output tensors to device."""
-        methods = ["prepare_prompts", "prepare_vae_images", "prepare_vit_images", "prepare_vae_latent", "prepare_vae_latent_cfg", "prepare_start_tokens"]
+        methods = [
+            "prepare_prompts",
+            "prepare_vae_images",
+            "prepare_vit_images",
+            "prepare_vae_latent",
+            "prepare_vae_latent_cfg",
+            "prepare_start_tokens",
+        ]
 
         for name in methods:
             if hasattr(model, name):
@@ -210,7 +217,7 @@ class BagelLmmsEngine(lmms):
             torch.backends.cudnn.deterministic = True
             torch.backends.cudnn.benchmark = False
 
-    def generate_text_and_image(self, prompt: str, image: Image.Image, doc_id: str, task: str) -> Tuple[str, List[str]]:
+    def generate_text_and_image(self, prompt: str, image: Image.Image, doc_id: str, task: str) -> tuple[str, list[str]]:
         """
         Generate text and image from prompt
 
@@ -267,14 +274,14 @@ class BagelLmmsEngine(lmms):
 
         return output_text, output_images
 
-    def format_output(self, text: str, images: List[str]) -> str:
+    def format_output(self, text: str, images: list[str]) -> str:
         """Format output as JSON string"""
         output_dict = {"text": text, "images": images}
         if len(images) == 0:
             return text
         return json.dumps(output_dict, ensure_ascii=False)
 
-    def generate_until(self, requests: List[Instance]) -> List[str]:
+    def generate_until(self, requests: list[Instance]) -> list[str]:
         """Main inference method"""
         res = []
         pbar = tqdm(total=len(requests), disable=(self.rank != 0), desc="Model Responding")
@@ -301,10 +308,10 @@ class BagelLmmsEngine(lmms):
         pbar.close()
         return res
 
-    def loglikelihood(self, requests: List[Instance]) -> List[Tuple[float, bool]]:
+    def loglikelihood(self, requests: list[Instance]) -> list[tuple[float, bool]]:
         """Not supported for generation models"""
         raise NotImplementedError("Bagel is a generation model and does not support loglikelihood")
 
-    def generate_until_multi_round(self, requests) -> List[str]:
+    def generate_until_multi_round(self, requests) -> list[str]:
         """Multi-round dialogue generation"""
         raise NotImplementedError("TODO: Implement multi-round dialogue generation")

@@ -1,11 +1,10 @@
 import re
 import unicodedata
 
-from sacrebleu import corpus_bleu
-
 from lmms_eval.tasks.gigaspeech.whisper_normalizer.basic import BasicTextNormalizer
 from lmms_eval.tasks.gigaspeech.whisper_normalizer.english import EnglishTextNormalizer
 from lmms_eval.tasks.librispeech.cn_tn import TextNorm
+from sacrebleu import corpus_bleu
 
 english_normalizer = EnglishTextNormalizer()
 chinese_normalizer = TextNorm(
@@ -107,7 +106,7 @@ def compute_bleu_zh(refs, hyps):
     return bleu_score.score
 
 
-class EvaluationTokenizer(object):
+class EvaluationTokenizer:
     SPACE = chr(32)
     SPACE_ESCAPE = chr(9601)
 

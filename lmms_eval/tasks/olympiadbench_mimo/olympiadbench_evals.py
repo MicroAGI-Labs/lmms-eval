@@ -10,7 +10,9 @@ try:
     from sympy import Eq, Pow, simplify, sympify
     from sympy.parsing.latex import parse_latex
 except ImportError:
-    eval_logger.debug("Please install sympy package by running 'pip install sympy' if you want to use OlympiadBenchEvaluator.")
+    eval_logger.debug(
+        "Please install sympy package by running 'pip install sympy' if you want to use OlympiadBenchEvaluator."
+    )
 
 # how to use
 # scorer = OlympiadBenchEvaluator()
@@ -201,12 +203,16 @@ class OlympiadBenchEvaluator:
             expr1_sym = self.sympy_sub_pi(expr1_sym)
             expr2_sym = self.sympy_sub_pi(expr2_sym)
 
-            if (expr1_sym.has(sp.Symbol) and not expr2_sym.has(sp.Symbol)) or (not expr1_sym.has(sp.Symbol) and expr2_sym.has(sp.Symbol)):
+            if (expr1_sym.has(sp.Symbol) and not expr2_sym.has(sp.Symbol)) or (
+                not expr1_sym.has(sp.Symbol) and expr2_sym.has(sp.Symbol)
+            ):
                 return False
             elif not expr1_sym.has(sp.Symbol) and not expr2_sym.has(sp.Symbol):
                 try:
                     if not (self.can_compute_power(expr1_sym) and self.can_compute_power(expr2_sym)):
-                        print(f'These two numbers cannot be calculated by the current computer for: "{str(expr1_sym)}" and "{str(expr2_sym)}"')
+                        print(
+                            f'These two numbers cannot be calculated by the current computer for: "{str(expr1_sym)}" and "{str(expr2_sym)}"'
+                        )
                         return False
 
                     if abs(expr1_sym.evalf() - expr2_sym.evalf()) <= self.precision * 1.01:
@@ -245,7 +251,9 @@ class OlympiadBenchEvaluator:
         division_result_1 = simplify(expr1_sym / expr2_sym)
         division_result_2 = simplify(expr2_sym / expr1_sym)
 
-        if (division_result_1.is_Integer and division_result_1 != 0) or (division_result_2.is_Integer and division_result_2 != 0):
+        if (division_result_1.is_Integer and division_result_1 != 0) or (
+            division_result_2.is_Integer and division_result_2 != 0
+        ):
             return True
         else:
             return False

@@ -5,7 +5,7 @@ import random
 import re
 import string
 from collections.abc import Iterable
-from typing import Any, List
+from typing import Any
 
 import numpy as np
 import sacrebleu
@@ -618,7 +618,7 @@ def stderr_for_metric(metric, bootstrap_iters: int):
     return stderr.get(metric, None)
 
 
-def pooled_sample_stderr(stderrs: List[float], sizes: List[int]):
+def pooled_sample_stderr(stderrs: list[float], sizes: list[int]):
     # Used to aggregate bootstrapped stderrs across subtasks in a group,
     # when we are weighting by the size of each subtask.
     #
@@ -629,12 +629,14 @@ def pooled_sample_stderr(stderrs: List[float], sizes: List[int]):
     # and: https://stats.stackexchange.com/a/4841331
     # this empirically seems to match running `stderr_for_metric` on all instances
     # from the subtasks concatenated with each other.
-    pooled_sample_var = (sum([(size - 1) * stderr**2 * size for size, stderr in zip(sizes, stderrs)])) / (sum(sizes) - len(sizes))
+    pooled_sample_var = (sum([(size - 1) * stderr**2 * size for size, stderr in zip(sizes, stderrs)])) / (
+        sum(sizes) - len(sizes)
+    )
 
     return np.sqrt(pooled_sample_var / sum(sizes))
 
 
-def combined_sample_stderr(stderrs: List[float], sizes: List[int], metrics=None):
+def combined_sample_stderr(stderrs: list[float], sizes: list[int], metrics=None):
     assert metrics is not None, "Need to pass a list of each subtask's metric for this stderr aggregation"
     assert len(stderrs) == len(sizes) and len(sizes) == len(metrics)
 
@@ -651,9 +653,13 @@ def combined_sample_stderr(stderrs: List[float], sizes: List[int], metrics=None)
     curr_score = metrics[0]
 
     for stderr, size, score in zip(stderrs[1:], sizes[1:], metrics[1:]):
-        curr_score = ((curr_score * curr_size) + (score * size)) / (curr_size + size)  # NOTE: this assumes our aggregation fn is "mean"
+        curr_score = ((curr_score * curr_size) + (score * size)) / (
+            curr_size + size
+        )  # NOTE: this assumes our aggregation fn is "mean"
 
-        variance = ((curr_size - 1) * variance + (size - 1) * (stderr**2)) / (curr_size + size - 1) + curr_size * size / ((curr_size + size) * (curr_size + size - 1)) * (curr_score - score) ** 2
+        variance = ((curr_size - 1) * variance + (size - 1) * (stderr**2)) / (
+            curr_size + size - 1
+        ) + curr_size * size / ((curr_size + size) * (curr_size + size - 1)) * (curr_score - score) ** 2
 
     return np.sqrt(variance)
 
@@ -670,7 +676,7 @@ def aggregate_subtask_metrics(metrics, sizes, weight_by_size=True):
     return sum([metric * size for metric, size in zip(metrics, sizes)]) / sum(sizes)
 
 
-def expected_accuracy(sample_scores: List[List[float]]) -> float:
+def expected_accuracy(sample_scores: list[list[float]]) -> float:
     """
     Calculate Expected Accuracy (EA) - average accuracy over k samples.
 
@@ -687,7 +693,7 @@ def expected_accuracy(sample_scores: List[List[float]]) -> float:
     return sum(all_scores) / len(all_scores) if all_scores else float("nan")
 
 
-def consensus_accuracy(sample_scores: List[List[float]]) -> float:
+def consensus_accuracy(sample_scores: list[list[float]]) -> float:
     """
     Calculate Consensus Accuracy (CA) via majority voting.
 
@@ -712,7 +718,7 @@ def consensus_accuracy(sample_scores: List[List[float]]) -> float:
     return correct / len(sample_scores) if sample_scores else float("nan")
 
 
-def internal_variance(sample_scores: List[List[float]]) -> float:
+def internal_variance(sample_scores: list[list[float]]) -> float:
     """
     Calculate Internal Variance (IV) - average variance within each question.
 
@@ -736,7 +742,7 @@ def internal_variance(sample_scores: List[List[float]]) -> float:
     return sum(variances) / len(variances) if variances else float("nan")
 
 
-def consistency_rate(sample_scores: List[List[float]]) -> float:
+def consistency_rate(sample_scores: list[list[float]]) -> float:
     """
     Calculate Consistency Rate (CR) - fraction of questions with consistent answers.
 
@@ -760,7 +766,7 @@ def consistency_rate(sample_scores: List[List[float]]) -> float:
     return consistent / len(sample_scores) if sample_scores else float("nan")
 
 
-def clustered_stderr(scores: List[float], cluster_ids: List[Any]) -> float:
+def clustered_stderr(scores: list[float], cluster_ids: list[Any]) -> float:
     """
     Calculate clustered standard error for non-independent samples.
 
@@ -813,7 +819,7 @@ def clustered_stderr(scores: List[float], cluster_ids: List[Any]) -> float:
     return math.sqrt(se_clt_squared + cross_term)
 
 
-def paired_ttest(current_scores: List[float], baseline_scores: List[float]) -> dict:
+def paired_ttest(current_scores: list[float], baseline_scores: list[float]) -> dict:
     """
     Perform paired t-test comparing current model scores against baseline.
 
@@ -833,7 +839,9 @@ def paired_ttest(current_scores: List[float], baseline_scores: List[float]) -> d
     from scipy import stats
 
     if len(current_scores) != len(baseline_scores):
-        raise ValueError(f"Score lists must have same length: current={len(current_scores)}, baseline={len(baseline_scores)}")
+        raise ValueError(
+            f"Score lists must have same length: current={len(current_scores)}, baseline={len(baseline_scores)}"
+        )
 
     n = len(current_scores)
     if n < 2:

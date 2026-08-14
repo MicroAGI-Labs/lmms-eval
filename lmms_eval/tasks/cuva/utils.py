@@ -4,6 +4,7 @@ import os
 import sys
 from pathlib import Path
 
+import lmms_eval.tasks._task_utils.file_utils as file_utils
 import numpy as np
 import torch
 import yaml
@@ -17,8 +18,6 @@ from pycocoevalcap.eval import Bleu, Rouge
 from pycocoevalcap.tokenizer.ptbtokenizer import PTBTokenizer
 from tqdm import tqdm
 
-import lmms_eval.tasks._task_utils.file_utils as file_utils
-
 # import nltk
 # nltk.download('punkt')
 # from nltk.translate.bleu_score import sentence_bleu, SmoothingFunction
@@ -26,7 +25,7 @@ import lmms_eval.tasks._task_utils.file_utils as file_utils
 # from rouge import Rouge
 
 
-with open(Path(__file__).parent / "_default_template_yaml", "r") as f:
+with open(Path(__file__).parent / "_default_template_yaml") as f:
     raw_data = f.readlines()
     safe_data = []
     for i, line in enumerate(raw_data):
@@ -169,7 +168,9 @@ def cuva_aggregate_results(results, metric, args):
 
 def cuva_aggregate_results_bleurt(results, args):
     bleurt_version = "lucadiliello/BLEURT-20"
-    eval_logger.info(f"Loading BLEURT model {bleurt_version}, you can change to the small version BLEURT-20-D12 in tasks/cuva/utils.py")
+    eval_logger.info(
+        f"Loading BLEURT model {bleurt_version}, you can change to the small version BLEURT-20-D12 in tasks/cuva/utils.py"
+    )
     config = BleurtConfig.from_pretrained(bleurt_version)
     model = BleurtForSequenceClassification.from_pretrained(bleurt_version)
     tokenizer = BleurtTokenizer.from_pretrained(bleurt_version)

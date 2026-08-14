@@ -2,14 +2,14 @@ import ast
 import os
 from collections import defaultdict
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import cv2
 import numpy as np
 import yaml
 from PIL import Image
 
-with open(Path(__file__).parent / "lemonade.yaml", "r") as f:
+with open(Path(__file__).parent / "lemonade.yaml") as f:
     raw_data = f.readlines()
     safe_data = []
     for line in raw_data:
@@ -26,7 +26,9 @@ videos_dir = os.path.join(base_cache_dir, cache_dir)
 max_num_frames = config.get("lmms_eval_specific_kwargs", {}).get("max_num_frames", 8)
 
 
-def load_video(video_file: str, start_frame: int, end_frame: int, max_num_frames: int = max_num_frames) -> list[Image.Image]:
+def load_video(
+    video_file: str, start_frame: int, end_frame: int, max_num_frames: int = max_num_frames
+) -> list[Image.Image]:
     """
     Args:
         video_file: Path to the video file.
@@ -43,6 +45,10 @@ def load_video(video_file: str, start_frame: int, end_frame: int, max_num_frames
         start_frame = max(0, start_frame)
         end_frame = min(end_frame, total_frames - 1)
         total_valid_frames = end_frame - start_frame + 1
+        if total_valid_frames <= 0:
+            raise ValueError(
+                f"Invalid video segment [{start_frame}, {end_frame}] for {video_file} with {total_frames} frames"
+            )
         num_frames = min(max_num_frames, total_valid_frames)
         step = total_valid_frames / num_frames
         frame_indices = [int(start_frame + i * step) for i in range(num_frames)]
@@ -51,7 +57,7 @@ def load_video(video_file: str, start_frame: int, end_frame: int, max_num_frames
             cap.set(cv2.CAP_PROP_POS_FRAMES, target_idx)
             success, frame = cap.read()
             if not success:
-                continue
+                raise RuntimeError(f"Could not decode frame {target_idx} from {video_file}")
             frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             pil_img = Image.fromarray(frame_rgb).convert("RGB")
             frames.append(pil_img)
@@ -100,11 +106,13 @@ def lemonade_doc_to_visual(doc: dict[str, Any]) -> list[Image.Image]:
         end = int(doc["End"])
         frames = load_video(video_path, start, end, max_num_frames=max_num_frames)
     else:
-        raise FileNotFoundError(f"Video file not found: {video_path}. " f"Expected video for clip '{doc['Clip']}' at {video_path}")
+        raise FileNotFoundError(
+            f"Video file not found: {video_path}. Expected video for clip '{doc['Clip']}' at {video_path}"
+        )
     return frames
 
 
-def lemonade_doc_to_text(doc: dict[str, Any], lmms_eval_specific_kwargs: Optional[dict[str, Any]] = None) -> str:
+def lemonade_doc_to_text(doc: dict[str, Any], lmms_eval_specific_kwargs: dict[str, Any] | None = None) -> str:
     """
     Convert a LEMONADE dataset entry into a formatted text prompt.
     Args:
@@ -165,7 +173,7 @@ def parse_multi_choice_response(response: str, all_choices: list[str], index2ans
     """
 
     if response == "API Error":
-        return "API Error"
+        raise RuntimeError("LEMONADE model request failed with API Error")
 
     if response == "":
         return "Empty Response"
@@ -194,16 +202,16 @@ def parse_multi_choice_response(response: str, all_choices: list[str], index2ans
                 candidates.append(choice)
                 ans_with_brack = True
     if len(candidates) == 0:
-        for choice in all_choices:
-            if f"{choice} " in response:
-                candidates.append(choice)
+        exact_choice = response.strip().upper()
+        if exact_choice in all_choices:
+            candidates.append(exact_choice)
     if len(candidates) == 0 and len(response.split()) > 5:
         for index, ans in index2ans.items():
             if ans.lower() in response.lower():
                 candidates.append(index)
                 index_ans = False
     if len(candidates) == 0:
-        pred_index = "A"
+        pred_index = ""
 
     elif len(candidates) > 1:
         start_indexes = []
@@ -222,7 +230,7 @@ def parse_multi_choice_response(response: str, all_choices: list[str], index2ans
                     start_indexes.append(index)
             else:
                 for can in candidates:
-                    index = response.rfind(f" {can} ")
+                    index = response.strip().upper().rfind(can)
                     start_indexes.append(index)
         else:
             for can in candidates:
@@ -250,7 +258,15 @@ def lemonade_process_results(doc: dict[str, Any], results: list[Any]) -> dict[st
     index2ans, all_choices = get_multi_choice_info(ast.literal_eval(doc["Answers"]))
     parsed_pred = parse_multi_choice_response(pred, all_choices, index2ans)
 
-    acc = {"QID": doc["QID"], "category": doc["Category"], "subcategory": doc["Subcategory"], "difficulty": doc["Difficulty"], "answer": doc["Correct Answer"], "parsed_pred": parsed_pred, "original_pred": pred}
+    acc = {
+        "QID": doc["QID"],
+        "category": doc["Category"],
+        "subcategory": doc["Subcategory"],
+        "difficulty": doc["Difficulty"],
+        "answer": doc["Correct Answer"],
+        "parsed_pred": parsed_pred,
+        "original_pred": pred,
+    }
     return {"acc": acc}
 
 
@@ -284,9 +300,7 @@ def lemonade_aggregate_results(results: list[dict[str, Any]]) -> float:
     subcategory_results = defaultdict(list)
     difficulty_results = defaultdict(list)
 
-    valid_results = [r for r in results if r["parsed_pred"] != "API Error"]
-
-    for r in valid_results:
+    for r in results:
         qid_results[r["QID"]].append(r)
         category_results[r["category"]].append(r)
         subcategory_results[r["subcategory"]].append(r)
@@ -297,8 +311,8 @@ def lemonade_aggregate_results(results: list[dict[str, Any]]) -> float:
     subcategory_acc = compute_accuracy(subcategory_results)
     difficulty_acc = compute_accuracy(difficulty_results)
 
-    total_correct = sum([r["parsed_pred"] == r["answer"] for r in valid_results])
-    total = len(valid_results)
+    total_correct = sum([r["parsed_pred"] == r["answer"] for r in results])
+    total = len(results)
     overall_acc = round(total_correct / total, 5) if total > 0 else 0.0
     overall_stderr = round(np.sqrt(overall_acc * (1 - overall_acc) / total), 5) if total > 0 else 0.0
 

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -10,16 +10,16 @@ class TaskInfo(BaseModel):
 
     name: str
     type: str  # "task", "group", "tag"
-    yaml_path: Optional[str] = None
-    output_type: Optional[str] = None  # "generate_until", "loglikelihood", etc.
+    yaml_path: str | None = None
+    output_type: str | None = None  # "generate_until", "loglikelihood", etc.
 
 
 class TaskListResponse(BaseModel):
     """Response for list_tasks tool."""
 
-    tasks: List[TaskInfo]
+    tasks: list[TaskInfo]
     total: int
-    query: Optional[str] = None
+    query: str | None = None
 
 
 class ModelInfo(BaseModel):
@@ -28,13 +28,13 @@ class ModelInfo(BaseModel):
     model_id: str
     has_chat: bool
     has_simple: bool
-    aliases: List[str] = Field(default_factory=list)
+    aliases: list[str] = Field(default_factory=list)
 
 
 class ModelListResponse(BaseModel):
     """Response for list_models tool."""
 
-    models: List[ModelInfo]
+    models: list[ModelInfo]
     total: int
 
 
@@ -43,7 +43,7 @@ class EvalRunSubmitted(BaseModel):
 
     run_id: str
     status: str  # "running" or "queued"
-    position_in_queue: Optional[int] = None
+    position_in_queue: int | None = None
     message: str
 
 
@@ -52,11 +52,11 @@ class EvalRunStatus(BaseModel):
 
     run_id: str
     status: str  # "queued", "running", "completed", "failed", "cancelled"
-    created_at: Optional[str] = None
-    started_at: Optional[str] = None
-    completed_at: Optional[str] = None
-    position_in_queue: Optional[int] = None
-    error: Optional[str] = None
+    created_at: str | None = None
+    started_at: str | None = None
+    completed_at: str | None = None
+    position_in_queue: int | None = None
+    error: str | None = None
 
 
 class EvalRunResult(BaseModel):
@@ -64,5 +64,5 @@ class EvalRunResult(BaseModel):
 
     run_id: str
     status: str
-    results: Optional[Dict[str, Any]] = None
-    error: Optional[str] = None
+    results: dict[str, Any] | None = None
+    error: str | None = None

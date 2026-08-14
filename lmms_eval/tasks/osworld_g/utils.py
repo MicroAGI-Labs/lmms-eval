@@ -1,23 +1,23 @@
 import logging
 import re
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 eval_logger = logging.getLogger("lmms-eval")
 _NUM_TOKEN = r"-?\d+(?:\.\d+)?%?"
 
 
-def _get_image(doc: Dict[str, Any]):
+def _get_image(doc: dict[str, Any]):
     image = doc.get("image")
     if image is None:
         raise ValueError("OSWorld-G sample does not contain 'image'")
     return image.convert("RGB")
 
 
-def osworld_g_doc_to_visual(doc: Dict[str, Any]) -> List[Any]:
+def osworld_g_doc_to_visual(doc: dict[str, Any]) -> list[Any]:
     return [_get_image(doc)]
 
 
-def osworld_g_doc_to_text(doc: Dict[str, Any], lmms_eval_specific_kwargs=None) -> str:
+def osworld_g_doc_to_text(doc: dict[str, Any], lmms_eval_specific_kwargs=None) -> str:
     instruction = doc.get("instruction", "")
     return (
         "Identify the UI target for the instruction and output exactly one click point as [x, y]. "
@@ -27,7 +27,7 @@ def osworld_g_doc_to_text(doc: Dict[str, Any], lmms_eval_specific_kwargs=None) -
     )
 
 
-def osworld_g_doc_to_messages(doc: Dict[str, Any], lmms_eval_specific_kwargs=None):
+def osworld_g_doc_to_messages(doc: dict[str, Any], lmms_eval_specific_kwargs=None):
     text = osworld_g_doc_to_text(doc, lmms_eval_specific_kwargs=lmms_eval_specific_kwargs)
     return [{"role": "user", "content": [{"type": "image", "url": _get_image(doc)}, {"type": "text", "text": text}]}]
 
@@ -39,7 +39,7 @@ def _token_to_float(token: str) -> float:
     return float(token)
 
 
-def _parse_point(prediction: str) -> Optional[Tuple[float, float]]:
+def _parse_point(prediction: str) -> tuple[float, float] | None:
     bbox_tag_match = re.search(r"<\s*bbox[^>]*>(.*?)<\s*/\s*bbox\s*>", prediction, flags=re.IGNORECASE | re.DOTALL)
     if bbox_tag_match:
         bbox_tokens = re.findall(_NUM_TOKEN, bbox_tag_match.group(1))
@@ -51,7 +51,11 @@ def _parse_point(prediction: str) -> Optional[Tuple[float, float]]:
     if point_match:
         return _token_to_float(point_match.group(1)), _token_to_float(point_match.group(2))
 
-    xy_match = re.search(r"['\"]?x['\"]?\s*[:=]\s*(-?\d+(?:\.\d+)?%?).*?['\"]?y['\"]?\s*[:=]\s*(-?\d+(?:\.\d+)?%?)", prediction, flags=re.IGNORECASE | re.DOTALL)
+    xy_match = re.search(
+        r"['\"]?x['\"]?\s*[:=]\s*(-?\d+(?:\.\d+)?%?).*?['\"]?y['\"]?\s*[:=]\s*(-?\d+(?:\.\d+)?%?)",
+        prediction,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
     if xy_match:
         return _token_to_float(xy_match.group(1)), _token_to_float(xy_match.group(2))
 
@@ -66,14 +70,14 @@ def _parse_point(prediction: str) -> Optional[Tuple[float, float]]:
     return None
 
 
-def _to_absolute_point(point_xy: Tuple[float, float], width: int, height: int) -> Tuple[float, float]:
+def _to_absolute_point(point_xy: tuple[float, float], width: int, height: int) -> tuple[float, float]:
     x, y = point_xy
     if 0 <= x <= 1 and 0 <= y <= 1:
         return x * width, y * height
     return x, y
 
 
-def _point_in_bbox(point_xy: Tuple[float, float], bbox_xywh: List[float]) -> bool:
+def _point_in_bbox(point_xy: tuple[float, float], bbox_xywh: list[float]) -> bool:
     x, y = point_xy
     left, top, box_w, box_h = bbox_xywh
     right = left + box_w
@@ -81,7 +85,7 @@ def _point_in_bbox(point_xy: Tuple[float, float], bbox_xywh: List[float]) -> boo
     return left <= x <= right and top <= y <= bottom
 
 
-def _point_in_polygon(point_xy: Tuple[float, float], polygon: List[float]) -> bool:
+def _point_in_polygon(point_xy: tuple[float, float], polygon: list[float]) -> bool:
     x, y = point_xy
     if len(polygon) == 4:
         left, top, right, bottom = polygon
@@ -146,7 +150,7 @@ def osworld_g_process_results(doc, result):
     }
 
 
-def _aggregate(results: List[Dict[str, Any]], target_type: Optional[str] = None) -> float:
+def _aggregate(results: list[dict[str, Any]], target_type: str | None = None) -> float:
     filtered = [r for r in results if target_type is None or r.get("box_type") == target_type]
     if not filtered:
         return 0.0

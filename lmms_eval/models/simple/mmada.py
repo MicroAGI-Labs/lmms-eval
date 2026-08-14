@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright 2025 Gen-Verse.
 #
 # Licensed under the MIT License
@@ -8,18 +7,16 @@ import os
 import sys
 import warnings
 from pathlib import Path
-from typing import List, Optional, Tuple
 
 import numpy as np
 import torch
 from accelerate import Accelerator
-from loguru import logger as eval_logger
-from PIL import Image
-from tqdm import tqdm
-
 from lmms_eval.api.instance import Instance
 from lmms_eval.api.model import lmms
 from lmms_eval.api.registry import register_model
+from loguru import logger as eval_logger
+from PIL import Image
+from tqdm import tqdm
 
 warnings.filterwarnings("ignore", category=UserWarning)
 warnings.filterwarnings("ignore", category=FutureWarning)
@@ -32,7 +29,10 @@ if os.path.exists(mmada_path):
     sys.path.insert(0, mmada_path)
     eval_logger.info(f"Added MMaDA path to sys.path: {mmada_path}")
 else:
-    eval_logger.warning(f"MMaDA repository not found at {mmada_path}. " f"Please clone it: cd {wd} && git clone https://github.com/Gen-Verse/MMaDA.git")
+    eval_logger.warning(
+        f"MMaDA repository not found at {mmada_path}. "
+        f"Please clone it: cd {wd} && git clone https://github.com/Gen-Verse/MMaDA.git"
+    )
 
 
 @register_model("mmada")
@@ -73,14 +73,14 @@ class MMaDA(lmms):
         pretrained: str = "Gen-Verse/MMaDA-8B-MixCoT",
         mode: str = "understanding",
         weight_type: str = "bfloat16",
-        output_image_dir: Optional[str] = None,
+        output_image_dir: str | None = None,
         guidance_scale: float = 3.5,
         generation_timesteps: int = 15,
         max_new_tokens: int = 512,
         temperature: float = 1.0,
         seed: int = 0,
         continual_mode: bool = True,
-        response_persistent_folder: Optional[str] = None,
+        response_persistent_folder: str | None = None,
         **kwargs,
     ) -> None:
         super().__init__()
@@ -128,7 +128,7 @@ class MMaDA(lmms):
             self.response_persistent_file = os.path.join(self.response_persistent_folder, "mmada_response.json")
 
             if os.path.exists(self.response_persistent_file):
-                with open(self.response_persistent_file, "r") as f:
+                with open(self.response_persistent_file) as f:
                     self.response_cache = json.load(f)
                 self.cache_mode = "resume"
                 eval_logger.info(f"Loaded cache: {len(self.response_cache)} records")
@@ -137,7 +137,9 @@ class MMaDA(lmms):
         accelerator = Accelerator()
         if accelerator.num_processes > 1:
             if self.continual_mode:
-                eval_logger.warning("Continual mode is not supported for distributed inference. " "Automatically disabling continual_mode.")
+                eval_logger.warning(
+                    "Continual mode is not supported for distributed inference. Automatically disabling continual_mode."
+                )
                 self.continual_mode = False
             self.accelerator = accelerator
             self._rank = self.accelerator.local_process_index
@@ -162,7 +164,7 @@ class MMaDA(lmms):
 
             # Use accelerator's device for proper distributed inference
             self.device = self.accelerator.device
-            eval_logger.info(f"Using device: {self.device} " f"(rank {self._rank}/{self._world_size})")
+            eval_logger.info(f"Using device: {self.device} (rank {self._rank}/{self._world_size})")
 
             # Load tokenizer
             eval_logger.info("Loading tokenizer...")
@@ -210,7 +212,13 @@ class MMaDA(lmms):
             eval_logger.info("Model loaded successfully")
 
         except ImportError as e:
-            raise ImportError(f"Failed to import MMaDA dependencies. " f"Please ensure:\n" f"  1. MMaDA repository is cloned at lmms-eval root\n" f"  2. Required dependencies are installed\n" f"Error: {e}")
+            raise ImportError(
+                f"Failed to import MMaDA dependencies. "
+                f"Please ensure:\n"
+                f"  1. MMaDA repository is cloned at lmms-eval root\n"
+                f"  2. Required dependencies are installed\n"
+                f"Error: {e}"
+            )
 
     @property
     def rank(self):
@@ -321,7 +329,7 @@ class MMaDA(lmms):
             eval_logger.error(f"Error in understand_image for doc_id={doc_id}: {e}")
             return ""
 
-    def generate_text_and_image(self, prompt: str, doc_id: str, task: str) -> Tuple[str, List[str]]:
+    def generate_text_and_image(self, prompt: str, doc_id: str, task: str) -> tuple[str, list[str]]:
         """
         Generate text and image from prompt
 
@@ -412,7 +420,7 @@ class MMaDA(lmms):
             eval_logger.error(f"Error in generate_text_and_image for doc_id={doc_id}: {e}")
             return "", []
 
-    def format_output(self, text: str, images: List[str]) -> str:
+    def format_output(self, text: str, images: list[str]) -> str:
         """Format output as JSON string"""
         output_dict = {"text": text, "images": images}
         return json.dumps(output_dict, ensure_ascii=False)
@@ -427,7 +435,7 @@ class MMaDA(lmms):
                 output.append(item)
         return output
 
-    def generate_until(self, requests: List[Instance]) -> List[str]:
+    def generate_until(self, requests: list[Instance]) -> list[str]:
         """Main inference method"""
         res = []
         pbar = tqdm(
@@ -505,10 +513,10 @@ class MMaDA(lmms):
         pbar.close()
         return res
 
-    def loglikelihood(self, requests: List[Instance]) -> List[Tuple[float, bool]]:
+    def loglikelihood(self, requests: list[Instance]) -> list[tuple[float, bool]]:
         """Not supported for generation models"""
         raise NotImplementedError("MMaDA is a generation model and does not support loglikelihood")
 
-    def generate_until_multi_round(self, requests) -> List[str]:
+    def generate_until_multi_round(self, requests) -> list[str]:
         """Multi-round dialogue generation"""
         raise NotImplementedError("TODO: Implement multi-round dialogue generation for MMaDA")

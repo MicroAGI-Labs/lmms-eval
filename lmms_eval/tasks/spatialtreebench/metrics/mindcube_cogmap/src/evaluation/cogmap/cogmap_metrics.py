@@ -7,7 +7,7 @@ ground truth cognitive maps, including:
 3. Coverage and validity assessment
 """
 
-from typing import Any, Dict, List, Tuple, Union
+from typing import Any
 
 from .graph_operations import (
     apply_rotation_to_map,
@@ -17,7 +17,7 @@ from .graph_operations import (
 )
 
 
-def is_complex_format(cogmap: Dict) -> bool:
+def is_complex_format(cogmap: dict) -> bool:
     """Determine if the cognitive map uses complex format (with objects/views arrays)
     or simple key-value format.
 
@@ -109,7 +109,7 @@ def is_valid_facing(facing: Any) -> bool:
     return facing in valid_facings
 
 
-def validate_cogmap_format(cogmap: Dict) -> Tuple[bool, List[str]]:
+def validate_cogmap_format(cogmap: dict) -> tuple[bool, list[str]]:
     """Validate if a cognitive map has the correct format.
 
     Args:
@@ -191,14 +191,14 @@ def validate_cogmap_format(cogmap: Dict) -> Tuple[bool, List[str]]:
     return len(errors) == 0, errors
 
 
-def truncate_position_list_into_one(positions: Union[List[Dict], Dict]) -> Dict:
+def truncate_position_list_into_one(positions: list[dict] | dict) -> dict:
     """Truncate a list of positions into a single position."""
     if isinstance(positions, list):
         return positions[0]
     return positions
 
 
-def trucate_object_position(raw_cogmap: Dict) -> Dict:
+def trucate_object_position(raw_cogmap: dict) -> dict:
     """Truncate a list of positions into a single position."""
     if not isinstance(raw_cogmap, dict):
         return {}
@@ -206,7 +206,7 @@ def trucate_object_position(raw_cogmap: Dict) -> Dict:
     return {k: truncate_position_list_into_one(v) for k, v in raw_cogmap.items()}
 
 
-def calculate_cogmap_similarity(generated_map: Dict, grounded_map: Dict) -> Dict:
+def calculate_cogmap_similarity(generated_map: dict, grounded_map: dict) -> dict:
     """Calculate similarity between generated and grounded cognitive maps.
     Supports inner/outer relationships and 3D rotation invariance.
 
@@ -243,7 +243,7 @@ def calculate_cogmap_similarity(generated_map: Dict, grounded_map: Dict) -> Dict
     return result
 
 
-def _empty_similarity_result() -> Dict:
+def _empty_similarity_result() -> dict:
     """Returns an empty similarity result with default values.
 
     Returns:
@@ -266,7 +266,7 @@ def _empty_similarity_result() -> Dict:
     }
 
 
-def calculate_extended_cogmap_similarity(generated_map: Dict, grounded_map: Dict) -> Dict:
+def calculate_extended_cogmap_similarity(generated_map: dict, grounded_map: dict) -> dict:
     """Calculate similarity between generated and grounded cognitive maps.
     Supports inner/outer relationships and 3D rotation invariance.
     Handles both simple format (only objects) and complex format (objects and views).
@@ -433,7 +433,7 @@ def calculate_extended_cogmap_similarity(generated_map: Dict, grounded_map: Dict
     return result
 
 
-def _empty_extended_similarity_result() -> Dict:
+def _empty_extended_similarity_result() -> dict:
     """Returns an empty extended similarity result with default values.
 
     Returns:
@@ -454,7 +454,7 @@ def _empty_extended_similarity_result() -> Dict:
     }
 
 
-def check_rotation_invariant_isomorphism(gen_relations: Dict, ground_relations: Dict) -> bool:
+def check_rotation_invariant_isomorphism(gen_relations: dict, ground_relations: dict) -> bool:
     """Check if generated relations are isomorphic to ground truth relations.
 
     Args:

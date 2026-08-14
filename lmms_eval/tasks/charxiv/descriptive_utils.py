@@ -89,7 +89,7 @@ def populate_grading_inputs(batch):
     query = ""
     for i, (_, response, answer) in enumerate(batch):
         # index, response, answer
-        curr_query = "T{}:\nResponse {}: {}\nGround Truth {}: {}\n\n".format(i + 1, i + 1, response, i + 1, answer)
+        curr_query = f"T{i + 1}:\nResponse {i + 1}: {response}\nGround Truth {i + 1}: {answer}\n\n"
         query += curr_query
     return query
 
@@ -139,7 +139,11 @@ def build_descriptive_grading_queries(groups, nq_per_query=5):
             # build the json keys for GPT-4o's response
             json_keys = build_json_keys(len(batch))
             # populate batch size, question, and json keys spec
-            prefix = DESCRIPTIVE_GRADING_PREFIX.replace("<|NUM_TRIPLETS|>", str(len(batch))).replace("<|OVERARCHING_QUESTION|>", question).replace("<|JSON_KEYS|>", json_keys)
+            prefix = (
+                DESCRIPTIVE_GRADING_PREFIX.replace("<|NUM_TRIPLETS|>", str(len(batch)))
+                .replace("<|OVERARCHING_QUESTION|>", question)
+                .replace("<|JSON_KEYS|>", json_keys)
+            )
             # add in-context grading example based on the template id
             rubric_icl = get_rubric(qid)
             # prompt + example + model responses
@@ -159,8 +163,8 @@ def postprocess_descriptive_grading_queries(queries):
         resp_keys = query["resp_keys"]
         for i, resp_key in enumerate(resp_keys):
             # extract the answer and score for each response key
-            extracted_answer = query[f"extract_answer_T{i+1}"]
-            score = query[f"score_T{i+1}"]
+            extracted_answer = query[f"extract_answer_T{i + 1}"]
+            score = query[f"score_T{i + 1}"]
             # store the extracted answer and score
             scores[resp_key] = {
                 "resp_id": resp_key,

@@ -17,7 +17,9 @@ else:
     API_KEY = "YOUR_API_KEY"
 
 
-mmbench_evaluator = MMBench_Evaluator(sys_prompt="", API_KEY=API_KEY, API_URL=API_URL, model_version=GPT_EVAL_MODEL_NAME)
+mmbench_evaluator = MMBench_Evaluator(
+    sys_prompt="", API_KEY=API_KEY, API_URL=API_URL, model_version=GPT_EVAL_MODEL_NAME
+)
 
 SYSTEM_PROMPT = (
     "You are a helpful assistant. When the user asks a question, your response must include two parts: "
@@ -30,7 +32,11 @@ def mmbench_doc_to_text(doc, lmms_eval_specific_kwargs=None):
     option_candidate = ["A", "B", "C", "D", "E"]
     options_prompt, options_dict = mmbench_evaluator.create_options_prompt(doc, option_candidate)
 
-    query_prompt = f"{doc['hint']} {doc['question']} {options_prompt}" if str(doc["hint"]) != "nan" and doc["hint"] else f"{doc['question']} {options_prompt}"
+    query_prompt = (
+        f"{doc['hint']} {doc['question']} {options_prompt}"
+        if str(doc["hint"]) != "nan" and doc["hint"]
+        else f"{doc['question']} {options_prompt}"
+    )
 
     return query_prompt
 
@@ -65,8 +71,13 @@ def mmbench_process_results(doc, results):
     ground_truth = doc["answer"]
     extra_info = {"question": question}
     for pred in results:
-        score_dict = compute_score(data_source="mmbench_en", solution_str=pred.strip(), ground_truth=ground_truth, extra_info=extra_info)
+        score_dict = compute_score(
+            data_source="mmbench_en", solution_str=pred.strip(), ground_truth=ground_truth, extra_info=extra_info
+        )
         acc_score += score_dict["acc_score"]
         format_score += score_dict.get("format_reward_score", 0.0)
 
-    return {"acc_score": acc_score / len(results) if results else 0.0, "format_score": format_score / len(results) if results else 0.0}
+    return {
+        "acc_score": acc_score / len(results) if results else 0.0,
+        "format_score": format_score / len(results) if results else 0.0,
+    }

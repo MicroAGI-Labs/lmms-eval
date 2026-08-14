@@ -4,9 +4,6 @@ import os
 import re
 from collections import defaultdict
 
-from loguru import logger as eval_logger
-from PIL import Image, ImageDraw, ImageFont
-
 from lmms_eval.tasks._task_utils.file_utils import generate_submission_file
 from lmms_eval.tasks._task_utils.mmmu_mcq_utils import (
     get_multi_choice_info as shared_get_multi_choice_info,
@@ -14,6 +11,8 @@ from lmms_eval.tasks._task_utils.mmmu_mcq_utils import (
 from lmms_eval.tasks._task_utils.mmmu_mcq_utils import (
     parse_mmmu_multi_choice_response,
 )
+from loguru import logger as eval_logger
+from PIL import Image, ImageDraw, ImageFont
 
 
 def add_order_label(image, label, font_size=40):
@@ -32,7 +31,16 @@ def add_order_label(image, label, font_size=40):
 
     # Draw a solid white square for the label background
     label_background_position = (0, 0)  # Top-left corner
-    draw.rectangle([label_background_position, (label_background_position[0] + label_background_size[0], label_background_position[1] + label_background_size[1])], fill="white")
+    draw.rectangle(
+        [
+            label_background_position,
+            (
+                label_background_position[0] + label_background_size[0],
+                label_background_position[1] + label_background_size[1],
+            ),
+        ],
+        fill="white",
+    )
 
     # Add the label text in black over the white square
     label_position = (label_background_margin, label_background_margin)
@@ -90,7 +98,7 @@ def process_images_horizontal(original_images, size):
         img_resized = resize_image_height(img, fixed_size=size)
 
         # Add order label
-        img_labeled = add_order_label(img_resized, f"[{i+1}]")
+        img_labeled = add_order_label(img_resized, f"[{i + 1}]")
 
         # Append to list
         images.append(img_labeled)
@@ -106,7 +114,7 @@ def process_images_vertical(original_images, size):
         img_resized = resize_image_width(img, fixed_size=size)
 
         # Add order label
-        img_labeled = add_order_label(img_resized, f"[{i+1}]")
+        img_labeled = add_order_label(img_resized, f"[{i + 1}]")
 
         # Append to list
         images.append(img_labeled)
@@ -185,7 +193,13 @@ def mmmu_process_results(doc, results):
     else:
         parsed_pred = parse_open_response(pred)
     id = doc["id"]
-    mmmu_acc = {"id": id, "subdomain": extract_subset_name(doc["id"]), "question_type": doc["question_type"], "answer": doc["answer"], "parsed_pred": parsed_pred}
+    mmmu_acc = {
+        "id": id,
+        "subdomain": extract_subset_name(doc["id"]),
+        "question_type": doc["question_type"],
+        "answer": doc["answer"],
+        "parsed_pred": parsed_pred,
+    }
     return {
         "mmmu_acc": mmmu_acc,
         "submission": {
@@ -476,7 +490,9 @@ def parse_open_response(response):
             # if last one, accept it's an equation (the entire response can be just one sentence with equation)
             if index == len(sub_responses) - 1:
                 indicators_of_keys.extend(["="])
-            shortest_key_response = None  # the shortest response that may contain the answer (tail part of the response)
+            shortest_key_response = (
+                None  # the shortest response that may contain the answer (tail part of the response)
+            )
             for indicator in indicators_of_keys:
                 if indicator in resp:
                     if not shortest_key_response:

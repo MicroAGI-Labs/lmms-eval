@@ -39,12 +39,17 @@ class TableTree(Tree):
     def bracket(self):
         """Show tree using brackets notation"""
         if self.tag == "td":
-            result = '"tag": %s, "colspan": %d, "rowspan": %d, "text": %s' % (self.tag, self.colspan, self.rowspan, self.content)
+            result = '"tag": %s, "colspan": %d, "rowspan": %d, "text": %s' % (
+                self.tag,
+                self.colspan,
+                self.rowspan,
+                self.content,
+            )
         else:
             result = '"tag": %s' % self.tag
         for child in self.children:
             result += child.bracket()
-        return "{{{}}}".format(result)
+        return f"{{{result}}}"
 
 
 class CustomConfig(Config):
@@ -67,7 +72,7 @@ class CustomConfig(Config):
         return 0.0
 
 
-class TEDS(object):
+class TEDS:
     """Tree Edit Distance basead Similarity"""
 
     def __init__(self, structure_only=False, n_jobs=1, ignore_nodes=None):
@@ -99,7 +104,9 @@ class TEDS(object):
                 self.__tokens__ = []
                 self.tokenize(node)
                 cell = self.__tokens__[1:-1].copy()
-            new_node = TableTree(node.tag, int(node.attrib.get("colspan", "1")), int(node.attrib.get("rowspan", "1")), cell, *deque())
+            new_node = TableTree(
+                node.tag, int(node.attrib.get("colspan", "1")), int(node.attrib.get("rowspan", "1")), cell, *deque()
+            )
         else:
             new_node = TableTree(node.tag, None, None, None, *deque())
         if parent is not None:
@@ -146,7 +153,9 @@ class TEDS(object):
         """
         samples = true_json.keys()
         if self.n_jobs == 1:
-            scores = [self.evaluate(pred_json.get(filename, ""), true_json[filename]["html"]) for filename in tqdm(samples)]
+            scores = [
+                self.evaluate(pred_json.get(filename, ""), true_json[filename]["html"]) for filename in tqdm(samples)
+            ]
         else:
             # inputs = [{'pred': pred_json.get(filename, ''), 'true': true_json[filename]['html']} for filename in samples]
             inputs = [{"pred": pred_json.get(filename, ""), "true": true_json[filename]} for filename in samples]
@@ -704,13 +713,25 @@ def csv_eval(predictions, references, easy, pred_type="json"):
             for elem2 in b:
                 if is_float(elem1[-1]) and is_float(elem2[-1]):
                     if (
-                        ((Levenshtein.distance("".join(elem1[:-1]), "".join(elem2[:-1])) <= tol_word) and (abs(elem1[-1] - elem2[-1]) / (abs(elem2[-1]) + 0.000001) <= tol_num))
-                        or (("".join(elem1[:-1]) in "".join(elem2[:-1])) and (abs(elem1[-1] - elem2[-1]) / (abs(elem2[-1]) + 0.000001) <= tol_num))
-                        or (("".join(elem2[:-1]) in "".join(elem1[:-1])) and (abs(elem1[-1] - elem2[-1]) / (abs(elem2[-1]) + 0.000001) <= tol_num))
+                        (
+                            (Levenshtein.distance("".join(elem1[:-1]), "".join(elem2[:-1])) <= tol_word)
+                            and (abs(elem1[-1] - elem2[-1]) / (abs(elem2[-1]) + 0.000001) <= tol_num)
+                        )
+                        or (
+                            ("".join(elem1[:-1]) in "".join(elem2[:-1]))
+                            and (abs(elem1[-1] - elem2[-1]) / (abs(elem2[-1]) + 0.000001) <= tol_num)
+                        )
+                        or (
+                            ("".join(elem2[:-1]) in "".join(elem1[:-1]))
+                            and (abs(elem1[-1] - elem2[-1]) / (abs(elem2[-1]) + 0.000001) <= tol_num)
+                        )
                     ):
                         c.add(elem1)
                 else:
-                    if Levenshtein.distance("".join([str(i) for i in elem1]), "".join([str(j) for j in elem2])) <= tol_word:
+                    if (
+                        Levenshtein.distance("".join([str(i) for i in elem1]), "".join([str(j) for j in elem2]))
+                        <= tol_word
+                    ):
                         c.add(elem1)
         return list(c)
 
@@ -722,7 +743,9 @@ def csv_eval(predictions, references, easy, pred_type="json"):
         g = c - (f - d)
         return list(g)
 
-    def get_eval_list(pred_csv, label_csv, separator="\\t", delimiter="\\n", tol_word=3, tol_num=0.05, pred_type="json"):
+    def get_eval_list(
+        pred_csv, label_csv, separator="\\t", delimiter="\\n", tol_word=3, tol_num=0.05, pred_type="json"
+    ):
         if pred_type == "json":
             pred_triple_list = []
             for it in pred_csv:
@@ -787,7 +810,15 @@ def csv_eval(predictions, references, easy, pred_type="json"):
                 tol_num = 0.1
             else:
                 tol_num = 0.5
-        intersection_list, union_list, sim_list = get_eval_list(predictions, labels, separator=separator, delimiter=delimiter, tol_word=tol_word, tol_num=tol_num, pred_type=pred_type)
+        intersection_list, union_list, sim_list = get_eval_list(
+            predictions,
+            labels,
+            separator=separator,
+            delimiter=delimiter,
+            tol_word=tol_word,
+            tol_num=tol_num,
+            pred_type=pred_type,
+        )
         ap = len([num for num in sim_list if num >= sim_threhold]) / (len(sim_list) + 1e-16)
         return ap
 
@@ -798,25 +829,57 @@ def csv_eval(predictions, references, easy, pred_type="json"):
     d = "\\n"
 
     for sim_threhold in np.arange(0.5, 1, 0.05):
-        map_temp_strict = get_ap(predictions, labels, sim_threhold=sim_threhold, tolerance="strict", separator=s, delimiter=d, easy=easy)
-        map_temp_slight = get_ap(predictions, labels, sim_threhold=sim_threhold, tolerance="slight", separator=s, delimiter=d, easy=easy)
-        map_temp_high = get_ap(predictions, labels, sim_threhold=sim_threhold, tolerance="high", separator=s, delimiter=d, easy=easy)
+        map_temp_strict = get_ap(
+            predictions, labels, sim_threhold=sim_threhold, tolerance="strict", separator=s, delimiter=d, easy=easy
+        )
+        map_temp_slight = get_ap(
+            predictions, labels, sim_threhold=sim_threhold, tolerance="slight", separator=s, delimiter=d, easy=easy
+        )
+        map_temp_high = get_ap(
+            predictions, labels, sim_threhold=sim_threhold, tolerance="high", separator=s, delimiter=d, easy=easy
+        )
         map_strict += map_temp_strict / 10
         map_slight += map_temp_slight / 10
         map_high += map_temp_high / 10
 
     em = get_ap(predictions, labels, sim_threhold=1, tolerance="strict", separator=s, delimiter=d, easy=easy)
-    ap_50_strict = get_ap(predictions, labels, sim_threhold=0.5, tolerance="strict", separator=s, delimiter=d, easy=easy)
-    ap_75_strict = get_ap(predictions, labels, sim_threhold=0.75, tolerance="strict", separator=s, delimiter=d, easy=easy)
-    ap_90_strict = get_ap(predictions, labels, sim_threhold=0.90, tolerance="strict", separator=s, delimiter=d, easy=easy)
-    ap_50_slight = get_ap(predictions, labels, sim_threhold=0.5, tolerance="slight", separator=s, delimiter=d, easy=easy)
-    ap_75_slight = get_ap(predictions, labels, sim_threhold=0.75, tolerance="slight", separator=s, delimiter=d, easy=easy)
-    ap_90_slight = get_ap(predictions, labels, sim_threhold=0.90, tolerance="slight", separator=s, delimiter=d, easy=easy)
+    ap_50_strict = get_ap(
+        predictions, labels, sim_threhold=0.5, tolerance="strict", separator=s, delimiter=d, easy=easy
+    )
+    ap_75_strict = get_ap(
+        predictions, labels, sim_threhold=0.75, tolerance="strict", separator=s, delimiter=d, easy=easy
+    )
+    ap_90_strict = get_ap(
+        predictions, labels, sim_threhold=0.90, tolerance="strict", separator=s, delimiter=d, easy=easy
+    )
+    ap_50_slight = get_ap(
+        predictions, labels, sim_threhold=0.5, tolerance="slight", separator=s, delimiter=d, easy=easy
+    )
+    ap_75_slight = get_ap(
+        predictions, labels, sim_threhold=0.75, tolerance="slight", separator=s, delimiter=d, easy=easy
+    )
+    ap_90_slight = get_ap(
+        predictions, labels, sim_threhold=0.90, tolerance="slight", separator=s, delimiter=d, easy=easy
+    )
     ap_50_high = get_ap(predictions, labels, sim_threhold=0.5, tolerance="high", separator=s, delimiter=d, easy=easy)
     ap_75_high = get_ap(predictions, labels, sim_threhold=0.75, tolerance="high", separator=s, delimiter=d, easy=easy)
     ap_90_high = get_ap(predictions, labels, sim_threhold=0.90, tolerance="high", separator=s, delimiter=d, easy=easy)
 
-    return em, map_strict, map_slight, map_high, ap_50_strict, ap_75_strict, ap_90_strict, ap_50_slight, ap_75_slight, ap_90_slight, ap_50_high, ap_75_high, ap_90_high
+    return (
+        em,
+        map_strict,
+        map_slight,
+        map_high,
+        ap_50_strict,
+        ap_75_strict,
+        ap_90_strict,
+        ap_50_slight,
+        ap_75_slight,
+        ap_90_slight,
+        ap_50_high,
+        ap_75_high,
+        ap_90_high,
+    )
 
 
 def draw_SCRM_table(
@@ -843,41 +906,41 @@ def draw_SCRM_table(
             -----------------------------------------------------------\n
             |  Metrics   |  Sim_threshold  |  Tolerance  |    Value    |\n
             -----------------------------------------------------------\n
-            |             |                 |   strict    |    {'%.4f' % map_strict}    |     \n
+            |             |                 |   strict    |    {"%.4f" % map_strict}    |     \n
             |             |                 ----------------------------\n
-            |  mPrecison  |  0.5:0.05:0.95  |   slight    |    {'%.4f' % map_slight}    |\n
+            |  mPrecison  |  0.5:0.05:0.95  |   slight    |    {"%.4f" % map_slight}    |\n
             |             |                  ---------------------------\n
-            |             |                 |    high     |    {'%.4f' % map_high}    |\n
+            |             |                 |    high     |    {"%.4f" % map_high}    |\n
             -----------------------------------------------------------\n
-            |             |                 |   strict    |    {'%.4f' % ap_50_strict}    |\n
+            |             |                 |   strict    |    {"%.4f" % ap_50_strict}    |\n
             |             |                  ---------------------------\n
-            |  Precison   |       0.5       |   slight    |    {'%.4f' % ap_50_slight }    |\n
+            |  Precison   |       0.5       |   slight    |    {"%.4f" % ap_50_slight}    |\n
             |             |                  ---------------------------\n
-            |             |                 |    high     |    {'%.4f' % ap_50_high }    |\n
+            |             |                 |    high     |    {"%.4f" % ap_50_high}    |\n
             -----------------------------------------------------------\n
-            |             |                 |   strict    |    {'%.4f' % ap_75_strict}    |\n
+            |             |                 |   strict    |    {"%.4f" % ap_75_strict}    |\n
             |             |                  ---------------------------\n
-            |  Precison   |      0.75       |   slight    |    {'%.4f' % ap_75_slight}    |\n
+            |  Precison   |      0.75       |   slight    |    {"%.4f" % ap_75_slight}    |\n
             |             |                  ---------------------------\n
-            |             |                 |    high     |    {'%.4f' % ap_75_high}    |\n
+            |             |                 |    high     |    {"%.4f" % ap_75_high}    |\n
             -----------------------------------------------------------\n
-            |             |                 |   strict    |    {'%.4f' % ap_90_strict}    |\n
+            |             |                 |   strict    |    {"%.4f" % ap_90_strict}    |\n
             |             |                  ---------------------------\n
-            |  Precison   |       0.9       |   slight    |    {'%.4f' % ap_90_slight }    |\n
+            |  Precison   |       0.9       |   slight    |    {"%.4f" % ap_90_slight}    |\n
             |             |                  ---------------------------\n
-            |             |                 |    high     |    {'%.4f' % ap_90_high}    |\n
+            |             |                 |    high     |    {"%.4f" % ap_90_high}    |\n
             -----------------------------------------------------------\n
-            |Precison(EM) |                                    {'%.4f' % em}    |\n
+            |Precison(EM) |                                    {"%.4f" % em}    |\n
             -----------------------------------------------------------\n
-            |Title(EM)    |                                    {'%.4f' % title_ocr_socre}    |\n
+            |Title(EM)    |                                    {"%.4f" % title_ocr_socre}    |\n
             -----------------------------------------------------------\n
-            |Source(EM)   |                                    {'%.4f' % source_ocr_socre}    |\n
+            |Source(EM)   |                                    {"%.4f" % source_ocr_socre}    |\n
             -----------------------------------------------------------\n
-            |X_title(EM)  |                                    {'%.4f' % x_title_ocr_socre}    |\n
+            |X_title(EM)  |                                    {"%.4f" % x_title_ocr_socre}    |\n
             -----------------------------------------------------------\n
-            |Y_title(EM)  |                                    {'%.4f' % y_title_ocr_socre}    |\n
+            |Y_title(EM)  |                                    {"%.4f" % y_title_ocr_socre}    |\n
             -----------------------------------------------------------\n
-            |structure_acc|                                    {'%.4f' % structure_accuracy}    |\n
+            |structure_acc|                                    {"%.4f" % structure_accuracy}    |\n
             -----------------------------------------------------------\n
 
 
@@ -903,7 +966,12 @@ if __name__ == "__main__":
 
     # dict structure for Key Information Extraction task
     pred_dict = {"company": ["OLD TOWN "], "date": ["2024"], "address": ["SRI RAMPAI"], "total": ["30"]}
-    true_dict = {"company": ["OLD TOWN KOPITAM SND BHD"], "date": ["2024/9/27"], "address": ["SRI RAMPAI"], "total": ["30"]}
+    true_dict = {
+        "company": ["OLD TOWN KOPITAM SND BHD"],
+        "date": ["2024/9/27"],
+        "address": ["SRI RAMPAI"],
+        "total": ["30"],
+    }
     teds = TEDS(n_jobs=4)
     pred_dict_html = dict_to_html(pred_dict)
     true_dict_html = dict_to_html(true_dict)

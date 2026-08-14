@@ -20,7 +20,7 @@ hf_home = os.getenv("HF_HOME", "~/.cache/huggingface/")
 # cache_dir = os.path.join(hf_home, cache_dir)
 # base_cache_dir = config["dataset_kwargs"]["cache_dir"]
 base_cache_dir = os.path.expanduser(hf_home)
-with open(Path(__file__).parent / "egoplan.yaml", "r") as f:
+with open(Path(__file__).parent / "egoplan.yaml") as f:
     raw_data = f.readlines()
     safe_data = []
     for i, line in enumerate(raw_data):
@@ -38,7 +38,7 @@ def parse_subtitle_time(time_str):
 
 def load_subtitles(subtitle_path):
     subtitles = {}
-    with open(subtitle_path, "r", encoding="utf-8") as file:
+    with open(subtitle_path, encoding="utf-8") as file:
         content = file.read().split("\n\n")
         for section in content:
             if section.strip():
@@ -79,7 +79,7 @@ def parse_subtitle_time(time_str):
 
 def load_subtitles(subtitle_path):
     subtitles = {}
-    with open(subtitle_path, "r", encoding="utf-8") as file:
+    with open(subtitle_path, encoding="utf-8") as file:
         content = file.read().split("\n\n")
         for section in content:
             if section.strip():
@@ -165,8 +165,8 @@ def extract_characters_regex(s):
         "The correct answer is",
         "The answer is",
         "The answer",
-        "The best option is" "The correct option is",
-        "Best answer:" "Best option:",
+        "The best option isThe correct option is",
+        "Best answer:Best option:",
     ]
     for answer_prefix in answer_prefixes:
         s = s.replace(answer_prefix, "")

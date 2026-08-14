@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Literal, Optional, Tuple, Union
+from typing import Any, Literal, Union
 
 
 @dataclass
@@ -10,12 +10,12 @@ class TokenCounts:
     responses, or backends that only expose aggregate metrics).
     """
 
-    input_tokens: Optional[int] = None
-    output_tokens: Optional[int] = None
-    reasoning_tokens: Optional[int] = None
+    input_tokens: int | None = None
+    output_tokens: int | None = None
+    reasoning_tokens: int | None = None
 
-    def to_dict(self) -> Dict[str, Optional[int]]:
-        d: Dict[str, Optional[int]] = {}
+    def to_dict(self) -> dict[str, int | None]:
+        d: dict[str, int | None] = {}
         if self.input_tokens is not None:
             d["input_tokens"] = self.input_tokens
         if self.output_tokens is not None:
@@ -35,13 +35,13 @@ class GenerationResult:
     """
 
     text: str
-    token_counts: Optional[TokenCounts] = None
+    token_counts: TokenCounts | None = None
 
 
 GenerationOutput = Union[str, GenerationResult]
 
 
-def unwrap_generation_output(output: Any) -> Tuple[str, Optional[TokenCounts]]:
+def unwrap_generation_output(output: Any) -> tuple[str, TokenCounts | None]:
     """Normalize a model output into ``(text, token_counts | None)``.
 
     Accepts ``str``, ``GenerationResult``, or ``(str, dict)`` tuples for
@@ -71,12 +71,12 @@ class Instance:
     request_type: Literal["loglikelihood", "generate_until", "generate_until_multi_round", "generate_until_agentic"]
     arguments: tuple
     idx: int
-    metadata: Dict[str, Union[str, int]] = field(default_factory=dict)
+    metadata: dict[str, str | int] = field(default_factory=dict)
     resps: list = field(default_factory=list)
     filtered_resps: dict = field(default_factory=dict)
     raw_filtered_resps: dict = field(default_factory=dict)
 
-    token_counts: List[Optional[TokenCounts]] = field(default_factory=list)
+    token_counts: list[TokenCounts | None] = field(default_factory=list)
 
     # initialized after init
     task_name: str = None
@@ -86,7 +86,11 @@ class Instance:
 
     def __post_init__(self) -> None:
         # unpack metadata field
-        self.task_name, self.doc_id, self.repeats = self.metadata["task"], self.metadata["doc_id"], self.metadata["repeats"]
+        self.task_name, self.doc_id, self.repeats = (
+            self.metadata["task"],
+            self.metadata["doc_id"],
+            self.metadata["repeats"],
+        )
 
     @property
     def args(self):

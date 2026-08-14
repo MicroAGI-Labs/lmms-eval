@@ -1,6 +1,5 @@
 import os
 from datetime import timedelta
-from typing import List, Optional, Tuple, Union
 
 import numpy as np
 import torch
@@ -26,11 +25,10 @@ try:
     from cambrian.model.builder import load_pretrained_model
 except ImportError:
     eval_logger.error("Cambrian is not installed. pip install git+https://github.com/cambrian-mllm/cambrian-s.git")
-from tqdm import tqdm
-
 from lmms_eval.api.instance import Instance
 from lmms_eval.api.model import lmms
 from lmms_eval.api.registry import register_model
+from tqdm import tqdm
 
 
 def is_video_file(file_path: str) -> bool:
@@ -85,14 +83,18 @@ def process_videos(videos, image_processor, model_cfg, num_threads=-1):
     video_sizes = []
 
     for video in videos:
-        video, video_time, frame_time, num_frames_to_sample = process_video_with_decord(video, model_cfg, num_threads=num_threads)
+        video, video_time, frame_time, num_frames_to_sample = process_video_with_decord(
+            video, model_cfg, num_threads=num_threads
+        )
         video_sizes.append((video.shape[2], video.shape[1], video.shape[0]))  # W, H, T
         video = [Image.fromarray(video[_], mode="RGB") for _ in range(video.shape[0])]  # covert to PIL.Image.Image
 
         video_aux_list = []
         for processor_aux in processor_aux_list:
             video_aux = video
-            video_aux = [expand2square(image, tuple(int(x * 255) for x in processor_aux.image_mean)) for image in video_aux]
+            video_aux = [
+                expand2square(image, tuple(int(x * 255) for x in processor_aux.image_mean)) for image in video_aux
+            ]
             video_aux_list.append(processor_aux.preprocess(video_aux, return_tensors="pt")["pixel_values"])
 
         new_videos_aux_list.append(video_aux_list)
@@ -112,8 +114,8 @@ class CambrianS(lmms):
     def __init__(
         self,
         pretrained: str = "",
-        torch_dtype: Optional[Union[str, torch.dtype]] = "float16",
-        batch_size: Optional[Union[int, str]] = 1,
+        torch_dtype: str | torch.dtype | None = "float16",
+        batch_size: int | str | None = 1,
         device_map="cuda:0",
         conv_template="qwen_2",
         use_cache=True,
@@ -149,7 +151,9 @@ class CambrianS(lmms):
         self.model_name = get_model_name_from_path(pretrained)
 
         self.torch_dtype = torch_dtype
-        self._tokenizer, self._model, self._image_processor, self._max_length = load_pretrained_model(pretrained, None, self.model_name, device_map=self.device_map)
+        self._tokenizer, self._model, self._image_processor, self._max_length = load_pretrained_model(
+            pretrained, None, self.model_name, device_map=self.device_map
+        )
 
         self._model.config.video_max_frames = video_max_frames
         self._model.config.video_fps = video_fps
@@ -190,8 +194,13 @@ class CambrianS(lmms):
                     "train_batch_size": self.batch_size_per_gpu * accelerator.num_processes,
                 }
                 AcceleratorState().deepspeed_plugin.deepspeed_config_process(must_match=True, **kwargs)
-                eval_logger.info("Detected that you are using DistributedType.DEEPSPEED. Make sure you run `accelerate config` and set zero stage to 0")
-            if accelerator.distributed_type == DistributedType.FSDP or accelerator.distributed_type == DistributedType.DEEPSPEED:
+                eval_logger.info(
+                    "Detected that you are using DistributedType.DEEPSPEED. Make sure you run `accelerate config` and set zero stage to 0"
+                )
+            if (
+                accelerator.distributed_type == DistributedType.FSDP
+                or accelerator.distributed_type == DistributedType.DEEPSPEED
+            ):
                 self._model = accelerator.prepare(self.model)
             else:
                 self._model = accelerator.prepare_model(self.model, evaluation_mode=True)
@@ -249,10 +258,10 @@ class CambrianS(lmms):
     def world_size(self):
         return self._world_size
 
-    def loglikelihood(self, requests: List[Instance]) -> List[Tuple[float, bool]]:
+    def loglikelihood(self, requests: list[Instance]) -> list[tuple[float, bool]]:
         raise NotImplementedError
 
-    def generate_until(self, requests) -> List[str]:
+    def generate_until(self, requests) -> list[str]:
         res = []
         pbar = tqdm(total=len(requests), disable=(self.rank != 0), desc="Model Responding")
 
@@ -285,7 +294,9 @@ class CambrianS(lmms):
                     try:
                         if len(visuals) == 1:
                             if is_image_file(visuals[0]):
-                                visual_tensors, visual_sizes = process_images(visuals, self.image_processor, self.model_config)
+                                visual_tensors, visual_sizes = process_images(
+                                    visuals, self.image_processor, self.model_config
+                                )
                             elif is_video_file(visuals[0]):
                                 num_threads = 1 if "Ego4D" in visuals[0] or "video_mmmu" in visuals[0] else -1
                                 visual_tensors, visual_sizes, (_, _, _) = process_videos(
@@ -352,7 +363,9 @@ class CambrianS(lmms):
                     elif isinstance(qs, str):
                         num_images = len(visual_sizes)
                         if self.model_config.mm_use_im_start_end:
-                            image_tokens = (DEFAULT_IM_START_TOKEN + DEFAULT_IMAGE_TOKEN + DEFAULT_IM_END_TOKEN + "\n") * num_images
+                            image_tokens = (
+                                DEFAULT_IM_START_TOKEN + DEFAULT_IMAGE_TOKEN + DEFAULT_IM_END_TOKEN + "\n"
+                            ) * num_images
                             qs = image_tokens + qs
                         else:
                             qs = DEFAULT_IMAGE_TOKEN * num_images + "\n" + qs
@@ -370,7 +383,9 @@ class CambrianS(lmms):
                 conv.append_message(conv.roles[1], None)
                 prompt = conv.get_prompt()
 
-                input_ids = tokenizer_image_token(prompt, self.tokenizer, IMAGE_TOKEN_INDEX, return_tensors="pt").unsqueeze(0)
+                input_ids = tokenizer_image_token(
+                    prompt, self.tokenizer, IMAGE_TOKEN_INDEX, return_tensors="pt"
+                ).unsqueeze(0)
                 return input_ids, visual_tensors, visual_sizes, prompt, gen_kwargs
 
         dataset = Dataset(
@@ -430,5 +445,5 @@ class CambrianS(lmms):
             pbar.update(1)
         return res
 
-    def generate_until_multi_round(self, requests) -> List[str]:
+    def generate_until_multi_round(self, requests) -> list[str]:
         raise NotImplementedError

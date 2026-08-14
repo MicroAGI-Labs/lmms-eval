@@ -10,7 +10,11 @@ def task_list_refine(task_list):
     task_results = []
     for task in task_list:
         if "mean_task_score" in task and task["mean_task_score"] != -1:
-            num_demo = 1 if len(task["example_info"]["example_text"]) > 0 or len(task["example_info"]["image_paths"]) > 0 else 0
+            num_demo = (
+                1
+                if len(task["example_info"]["example_text"]) > 0 or len(task["example_info"]["image_paths"]) > 0
+                else 0
+            )
             task_results.append(
                 {
                     "name": task["task_name"],
@@ -48,7 +52,12 @@ def derive_keyword_stats(task_results_with_meta, include_per_task_info=False):
             if include_per_task_info:
                 skills_stats[skill]["tasks"].append((task_name, score))
 
-        for stat_dict, key in [(input_format_stats, "input_format"), (output_format_stats, "output_format"), (input_num_stats, "num_input"), (app_stats, "app")]:
+        for stat_dict, key in [
+            (input_format_stats, "input_format"),
+            (output_format_stats, "output_format"),
+            (input_num_stats, "num_input"),
+            (app_stats, "app"),
+        ]:
             if value := task.get(key):
                 stat_dict[value]["count"] += 1
                 stat_dict[value]["total_score"] += score
@@ -77,7 +86,7 @@ def collect_task_metadata(model_results):
     Collect task metadata for a model's results using the all_task_meta.json file
     """
     # Load the complete task metadata
-    with open(all_task_meta_path, "r") as f:
+    with open(all_task_meta_path) as f:
         all_meta = json.load(f)
 
     # Create result dictionary

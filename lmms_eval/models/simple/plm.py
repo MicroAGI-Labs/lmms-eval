@@ -1,4 +1,3 @@
-from typing import List, Optional, Tuple, Union
 
 import torch
 from accelerate import Accelerator, DistributedType
@@ -10,15 +9,14 @@ from apps.plm.generate import (
 from core.args import dataclass_from_dict
 from core.transforms.image_transform import get_image_transform
 from core.transforms.video_transform import get_video_transform
-from loguru import logger as eval_logger
-from omegaconf import OmegaConf
-from PIL import Image
-from tqdm import tqdm
-
 from lmms_eval import utils
 from lmms_eval.api.instance import Instance
 from lmms_eval.api.model import lmms
 from lmms_eval.api.registry import register_model
+from loguru import logger as eval_logger
+from omegaconf import OmegaConf
+from PIL import Image
+from tqdm import tqdm
 
 
 @register_model("plm")
@@ -33,8 +31,8 @@ class PerceptionLM(lmms):
     def __init__(
         self,
         pretrained: str = "facebook/Perception-LM-8B",
-        device: Optional[str] = "cuda",
-        batch_size: Optional[Union[int, str]] = 1,
+        device: str | None = "cuda",
+        batch_size: int | str | None = 1,
         compile_prefilling=False,
         reduce_generation_overhead=False,
         max_tokens=11264,
@@ -67,7 +65,9 @@ class PerceptionLM(lmms):
         processor = {}
         vision_input_type = config.get("data").get("vision_input_type", "thumb+tile")
         max_num_tiles = config.get("data").get("max_num_tiles", 36)
-        processor["image"] = get_image_transform(vision_input_type=vision_input_type, image_res=model.vision_model.image_size, max_num_tiles=max_num_tiles)
+        processor["image"] = get_image_transform(
+            vision_input_type=vision_input_type, image_res=model.vision_model.image_size, max_num_tiles=max_num_tiles
+        )
         processor["video"] = get_video_transform(image_res=model.vision_model.image_size)
         self._max_video_frames = config.get("data").get("max_video_frames", 32)
 
@@ -145,7 +145,7 @@ class PerceptionLM(lmms):
     def world_size(self):
         return self._world_size
 
-    def loglikelihood(self, requests: List[Instance]) -> List[Tuple[float, bool]]:
+    def loglikelihood(self, requests: list[Instance]) -> list[tuple[float, bool]]:
         raise NotImplementedError("Loglikelihood is not implemented for PLM")
 
     def flatten(self, input):
@@ -155,7 +155,7 @@ class PerceptionLM(lmms):
                 new_list.append(j)
         return new_list
 
-    def generate_until(self, requests: List[Instance]) -> List[str]:
+    def generate_until(self, requests: list[Instance]) -> list[str]:
         res = []
 
         def _collate(x):
@@ -193,7 +193,9 @@ class PerceptionLM(lmms):
                         visual = visual.convert("RGB")
                         visual, _ = self.processor["image"](visual)
                         message = (context, visual)
-                    elif isinstance(visual, (list, tuple)) and all(isinstance(v, Image.Image) for v in visual):  # Multiple images or Video Frames
+                    elif isinstance(visual, (list, tuple)) and all(
+                        isinstance(v, Image.Image) for v in visual
+                    ):  # Multiple images or Video Frames
                         visual = [image.convert("RGB") for image in visual]
                         visual, _ = self.processor["video"]._process_multiple_images_pil(visual)
                         message = (context, visual)
@@ -229,5 +231,5 @@ class PerceptionLM(lmms):
         pbar.close()
         return res
 
-    def generate_until_multi_round(self, requests) -> List[str]:
+    def generate_until_multi_round(self, requests) -> list[str]:
         raise NotImplementedError("Multi-round generation is not implemented yet.")

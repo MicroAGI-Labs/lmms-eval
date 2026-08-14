@@ -78,7 +78,9 @@ def build_reasoning_grading_queries(input, resp):
         query, response = resp[figure_id]["raw_question"], resp[figure_id]["response"]
         # get query for answer type (inst_category), then
         # populate the query with the question, ground truth, and response
-        grading_query = REASONING_GRADING_PREFIX + deepcopy(REASONING_GRADING_INST[data["inst_category"]]).replace("<|question|>", query).replace("<|ground_truth|>", data["answer"]).replace("<|response|>", response)
+        grading_query = REASONING_GRADING_PREFIX + deepcopy(REASONING_GRADING_INST[data["inst_category"]]).replace(
+            "<|question|>", query
+        ).replace("<|ground_truth|>", data["answer"]).replace("<|response|>", response)
         query = {
             "figure_id": figure_id,
             "grading_query": grading_query,

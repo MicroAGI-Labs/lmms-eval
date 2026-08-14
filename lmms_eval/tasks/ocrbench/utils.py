@@ -1,6 +1,5 @@
-from loguru import logger
-
 from lmms_eval.tasks._task_utils.file_utils import generate_submission_file
+from loguru import logger
 
 # Add the following functions to your existing utils.py file
 OCRBench_score = {
@@ -61,7 +60,12 @@ def ocrbench_process_results(doc, results):
             if answer in predict:
                 score = 1
     return {
-        "ocrbench_accuracy": {"question_type": doc["question_type"], "score": score, "prediction": pred, "ground_truth": gt_ans},
+        "ocrbench_accuracy": {
+            "question_type": doc["question_type"],
+            "score": score,
+            "prediction": pred,
+            "ground_truth": gt_ans,
+        },
     }
 
 
@@ -76,7 +80,13 @@ def ocrbench_aggregate_accuracy(results, args):
         + OCRBench_score["Digit String Recognition"]
         + OCRBench_score["Non-Semantic Text Recognition"]
     )
-    Final_score = recognition_score + OCRBench_score["Scene Text-centric VQA"] + OCRBench_score["Doc-oriented VQA"] + OCRBench_score["Key Information Extraction"] + OCRBench_score["Handwritten Mathematical Expression Recognition"]
+    Final_score = (
+        recognition_score
+        + OCRBench_score["Scene Text-centric VQA"]
+        + OCRBench_score["Doc-oriented VQA"]
+        + OCRBench_score["Key Information Extraction"]
+        + OCRBench_score["Handwritten Mathematical Expression Recognition"]
+    )
     file_name = generate_submission_file("ocrbench_results.txt", args, subpath="results")
     with open(file_name, "w") as f:
         print("######################### OCRBench #############################", file=f)
@@ -95,7 +105,10 @@ def ocrbench_aggregate_accuracy(results, args):
         print("----------------------------------------------------------------", file=f)
         print(f"Key Information Extraction(Total 200): {OCRBench_score['Key Information Extraction']}", file=f)
         print("----------------------------------------------------------------")
-        print(f"Handwritten Mathematical Expression Recognition(Total 100): {OCRBench_score['Handwritten Mathematical Expression Recognition']}", file=f)
+        print(
+            f"Handwritten Mathematical Expression Recognition(Total 100): {OCRBench_score['Handwritten Mathematical Expression Recognition']}",
+            file=f,
+        )
         print("--------------------- Final Score ------------------------------", file=f)
         print(f"Final Score(Total 1000): {Final_score}", file=f)
     logger.info(f"OCR Bench results saved to {file_name}")

@@ -21,7 +21,7 @@ DATASET_REPO_ID = "TencentARC/Video-Holmes"
 hf_home = os.getenv("HF_HOME", "~/.cache/huggingface/")
 base_cache_dir = os.path.expanduser(hf_home)
 
-with open(Path(__file__).parent / "_default_template_yaml", "r") as f:
+with open(Path(__file__).parent / "_default_template_yaml") as f:
     raw_data = f.readlines()
     safe_data = []
     for line in raw_data:
@@ -90,7 +90,11 @@ def video_holmes_doc_to_text(doc, lmms_eval_specific_kwargs=None):
 
     question = doc["Question"]
     options = _build_options_str(doc)
-    instruct_prompt = "Select the best answer to the following multiple-choice " "question based on the video. Respond with only the letter " "(A, B, C, D, E, or F) of the correct option."
+    instruct_prompt = (
+        "Select the best answer to the following multiple-choice "
+        "question based on the video. Respond with only the letter "
+        "(A, B, C, D, E, or F) of the correct option."
+    )
     return f"Question: {question}\n{options}\n{instruct_prompt}"
 
 

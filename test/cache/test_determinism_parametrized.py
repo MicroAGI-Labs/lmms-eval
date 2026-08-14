@@ -5,7 +5,6 @@ test_response_cache.py with concise parametrized equivalents.
 """
 
 import pytest
-
 from lmms_eval.caching.response_cache import is_deterministic
 
 

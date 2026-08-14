@@ -1,15 +1,13 @@
 import json
-from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import torch
-from loguru import logger as eval_logger
-from PIL import Image
-from tqdm import tqdm
-
 from lmms_eval.api.instance import Instance
 from lmms_eval.api.model import lmms
 from lmms_eval.api.registry import register_model
+from loguru import logger as eval_logger
+from PIL import Image
+from tqdm import tqdm
 
 try:
     from transformers import Sam3Model, Sam3Processor
@@ -36,7 +34,7 @@ except ImportError:
     eval_logger.warning("Accelerate not found. Multi-GPU evaluation will not work.")
 
 
-def mask_to_coco_rle(binary_mask: np.ndarray) -> Dict:
+def mask_to_coco_rle(binary_mask: np.ndarray) -> dict:
     """Convert a binary mask (H, W) to COCO RLE format via pycocotools.
 
     Returns ``{"counts": "<rle_string>", "size": [H, W]}``.
@@ -92,8 +90,8 @@ class SAM3(lmms):
     def __init__(
         self,
         pretrained: str = "facebook/sam3",
-        device: Optional[str] = "cuda",
-        batch_size: Optional[Union[int, str]] = 1,
+        device: str | None = "cuda",
+        batch_size: int | str | None = 1,
         threshold: float = 0.5,
         mask_threshold: float = 0.5,
         **kwargs,
@@ -101,9 +99,13 @@ class SAM3(lmms):
         super().__init__()
 
         if not HAS_SAM3:
-            raise ImportError("SAM3 is required but not installed.  " "Please install / upgrade transformers with SAM3 support.")
+            raise ImportError(
+                "SAM3 is required but not installed.  Please install / upgrade transformers with SAM3 support."
+            )
         if not HAS_PYCOCOTOOLS:
-            raise ImportError("pycocotools is required for COCO RLE mask encoding.  " "Install with: pip install pycocotools")
+            raise ImportError(
+                "pycocotools is required for COCO RLE mask encoding.  Install with: pip install pycocotools"
+            )
 
         self.pretrained = pretrained
         self.threshold = threshold
@@ -183,7 +185,7 @@ class SAM3(lmms):
         raise ValueError(f"Unsupported image type: {type(image)}")
 
     @staticmethod
-    def _format_results(results: Dict, img_width: int, img_height: int) -> str:
+    def _format_results(results: dict, img_width: int, img_height: int) -> str:
         """Serialise SAM3 post-processed outputs to a JSON string.
 
         Returns a JSON object with ``masks`` (COCO RLE), ``boxes`` (normalised
@@ -218,19 +220,19 @@ class SAM3(lmms):
 
     # -- Core interface methods -------------------------------------------- #
 
-    def loglikelihood(self, requests: List[Instance]) -> List[Tuple[float, bool]]:
+    def loglikelihood(self, requests: list[Instance]) -> list[tuple[float, bool]]:
         """Not applicable for SAM3 — returns dummy values."""
         eval_logger.warning("loglikelihood is not applicable for SAM3")
         return [(0.0, True) for _ in requests]
 
-    def generate_until(self, requests: List[Instance]) -> List[str]:
+    def generate_until(self, requests: list[Instance]) -> list[str]:
         """Run SAM3 inference and return results as JSON strings.
 
         Each request yields a JSON object containing COCO-RLE masks, normalised
         bounding boxes and confidence scores.  The downstream task
         ``process_results`` function picks whichever fields it needs.
         """
-        res: List[str] = []
+        res: list[str] = []
         empty_result = json.dumps({"masks": [], "boxes": [], "scores": []})
 
         pbar = tqdm(
@@ -283,6 +285,6 @@ class SAM3(lmms):
         pbar.close()
         return res
 
-    def generate_until_multi_round(self, requests: List[Instance]) -> List[str]:
+    def generate_until_multi_round(self, requests: list[Instance]) -> list[str]:
         """Not applicable for SAM3."""
         raise NotImplementedError("Multi-round generation is not supported for SAM3.")

@@ -21,7 +21,7 @@ def clotho_aqa_doc_to_text(doc, lmms_eval_specific_kwargs):
 
 # functions for the clotho_asqa_v2 task, need to be tested later
 
-with open(Path(__file__).parent / "_default_template_yaml", "r") as f:
+with open(Path(__file__).parent / "_default_template_yaml") as f:
     raw_data = f.readlines()
     safe_data = []
     for i, line in enumerate(raw_data):
@@ -88,7 +88,16 @@ def get_eval(max_tokens: int, content: str, retries: int = retries):
         {"role": "user", "content": content},
     ]
 
-    payload = {"model": GPT_EVAL_MODEL_NAME, "messages": messages, "temperature": 0.7, "max_tokens": max_tokens, "top_p": 0.95, "frequency_penalty": 0, "presence_penalty": 0, "stop": None}
+    payload = {
+        "model": GPT_EVAL_MODEL_NAME,
+        "messages": messages,
+        "temperature": 0.7,
+        "max_tokens": max_tokens,
+        "top_p": 0.95,
+        "frequency_penalty": 0,
+        "presence_penalty": 0,
+        "stop": None,
+    }
 
     for attempt in range(retries):
         try:

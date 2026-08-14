@@ -5,7 +5,17 @@ from .base import BaseLauncher
 
 
 class SGLangLauncher(BaseLauncher):
-    def __init__(self, port=8000, host="localhost", timeout=6000, model="Qwen/Qwen3-8B", mem_fraction_static: float = 0.83, tp: int = 8, api_key: str = None, **kwargs):
+    def __init__(
+        self,
+        port=8000,
+        host="localhost",
+        timeout=6000,
+        model="Qwen/Qwen3-8B",
+        mem_fraction_static: float = 0.83,
+        tp: int = 8,
+        api_key: str = None,
+        **kwargs,
+    ):
         super().__init__(port, host, timeout, model, **kwargs)
         self.mem_fraction_static = mem_fraction_static
         self.tp = tp

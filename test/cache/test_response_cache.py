@@ -5,18 +5,18 @@ import sqlite3
 import tempfile
 import time
 import unittest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
+from unittest.mock import patch
 
+from lmms_eval.api.instance import GenerationResult
 from lmms_eval.api.instance import Instance
 from lmms_eval.caching.fs_detect import FsType
-from lmms_eval.caching.response_cache import (
-    _SCHEMA_VERSION,
-    ResponseCache,
-    _extract_content_hash,
-    compute_cache_key,
-    extract_gen_kwargs,
-    is_deterministic,
-)
+from lmms_eval.caching.response_cache import _SCHEMA_VERSION
+from lmms_eval.caching.response_cache import ResponseCache
+from lmms_eval.caching.response_cache import _extract_content_hash
+from lmms_eval.caching.response_cache import _redact_model_args
+from lmms_eval.caching.response_cache import compute_cache_key
+from lmms_eval.caching.response_cache import extract_gen_kwargs
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -24,10 +24,17 @@ from lmms_eval.caching.response_cache import (
 
 
 def _make_instance(request_type, arguments, idx, task_name, doc_id, repeats=1):
-    return Instance(request_type=request_type, arguments=arguments, idx=idx, metadata={"task": task_name, "doc_id": doc_id, "repeats": repeats})
+    return Instance(
+        request_type=request_type,
+        arguments=arguments,
+        idx=idx,
+        metadata={"task": task_name, "doc_id": doc_id, "repeats": repeats},
+    )
 
 
-def _gen_request(prompt="prompt", doc_id=0, idx=0, task="t", temperature=0.0, do_sample=None, n=None, until=None, repeats=1):
+def _gen_request(
+    prompt="prompt", doc_id=0, idx=0, task="t", temperature=0.0, do_sample=None, n=None, until=None, repeats=1
+):
     gk = {"temperature": temperature, "until": until or ["\n"]}
     if do_sample is not None:
         gk["do_sample"] = do_sample
@@ -110,7 +117,7 @@ class TestExtractGenKwargs(unittest.TestCase):
         self.assertEqual(extract_gen_kwargs(inst), {})
 
 
-class TestPoisoningPrevention(unittest.TestCase):
+class TestPoisoningPrevention(_CacheTestBase):
     def test_none_rejected(self):
         self.assertFalse(ResponseCache._is_valid_response(None, "generate_until"))
 
@@ -125,6 +132,26 @@ class TestPoisoningPrevention(unittest.TestCase):
     def test_valid_responses_accepted(self):
         self.assertTrue(ResponseCache._is_valid_response("answer", "generate_until"))
         self.assertTrue(ResponseCache._is_valid_response([0.5, True], "loglikelihood"))
+
+    def test_endpoint_failure_sentinels_rejected(self):
+        request_failed = GenerationResult("[LMMS_EVAL_REQUEST_FAILED after 5 retries] timeout")
+        budget_exceeded = GenerationResult("[LMMS_EVAL_BUDGET_EXCEEDED]")
+
+        self.assertFalse(ResponseCache._is_valid_response(request_failed, "generate_until"))
+        self.assertFalse(ResponseCache._is_valid_response(budget_exceeded, "generate_until"))
+        self.assertFalse(ResponseCache._is_valid_response(request_failed.text, "generate_until"))
+        self.assertFalse(ResponseCache._is_valid_response(budget_exceeded.text, "generate_until"))
+
+    def test_endpoint_failure_sentinel_not_restored_by_audit_replay(self):
+        request = _gen_request("prompt", doc_id=1)
+        cache = self._open_cache()
+        cache.execute(_mock_model(["[LMMS_EVAL_REQUEST_FAILED after 5 retries] timeout"]), "generate_until", [request])
+        self.assertEqual(cache.get_stats()["total_cached_entries"], 0)
+        cache.close()
+
+        reopened_cache = self._open_cache()
+        self.assertEqual(reopened_cache.get_stats()["total_cached_entries"], 0)
+        reopened_cache.close()
 
 
 # ===========================================================================
@@ -153,6 +180,21 @@ class TestCacheHitMiss(_CacheTestBase):
         model2.generate_until.assert_not_called()
         self.assertEqual(cache2.get_stats()["hits"], 3)
         cache2.close()
+
+    def test_execute_persists_completed_chunks_before_later_chunk_fails(self):
+        cache = self._open_cache(model_fingerprint="test_model")
+        cache._model_batch_size = 2
+        model = MagicMock()
+        model.generate_until = MagicMock(side_effect=[["a0", "a1"], RuntimeError("short video")])
+        requests = [_gen_request(f"prompt{i}", doc_id=i) for i in range(4)]
+
+        with self.assertRaisesRegex(RuntimeError, "short video"):
+            cache.execute(model, "generate_until", requests)
+
+        self.assertEqual(cache.get_stats()["total_cached_entries"], 2)
+        model.generate_until.assert_any_call(requests[:2])
+        model.generate_until.assert_any_call(requests[2:])
+        cache.close()
 
     def test_partial_cache_hit(self):
         model = _mock_model(["a0", "a1", "a2"])
@@ -363,12 +405,16 @@ class TestMultiRankIsolation(_CacheTestBase):
         audit1 = os.path.join(self.tmpdir, "rank1.jsonl")
 
         cache0 = ResponseCache(db0, audit0, model_fingerprint="model_A")
-        cache0.execute(_mock_model(["r0_a0", "r0_a1"]), "generate_until", [_gen_request(f"p{i}", doc_id=i) for i in range(2)])
+        cache0.execute(
+            _mock_model(["r0_a0", "r0_a1"]), "generate_until", [_gen_request(f"p{i}", doc_id=i) for i in range(2)]
+        )
         self.assertEqual(cache0.get_stats()["total_cached_entries"], 2)
         cache0.close()
 
         cache1 = ResponseCache(db1, audit1, model_fingerprint="model_A")
-        cache1.execute(_mock_model(["r1_a2", "r1_a3"]), "generate_until", [_gen_request(f"p{i}", doc_id=i) for i in range(2, 4)])
+        cache1.execute(
+            _mock_model(["r1_a2", "r1_a3"]), "generate_until", [_gen_request(f"p{i}", doc_id=i) for i in range(2, 4)]
+        )
         self.assertEqual(cache1.get_stats()["total_cached_entries"], 2)
         cache1.close()
 
@@ -490,6 +536,85 @@ class TestCreateAndFinalize(_CacheTestBase):
         self.assertIn("rank_1.db", rc._remote_rank_db)
         rc.close()
 
+    def test_create_remote_seeds_fresh_scratch_from_existing_checkpoint(self):
+        cache_root = os.path.join(self.tmpdir, "remote_resume")
+        run_dir = os.path.join(cache_root, "runs", "job-resume")
+        os.makedirs(run_dir, exist_ok=True)
+        remote_db = os.path.join(run_dir, "rank_0.db")
+        remote_audit = os.path.join(run_dir, "rank_0.audit.jsonl")
+        prior_cache = ResponseCache(remote_db, remote_audit, model_fingerprint="m|{\"raw\":\"\"}")
+        prior_cache.execute(_mock_model(["prior"]), "generate_until", [_gen_request("prior", doc_id=1)])
+        prior_cache.close()
+        scratch_root = os.path.join(self.tmpdir, "fresh_scratch")
+        os.makedirs(scratch_root, exist_ok=True)
+
+        with (
+            patch.dict(os.environ, {"LMMS_CACHE_RUN_ID": "job-resume"}, clear=False),
+            self._mock_utils(),
+            patch("lmms_eval.caching.response_cache.detect_fs_type", return_value=FsType.REMOTE),
+            patch("lmms_eval.caching.response_cache.find_local_scratch", return_value=scratch_root),
+        ):
+            resumed_cache = ResponseCache.create(cache_root, model="m")
+
+        self.assertEqual(resumed_cache.get_stats()["total_cached_entries"], 1)
+        resumed_cache.execute(_mock_model(["new"]), "generate_until", [_gen_request("new", doc_id=2)])
+        resumed_cache.finalize(success=False, dist_backend="none")
+
+        merged_db = sqlite3.connect(os.path.join(cache_root, "cache.db"))
+        count = merged_db.execute("SELECT COUNT(*) FROM responses").fetchone()[0]
+        self.assertEqual(count, 2)
+        merged_db.close()
+
+    def test_create_remote_merges_newer_checkpoint_into_existing_scratch(self):
+        cache_root = os.path.join(self.tmpdir, "remote_stale_scratch")
+        scratch_root = os.path.join(self.tmpdir, "persistent_scratch")
+        os.makedirs(scratch_root, exist_ok=True)
+        patches = (
+            patch.dict(os.environ, {"LMMS_CACHE_RUN_ID": "job-stale"}, clear=False),
+            self._mock_utils(),
+            patch("lmms_eval.caching.response_cache.detect_fs_type", return_value=FsType.REMOTE),
+            patch("lmms_eval.caching.response_cache.find_local_scratch", return_value=scratch_root),
+        )
+        with patches[0], patches[1], patches[2], patches[3]:
+            first_cache = ResponseCache.create(cache_root, model="m")
+        first_cache.execute(_mock_model(["local"]), "generate_until", [_gen_request("local", doc_id=1)])
+        first_cache._checkpoint_to_run_dir()
+        first_cache.close()
+
+        remote_cache = ResponseCache(first_cache._remote_rank_db, first_cache._remote_rank_audit, model_fingerprint="m")
+        remote_cache.execute(_mock_model(["remote"]), "generate_until", [_gen_request("remote", doc_id=2)])
+        remote_cache.close()
+
+        with (
+            patch.dict(os.environ, {"LMMS_CACHE_RUN_ID": "job-stale"}, clear=False),
+            self._mock_utils(),
+            patch("lmms_eval.caching.response_cache.detect_fs_type", return_value=FsType.REMOTE),
+            patch("lmms_eval.caching.response_cache.find_local_scratch", return_value=scratch_root),
+        ):
+            resumed_cache = ResponseCache.create(cache_root, model="m")
+
+        self.assertEqual(resumed_cache.get_stats()["total_cached_entries"], 2)
+        resumed_cache.close()
+
+    def test_create_redacts_api_key_from_persisted_model_fingerprint(self):
+        cache_root = os.path.join(self.tmpdir, "redacted_fingerprint")
+        secret = "secret-endpoint-key"
+        with (
+            patch.dict(os.environ, {"LMMS_CACHE_RUN_ID": "job-redacted"}, clear=False),
+            self._mock_utils(),
+            patch("lmms_eval.caching.response_cache.detect_fs_type", return_value=FsType.LOCAL),
+        ):
+            cache = ResponseCache.create(
+                cache_root,
+                model="openai",
+                model_args=f"model=m,api_key={secret},base_url=https://example.test/v1",
+            )
+
+        fingerprint = cache.db.execute("SELECT value FROM meta WHERE key = 'model_fingerprint'").fetchone()[0]
+        self.assertNotIn(secret, fingerprint)
+        self.assertIn("api_key=<redacted>", fingerprint)
+        cache.close()
+
     def test_finalize_merges_rank_dbs_into_root(self):
         cache_root = os.path.join(self.tmpdir, "finalize_test")
         run_dir = os.path.join(cache_root, "runs", "job-merge")
@@ -517,7 +642,9 @@ class TestCreateAndFinalize(_CacheTestBase):
         target_db = os.path.join(cache_root, "cache.db")
         self.assertTrue(os.path.exists(target_db))
 
-        root_cache = ResponseCache(target_db, os.path.join(cache_root, "cache.audit.jsonl"), model_fingerprint="model_A")
+        root_cache = ResponseCache(
+            target_db, os.path.join(cache_root, "cache.audit.jsonl"), model_fingerprint="model_A"
+        )
         results = root_cache.execute(_mock_model([]), "generate_until", [_gen_request("prompt", doc_id=7)])
         self.assertEqual(results, ["answer"])
         self.assertEqual(root_cache.get_stats()["hits"], 1)
@@ -565,7 +692,7 @@ class TestCreateAndFinalize(_CacheTestBase):
         self.assertEqual(count, 4)
         merged_db.close()
 
-    def test_finalize_skips_merge_on_failure(self):
+    def test_finalize_merges_single_rank_responses_on_failure(self):
         cache_root = os.path.join(self.tmpdir, "fail_test")
         run_dir = os.path.join(cache_root, "runs", "job-fail")
         os.makedirs(run_dir, exist_ok=True)
@@ -586,9 +713,42 @@ class TestCreateAndFinalize(_CacheTestBase):
 
         cache.finalize(success=False, dist_backend="none")
 
-        # Root cache.db should NOT have been created
         target_db = os.path.join(cache_root, "cache.db")
-        self.assertFalse(os.path.exists(target_db))
+        merged_db = sqlite3.connect(target_db)
+        count = merged_db.execute("SELECT COUNT(*) FROM responses").fetchone()[0]
+        self.assertEqual(count, 1)
+        merged_db.close()
+
+    def test_finalize_copies_scratch_responses_to_root_on_failure(self):
+        cache_root = os.path.join(self.tmpdir, "remote_fail_test")
+        scratch_root = os.path.join(self.tmpdir, "scratch")
+        os.makedirs(scratch_root, exist_ok=True)
+        with (
+            patch.dict(os.environ, {"LMMS_CACHE_RUN_ID": "job-remote-fail"}, clear=False),
+            self._mock_utils(),
+            patch("lmms_eval.caching.response_cache.detect_fs_type", return_value=FsType.REMOTE),
+            patch("lmms_eval.caching.response_cache.find_local_scratch", return_value=scratch_root),
+        ):
+            cache = ResponseCache.create(cache_root, model="m")
+
+        cache.execute(_mock_model(["answer"]), "generate_until", [_gen_request("prompt", doc_id=0)])
+        cache.finalize(success=False, dist_backend="none")
+
+        merged_db = sqlite3.connect(os.path.join(cache_root, "cache.db"))
+        count = merged_db.execute("SELECT COUNT(*) FROM responses").fetchone()[0]
+        self.assertEqual(count, 1)
+        merged_db.close()
+
+    def test_redact_model_args_removes_api_key_from_fingerprint_input(self):
+        secret = "secret-endpoint-key"
+
+        redacted_dict = _redact_model_args({"model": "m", "api_key": secret})
+        redacted_string = _redact_model_args(f"model=m,api_key={secret},base_url=https://example.test/v1")
+
+        self.assertEqual(redacted_dict, {"model": "m", "api_key": "<redacted>"})
+        self.assertEqual(redacted_string, "model=m,api_key=<redacted>,base_url=https://example.test/v1")
+        self.assertNotIn(secret, json.dumps(redacted_dict))
+        self.assertNotIn(secret, redacted_string)
 
 
 # ===========================================================================
@@ -682,7 +842,8 @@ class TestLargeBatchSanity(_CacheTestBase):
         reqs = [_gen_request(f"prompt_{i}", doc_id=i) for i in range(n)]
         responses = [f"answer_{i}" for i in range(n)]
 
-        model = _mock_model(responses)
+        model = MagicMock()
+        model.generate_until = MagicMock(side_effect=lambda batch: [f"answer_{request.doc_id}" for request in batch])
         cache = self._open_cache()
         t0 = time.monotonic()
         results = cache.execute(model, "generate_until", reqs)

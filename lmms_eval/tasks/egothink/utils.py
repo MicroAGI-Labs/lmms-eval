@@ -4,16 +4,16 @@ import re
 import time
 from pathlib import Path
 
-import requests
 import yaml
 from loguru import logger as eval_logger
+from openai import OpenAI
 
 dir_name = os.path.dirname(os.path.abspath(__file__))
 
 one_score_pattern = re.compile("\[\[(\d+\.?\d*)\]\]")
 one_score_pattern_backup = re.compile("\[(\d+\.?\d*)\]")
 
-with open(Path(__file__).parent / "_default_template_yaml", "r") as f:
+with open(Path(__file__).parent / "_default_template_yaml") as f:
     raw_data = f.readlines()
     safe_data = []
     for i, line in enumerate(raw_data):
@@ -23,34 +23,9 @@ with open(Path(__file__).parent / "_default_template_yaml", "r") as f:
 
     config = yaml.safe_load("".join(safe_data))
 
-API_ERROR_OUTPUT = "$ERROR$"
-
 API_MAX_RETRY = 6
 
 NUM_SECONDS_TO_SLEEP = 15
-
-GPT_EVAL_MODEL_NAME = os.getenv("MODEL_VERSION", "gpt-4o-2024-11-20")
-
-API_TYPE = os.getenv("API_TYPE", "openai")
-
-if API_TYPE == "openai":
-    API_URL = os.getenv("OPENAI_API_URL", "https://api.openai.com/v1/chat/completions")
-    API_KEY = os.getenv("OPENAI_API_KEY", "YOUR_API_KEY")
-    headers = {
-        "Authorization": f"Bearer {API_KEY}",
-        "Content-Type": "application/json",
-    }
-elif API_TYPE == "azure":
-    API_URL = os.getenv("AZURE_ENDPOINT", "https://api.cognitive.microsoft.com/sts/v1.0/issueToken")
-    API_KEY = os.getenv("AZURE_API_KEY", "YOUR_API_KEY")
-    headers = {
-        "Authorization": f"Bearer {API_KEY}",
-        "Content-Type": "application/json",
-    }
-else:
-    API_URL = "YOUR_API_URL"
-    API_KEY = "YOUR_API_KEY"
-
 
 def egothink_doc_to_visual(doc):
     return [doc["image"].convert("RGB")]
@@ -72,22 +47,10 @@ def egothink_doc_to_answer(doc):
 
 
 # Process result for evaluation in generic task
-def chat_compeletion_openai(model, messages, temperature, max_tokens):
-    # headers = {
-    #     "Authorization": f"Bearer {API_KEY}",
-    #     "Content-Type": "application/json",
-    # }
-    # headers = {
-    #     "Authorization": f"Bearer {API_KEY}",
-    #     "Content-Type": "application/json",
-    # }
-    headers = {
-        "Content-Type": "application/json",
-        "api-key": API_KEY,
-    }
-    output = API_ERROR_OUTPUT
+def chat_completion_openai(messages, temperature, max_tokens):
+    model = os.environ["JUDGE_MODEL_NAME"]
+    client = OpenAI(api_key=os.environ["JUDGE_API_KEY"], base_url=os.environ["JUDGE_BASE_URL"])
     payload = {
-        # "model": model,
         "messages": messages,
         "temperature": temperature,
         "max_tokens": max_tokens,
@@ -95,38 +58,23 @@ def chat_compeletion_openai(model, messages, temperature, max_tokens):
 
     for attempt in range(API_MAX_RETRY):
         try:
-            response = requests.post(API_URL, headers=headers, json=payload, timeout=60)
-            response.raise_for_status()  # Raises HTTPError for bad responses
-            try:
-                response_data = response.json()  # Attempt to parse JSON
-            except requests.exceptions.JSONDecodeError:
-                eval_logger.error(f"JSON decode error on attempt {attempt + 1}. Response text: {response.text}")
-                continue  # Skip to next retry
-            content = response_data["choices"][0]["message"]["content"].strip()
+            response = client.chat.completions.create(model=model, **payload)
+            content = response.choices[0].message.content.strip()
             if content != "":
-                return content, response_data["model"]
-        # Handle HTTP errors separately
-        except requests.exceptions.HTTPError as e:
-            eval_logger.error(f"HTTP error on attempt {attempt + 1}: {e}")
-        # Handle other requests-related errors
-        except requests.exceptions.RequestException as e:
-            eval_logger.error(f"Request exception on attempt {attempt + 1}: {e}")
+                return content, response.model
         except Exception as e:
             eval_logger.error(f"Unexpected error on attempt {attempt + 1}: {e}")
 
-        # Handle other unexpected errors
         if attempt < API_MAX_RETRY - 1:
             time.sleep(NUM_SECONDS_TO_SLEEP)
-        else:  # If this was the last attempt, log and return empty
-            eval_logger.error(f"All {retries} attempts failed. Last error message: {e}")
+        else:
+            eval_logger.error(f"All {API_MAX_RETRY} attempts failed.")
             return "", ""
 
     return "", ""
 
 
 def judge_single(question, answer, ref_answer):
-    model = GPT_EVAL_MODEL_NAME
-
     rating = -1
 
     conv = [
@@ -137,7 +85,7 @@ def judge_single(question, answer, ref_answer):
         },
     ]
 
-    judgment, eval_model = chat_compeletion_openai(model, conv, temperature=0, max_tokens=2048)
+    judgment, eval_model = chat_completion_openai(conv, temperature=0, max_tokens=2048)
     for _ in range(3):
         match = re.search(one_score_pattern, judgment)
         if not match:

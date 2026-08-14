@@ -11,7 +11,7 @@ hf_home = os.getenv("HF_HOME", "~/.cache/huggingface")
 base_cache_dir = os.path.expanduser(hf_home)
 
 
-with open(Path(__file__).parent / "videoevalpro.yaml", "r") as f:
+with open(Path(__file__).parent / "videoevalpro.yaml") as f:
     raw_data_test = f.readlines()
     safe_data_test = []
     for i, line in enumerate(raw_data_test):
@@ -62,7 +62,9 @@ Predictedanswer:{predicted_answer}
 Grade the predicted answer ofthe question as one of: A: CORRECT B: INCORRECT C: NOT_ATTEMPTED Just return the letter "A", "B", or "C", with no text around it.
 """.strip()
 
-        response = self.client.chat.completions.create(model=self.model_name, messages=[{"role": "user", "content": prompt}], temperature=0, max_tokens=5)
+        response = self.client.chat.completions.create(
+            model=self.model_name, messages=[{"role": "user", "content": prompt}], temperature=0, max_tokens=5
+        )
 
         answer = response.choices[0].message.content.strip()
         # print(f"---------------------->>>>gpt answer: {answer}")
@@ -100,7 +102,13 @@ def videoevalpro_process_results(doc, results):
     model = GPT4oJudge()
     judge_result = safe_judge_with_retry(model, question, text_gt, pred_ans, max_retries=10, delay=2)
 
-    data_dict = {"question": question, "task_type": task_type, "text_gt": text_gt, "pred_ans": pred_ans, "judge_result": judge_result}
+    data_dict = {
+        "question": question,
+        "task_type": task_type,
+        "text_gt": text_gt,
+        "pred_ans": pred_ans,
+        "judge_result": judge_result,
+    }
 
     # print(f"---------------------->>>>data_dict: {data_dict}")
 

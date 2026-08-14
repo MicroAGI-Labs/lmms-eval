@@ -28,18 +28,17 @@ import uuid
 import weakref
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import torch
-from loguru import logger as eval_logger
-from PIL import Image
-from tqdm import tqdm
-
 from lmms_eval.api.instance import GenerationResult, Instance
 from lmms_eval.api.model import lmms
 from lmms_eval.api.registry import register_model
 from lmms_eval.imports import optional_import
 from lmms_eval.protocol import ChatMessages
+from loguru import logger as eval_logger
+from PIL import Image
+from tqdm import tqdm
 
 VideoGenerator, _has_fastvideo = optional_import("fastvideo", "VideoGenerator")
 
@@ -100,9 +99,9 @@ _DTYPES = {
 def _fastvideo_dp_worker(
     rank: int,
     cuda_devices: str,
-    task_q: "_mp.Queue",
-    result_q: "_mp.Queue",
-    config: Dict[str, Any],
+    task_q: _mp.Queue,
+    result_q: _mp.Queue,
+    config: dict[str, Any],
 ) -> None:
     """Per-worker loop. Loads a FastVideo generator pinned to the given
     CUDA devices (comma-separated) and serves generate_video calls from the
@@ -122,7 +121,7 @@ def _fastvideo_dp_worker(
         from fastvideo import VideoGenerator as _VG
 
         dtype = _DTYPES.get(config["torch_dtype"], _torch.bfloat16)
-        gen_kwargs: Dict[str, Any] = {
+        gen_kwargs: dict[str, Any] = {
             "torch_dtype": dtype,
             "num_gpus": config["num_gpus_per_worker"],
             "tp_size": config["tp_size_per_worker"],
@@ -172,7 +171,7 @@ class FastVideo(lmms):
         self,
         model: str = "Wan-AI/Wan2.2-I2V-A14B-Diffusers",
         torch_dtype: str = "bfloat16",
-        device: Optional[str] = None,
+        device: str | None = None,
         # Sampling parameters
         num_inference_steps: int = 50,
         guidance_scale: float = 5.0,
@@ -181,7 +180,7 @@ class FastVideo(lmms):
         width: int = 832,
         fps: int = 16,
         seed: int = 42,
-        negative_prompt: Optional[str] = None,
+        negative_prompt: str | None = None,
         # Parallelism (FastVideo intra-sample: tp/sp split one sample across GPUs)
         num_gpus: int = 1,
         tp_size: int = -1,
@@ -199,7 +198,7 @@ class FastVideo(lmms):
         vae_cpu_offload: bool = True,
         # Misc
         trust_remote_code: bool = True,
-        output_dir: Optional[str] = None,
+        output_dir: str | None = None,
         batch_size: int = 1,
         **kwargs,
     ):
@@ -233,9 +232,9 @@ class FastVideo(lmms):
 
         self.data_parallel = int(data_parallel)
         self.generator = None
-        self._workers: List[_mp.Process] = []
-        self._task_q: Optional[_mp.Queue] = None
-        self._result_q: Optional[_mp.Queue] = None
+        self._workers: list[_mp.Process] = []
+        self._task_q: _mp.Queue | None = None
+        self._result_q: _mp.Queue | None = None
 
         if self.data_parallel > 1:
             self._init_dp_workers(
@@ -253,7 +252,7 @@ class FastVideo(lmms):
                 extra_kwargs=kwargs,
             )
         else:
-            gen_kwargs: Dict[str, Any] = {
+            gen_kwargs: dict[str, Any] = {
                 "torch_dtype": self.torch_dtype,
                 "num_gpus": num_gpus,
                 "tp_size": tp_size,
@@ -293,7 +292,7 @@ class FastVideo(lmms):
         image_encoder_cpu_offload: bool,
         vae_cpu_offload: bool,
         trust_remote_code: bool,
-        extra_kwargs: Dict[str, Any],
+        extra_kwargs: dict[str, Any],
     ) -> None:
         parent_vis = os.environ.get("CUDA_VISIBLE_DEVICES")
         if parent_vis:
@@ -308,12 +307,21 @@ class FastVideo(lmms):
         )
         needed = self.data_parallel * gpus_per_worker
         if len(visible) < needed:
-            raise ValueError(f"data_parallel={self.data_parallel} × {gpus_per_worker} GPUs/worker = {needed} GPUs needed, " f"but only {len(visible)} visible (CUDA_VISIBLE_DEVICES={parent_vis or 'unset'}).")
+            raise ValueError(
+                f"data_parallel={self.data_parallel} × {gpus_per_worker} GPUs/worker = {needed} GPUs needed, "
+                f"but only {len(visible)} visible (CUDA_VISIBLE_DEVICES={parent_vis or 'unset'})."
+            )
         # One contiguous chunk of physical GPU ids per worker.
-        worker_gpus: List[str] = [",".join(visible[r * gpus_per_worker : (r + 1) * gpus_per_worker]) for r in range(self.data_parallel)]
-        eval_logger.info(f"FastVideo DP: spawning {self.data_parallel} workers " f"(num_gpus={num_gpus_per_worker}, tp={tp_size_per_worker}, sp={sp_size_per_worker}) " f"on GPU groups {worker_gpus}")
+        worker_gpus: list[str] = [
+            ",".join(visible[r * gpus_per_worker : (r + 1) * gpus_per_worker]) for r in range(self.data_parallel)
+        ]
+        eval_logger.info(
+            f"FastVideo DP: spawning {self.data_parallel} workers "
+            f"(num_gpus={num_gpus_per_worker}, tp={tp_size_per_worker}, sp={sp_size_per_worker}) "
+            f"on GPU groups {worker_gpus}"
+        )
 
-        config: Dict[str, Any] = {
+        config: dict[str, Any] = {
             "model_path": self.model_path,
             "torch_dtype": torch_dtype,
             "num_gpus_per_worker": int(num_gpus_per_worker),
@@ -444,10 +452,10 @@ class FastVideo(lmms):
         img.convert("RGB").save(path, format="PNG")
         return path
 
-    def _extract_first_image_and_text(self, chat_messages: ChatMessages) -> Tuple[Optional[Image.Image], str]:
+    def _extract_first_image_and_text(self, chat_messages: ChatMessages) -> tuple[Image.Image | None, str]:
         images, _, _ = chat_messages.extract_media()
         first_image = images[0] if images else None
-        texts: List[str] = []
+        texts: list[str] = []
         for msg in chat_messages.messages:
             if msg.role != "user":
                 continue
@@ -456,7 +464,7 @@ class FastVideo(lmms):
                     texts.append(content.text)
         return first_image, "\n".join(t for t in texts if t).strip()
 
-    def _try_parse_vbvr_layout(self, doc: Dict[str, Any]) -> Optional[Tuple[str, str, str]]:
+    def _try_parse_vbvr_layout(self, doc: dict[str, Any]) -> tuple[str, str, str] | None:
         path = doc.get("first_frame_path") or doc.get("final_frame_path") or doc.get("prompt_path")
         if not path:
             return None
@@ -465,7 +473,7 @@ class FastVideo(lmms):
             return None
         return parts[0], parts[1], parts[2]
 
-    def _build_output_path(self, task: str, doc_id: Any, doc: Dict[str, Any]) -> str:
+    def _build_output_path(self, task: str, doc_id: Any, doc: dict[str, Any]) -> str:
         layout = self._try_parse_vbvr_layout(doc)
         if layout is not None:
             file_split, task_name, video_idx = layout
@@ -476,7 +484,7 @@ class FastVideo(lmms):
         os.makedirs(out_dir, exist_ok=True)
         return os.path.join(out_dir, f"{_safe(str(doc_id))}.mp4")
 
-    def _resolve_mp4(self, result: Any, expected_path: str) -> Optional[str]:
+    def _resolve_mp4(self, result: Any, expected_path: str) -> str | None:
         """FastVideo occasionally renames the file (prompt-derived slug).
         Trust `expected_path` first; otherwise look at the returned dict."""
         if os.path.isfile(expected_path):
@@ -499,7 +507,7 @@ class FastVideo(lmms):
         return None
 
     # ----------------------------------------------------------- request prep
-    def make_one_request(self, request: Instance) -> Dict[str, Any]:
+    def make_one_request(self, request: Instance) -> dict[str, Any]:
         ctx, doc_to_messages, gen_kwargs, doc_id, task, split = request.arguments
         doc = self.task_dict[task][split][doc_id]
         raw_messages = doc_to_messages(doc)
@@ -514,7 +522,7 @@ class FastVideo(lmms):
         elif isinstance(first_image, str) and os.path.isfile(first_image):
             image_path = first_image
 
-        per_sample: Dict[str, Any] = {
+        per_sample: dict[str, Any] = {
             "prompt": prompt_text,
             "image_path": image_path,
             "output_path": output_path,
@@ -533,7 +541,7 @@ class FastVideo(lmms):
         return per_sample
 
     # ---------------------------------------------------------------- driver
-    def generate_until(self, requests: List[Instance]) -> List[GenerationResult]:
+    def generate_until(self, requests: list[Instance]) -> list[GenerationResult]:
         # Prepare all requests up front (image decode/save is CPU-bound).
         with ThreadPoolExecutor(max_workers=WORKERS) as executor:
             prepared = list(executor.map(self.make_one_request, requests))
@@ -544,13 +552,13 @@ class FastVideo(lmms):
     def _empty_result(self) -> GenerationResult:
         return GenerationResult(text=json.dumps({"text": "", "videos": []}))
 
-    def _pack_result(self, mp4_path: Optional[str]) -> GenerationResult:
+    def _pack_result(self, mp4_path: str | None) -> GenerationResult:
         if mp4_path is None:
             return self._empty_result()
         return GenerationResult(text=json.dumps({"text": "", "videos": [mp4_path]}))
 
-    def _generate_until_single(self, prepared: List[Dict[str, Any]]) -> List[GenerationResult]:
-        res: List[GenerationResult] = []
+    def _generate_until_single(self, prepared: list[dict[str, Any]]) -> list[GenerationResult]:
+        res: list[GenerationResult] = []
         pbar = tqdm(total=len(prepared), disable=(self.rank != 0), desc="FastVideo generating")
         for prep in prepared:
             output_path = prep["output_path"]
@@ -582,13 +590,13 @@ class FastVideo(lmms):
         pbar.close()
         return res
 
-    def _generate_until_parallel(self, prepared: List[Dict[str, Any]]) -> List[GenerationResult]:
+    def _generate_until_parallel(self, prepared: list[dict[str, Any]]) -> list[GenerationResult]:
         """Fan out samples across self.data_parallel worker processes.
         Each worker owns one GPU and keeps the model hot between samples."""
         assert self._task_q is not None and self._result_q is not None
 
-        results: List[Optional[GenerationResult]] = [None] * len(prepared)
-        dispatched: Dict[int, Dict[str, Any]] = {}
+        results: list[GenerationResult | None] = [None] * len(prepared)
+        dispatched: dict[int, dict[str, Any]] = {}
 
         for task_id, prep in enumerate(prepared):
             output_path = prep["output_path"]
@@ -640,10 +648,10 @@ class FastVideo(lmms):
 
         return [r if r is not None else self._empty_result() for r in results]
 
-    def loglikelihood(self, requests: List[Instance]) -> List[Tuple[float, bool]]:
+    def loglikelihood(self, requests: list[Instance]) -> list[tuple[float, bool]]:
         raise NotImplementedError("FastVideo is a generative video model; loglikelihood is not supported.")
 
-    def generate_until_multi_round(self, requests) -> List[str]:
+    def generate_until_multi_round(self, requests) -> list[str]:
         raise NotImplementedError("Multi-round generation is not supported for FastVideo.")
 
     # lifecycle -----------------------------------------------------------

@@ -2,7 +2,6 @@
 Specific evaluators for Out-of-Domain_50 tasks (Part 2).
 """
 
-from typing import Dict, List, Optional, Tuple
 
 import cv2
 import numpy as np
@@ -24,7 +23,7 @@ class IdentifyNearestSquareRectangleEvaluator(BaseEvaluator):
 
     TASK_WEIGHTS = {"aspect_ratio": 0.50, "uniqueness": 0.20, "position": 0.20, "annotation": 0.10}
 
-    def _detect_rectangles(self, frame: np.ndarray) -> List[Dict]:
+    def _detect_rectangles(self, frame: np.ndarray) -> list[dict]:
         """Detect rectangles and calculate their aspect ratios."""
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         edges = cv2.Canny(gray, 50, 150)
@@ -50,11 +49,13 @@ class IdentifyNearestSquareRectangleEvaluator(BaseEvaluator):
                 cx = int(M["m10"] / M["m00"])
                 cy = int(M["m01"] / M["m00"])
 
-                rectangles.append({"center": (cx, cy), "aspect_ratio": aspect_ratio, "area": area, "bounds": (x, y, w, h)})
+                rectangles.append(
+                    {"center": (cx, cy), "aspect_ratio": aspect_ratio, "area": area, "bounds": (x, y, w, h)}
+                )
 
         return rectangles
 
-    def _detect_red_marking(self, frame: np.ndarray) -> Optional[Tuple[int, int]]:
+    def _detect_red_marking(self, frame: np.ndarray) -> tuple[int, int] | None:
         """Detect red circle marking."""
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
@@ -77,7 +78,14 @@ class IdentifyNearestSquareRectangleEvaluator(BaseEvaluator):
 
         return None
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         """Evaluate identify nearest to square rectangle task."""
         scores = {}
 
@@ -166,7 +174,7 @@ class LocateSegmentIntersectionEvaluator(BaseEvaluator):
 
     TASK_WEIGHTS = {"calculation": 0.60, "position": 0.25, "annotation": 0.10, "uniqueness": 0.05}
 
-    def _detect_lines(self, frame: np.ndarray) -> List[Tuple[int, int, int, int]]:
+    def _detect_lines(self, frame: np.ndarray) -> list[tuple[int, int, int, int]]:
         """Detect line segments in the frame."""
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         edges = cv2.Canny(gray, 50, 150)
@@ -178,7 +186,7 @@ class LocateSegmentIntersectionEvaluator(BaseEvaluator):
 
         return [(l[0][0], l[0][1], l[0][2], l[0][3]) for l in lines]
 
-    def _line_intersection(self, line1: Tuple, line2: Tuple) -> Optional[Tuple[float, float]]:
+    def _line_intersection(self, line1: tuple, line2: tuple) -> tuple[float, float] | None:
         """Calculate intersection point of two line segments."""
         x1, y1, x2, y2 = line1
         x3, y3, x4, y4 = line2
@@ -194,7 +202,7 @@ class LocateSegmentIntersectionEvaluator(BaseEvaluator):
 
         return (px, py)
 
-    def _detect_red_marking(self, frame: np.ndarray) -> Optional[Tuple[int, int]]:
+    def _detect_red_marking(self, frame: np.ndarray) -> tuple[int, int] | None:
         """Detect red circle marking."""
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
@@ -213,7 +221,14 @@ class LocateSegmentIntersectionEvaluator(BaseEvaluator):
 
         return None
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         """Evaluate locate segment intersection task."""
         scores = {}
 
@@ -286,7 +301,14 @@ class ArrangeCirclesByCircumferenceEvaluator(BaseEvaluator):
 
     TASK_WEIGHTS = {"sorting_correctness": 0.40, "layout_accuracy": 0.30, "object_fidelity": 0.20, "completeness": 0.10}
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         if len(video_frames) < 2:
             return 0.0
 
@@ -393,7 +415,7 @@ class ArrangeCirclesByCircumferenceEvaluator(BaseEvaluator):
 
         return completeness
 
-    def _detect_circles_with_size(self, frame: np.ndarray) -> List[Tuple[int, int, int]]:
+    def _detect_circles_with_size(self, frame: np.ndarray) -> list[tuple[int, int, int]]:
         """Detect circles with their x, y, radius."""
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
@@ -422,7 +444,7 @@ class DrawMidpointPerpendicularEvaluator(BaseEvaluator):
 
     TASK_WEIGHTS = {"midpoint": 0.40, "position": 0.30, "range": 0.20, "visual": 0.10}
 
-    def _detect_red_line(self, frame: np.ndarray) -> Optional[Dict]:
+    def _detect_red_line(self, frame: np.ndarray) -> dict | None:
         """Detect red vertical line."""
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
@@ -447,9 +469,22 @@ class DrawMidpointPerpendicularEvaluator(BaseEvaluator):
 
         x_center = (x_min + x_max) // 2
 
-        return {"x_center": x_center, "y_min": y_min, "y_max": y_max, "length": height, "is_vertical": height > width * 2}
+        return {
+            "x_center": x_center,
+            "y_min": y_min,
+            "y_max": y_max,
+            "length": height,
+            "is_vertical": height > width * 2,
+        }
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         """Evaluate draw midpoint perpendicular task."""
         scores = {}
 
@@ -523,9 +558,21 @@ class DrawNextSizedShapeEvaluator(BaseEvaluator):
     - Animation quality (10%): Smooth growth animation
     """
 
-    TASK_WEIGHTS = {"pattern_recognition": 0.30, "figure_drawing": 0.35, "label_accuracy": 0.25, "animation_quality": 0.10}
+    TASK_WEIGHTS = {
+        "pattern_recognition": 0.30,
+        "figure_drawing": 0.35,
+        "label_accuracy": 0.25,
+        "animation_quality": 0.10,
+    }
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         if len(video_frames) < 2:
             return 0.0
 
@@ -542,7 +589,15 @@ class DrawNextSizedShapeEvaluator(BaseEvaluator):
 
         # If more than 2 new shapes or shapes removed, task failed
         if shape_count_change > 2 or shape_count_change < 0:
-            self._last_task_details = {"pattern_recognition": 0.0, "figure_drawing": 0.0, "label_accuracy": 0.0, "animation_quality": 0.3, "too_many_shapes_changed": True, "first_count": len(first_shapes), "final_count": len(final_shapes)}
+            self._last_task_details = {
+                "pattern_recognition": 0.0,
+                "figure_drawing": 0.0,
+                "label_accuracy": 0.0,
+                "animation_quality": 0.3,
+                "too_many_shapes_changed": True,
+                "first_count": len(first_shapes),
+                "final_count": len(final_shapes),
+            }
             return 0.0
 
         # 1. Pattern recognition (30%) - CRITICAL: Is size pattern followed?
@@ -717,7 +772,7 @@ class DrawNextSizedShapeEvaluator(BaseEvaluator):
         else:
             return 0.4
 
-    def _evaluate_animation(self, video_frames: List[np.ndarray]) -> float:
+    def _evaluate_animation(self, video_frames: list[np.ndarray]) -> float:
         """Rule-based: Evaluate animation smoothness."""
         if len(video_frames) < 5:
             return 0.5
@@ -737,7 +792,9 @@ class DrawNextSizedShapeEvaluator(BaseEvaluator):
 
         return smoothness
 
-    def _detect_shapes_with_area(self, frame: np.ndarray, exclude_boxes: bool = True, min_area: int = 2000) -> List[Tuple[int, int, int]]:
+    def _detect_shapes_with_area(
+        self, frame: np.ndarray, exclude_boxes: bool = True, min_area: int = 2000
+    ) -> list[tuple[int, int, int]]:
         """Detect shapes with (x, y, area).
 
         Args:
@@ -794,9 +851,21 @@ class MarkWavePeaksEvaluator(BaseEvaluator):
     - Animation quality (10%): Smooth sequential appearance
     """
 
-    TASK_WEIGHTS = {"peak_identification": 0.40, "marking_position": 0.30, "marking_style": 0.20, "animation_quality": 0.10}
+    TASK_WEIGHTS = {
+        "peak_identification": 0.40,
+        "marking_position": 0.30,
+        "marking_style": 0.20,
+        "animation_quality": 0.10,
+    }
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         if len(video_frames) < 2:
             return 0.0
 
@@ -940,7 +1009,7 @@ class MarkWavePeaksEvaluator(BaseEvaluator):
         else:
             return 0.0
 
-    def _evaluate_animation_quality(self, video_frames: List[np.ndarray]) -> float:
+    def _evaluate_animation_quality(self, video_frames: list[np.ndarray]) -> float:
         """Rule-based: Evaluate animation smoothness."""
         if len(video_frames) < 5:
             return 0.0
@@ -959,7 +1028,7 @@ class MarkWavePeaksEvaluator(BaseEvaluator):
 
         return increases / (len(marker_counts) - 1)
 
-    def _detect_wave_peaks(self, frame: np.ndarray) -> List[Tuple[int, int]]:
+    def _detect_wave_peaks(self, frame: np.ndarray) -> list[tuple[int, int]]:
         """Detect wave peak positions from the curve with improved robustness."""
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
@@ -1054,7 +1123,7 @@ class MarkWavePeaksEvaluator(BaseEvaluator):
 
         return all_peaks
 
-    def _detect_red_markers(self, frame: np.ndarray) -> List[Tuple[int, int]]:
+    def _detect_red_markers(self, frame: np.ndarray) -> list[tuple[int, int]]:
         """Detect red marker positions."""
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
@@ -1092,7 +1161,7 @@ class IdentifyPentagonsEvaluator(BaseEvaluator):
 
     TASK_WEIGHTS = {"edge_count": 0.40, "marking": 0.35, "quality": 0.15, "fidelity": 0.10}
 
-    def _detect_polygons(self, frame: np.ndarray) -> List[Dict]:
+    def _detect_polygons(self, frame: np.ndarray) -> list[dict]:
         """Detect polygons and count their edges."""
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         edges = cv2.Canny(gray, 50, 150)
@@ -1114,11 +1183,13 @@ class IdentifyPentagonsEvaluator(BaseEvaluator):
             cx = int(M["m10"] / M["m00"])
             cy = int(M["m01"] / M["m00"])
 
-            polygons.append({"center": (cx, cy), "vertices": len(approx), "area": area, "is_pentagon": len(approx) == 5})
+            polygons.append(
+                {"center": (cx, cy), "vertices": len(approx), "area": area, "is_pentagon": len(approx) == 5}
+            )
 
         return polygons
 
-    def _detect_red_marking(self, frame: np.ndarray) -> Optional[Tuple[int, int]]:
+    def _detect_red_marking(self, frame: np.ndarray) -> tuple[int, int] | None:
         """Detect red circle marking."""
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
@@ -1137,7 +1208,14 @@ class IdentifyPentagonsEvaluator(BaseEvaluator):
 
         return None
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         """Evaluate identify pentagons task."""
         scores = {}
 
@@ -1227,9 +1305,21 @@ class FindIncorrectArrowDirectionEvaluator(BaseEvaluator):
     - Element preservation (5%): Original elements unchanged
     """
 
-    TASK_WEIGHTS = {"arrow_identification": 0.50, "marking_standardization": 0.30, "marking_precision": 0.15, "element_preservation": 0.05}
+    TASK_WEIGHTS = {
+        "arrow_identification": 0.50,
+        "marking_standardization": 0.30,
+        "marking_precision": 0.15,
+        "element_preservation": 0.05,
+    }
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         if len(video_frames) < 2:
             return 0.0
 
@@ -1252,7 +1342,9 @@ class FindIncorrectArrowDirectionEvaluator(BaseEvaluator):
         self._last_task_details = scores
         return sum(scores[k] * self.TASK_WEIGHTS[k] for k in self.TASK_WEIGHTS)
 
-    def _evaluate_arrow_identification(self, first_frame: np.ndarray, final_frame: np.ndarray, gt_final_frame: Optional[np.ndarray] = None) -> float:
+    def _evaluate_arrow_identification(
+        self, first_frame: np.ndarray, final_frame: np.ndarray, gt_final_frame: np.ndarray | None = None
+    ) -> float:
         """Rule-based: Check if the incorrect arrow is identified."""
         # Detect red circle marking
         circle = self._detect_red_circle(final_frame)
@@ -1354,7 +1446,7 @@ class FindIncorrectArrowDirectionEvaluator(BaseEvaluator):
         else:
             return 0.1
 
-    def _find_different_arrow(self, frame: np.ndarray) -> Optional[Tuple[int, int]]:
+    def _find_different_arrow(self, frame: np.ndarray) -> tuple[int, int] | None:
         """Find the arrow pointing in a different direction."""
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         _, binary = cv2.threshold(gray, 150, 255, cv2.THRESH_BINARY_INV)
@@ -1400,7 +1492,7 @@ class FindIncorrectArrowDirectionEvaluator(BaseEvaluator):
 
         return sum(1 for cnt in contours if 500 < cv2.contourArea(cnt) < 10000)
 
-    def _detect_red_circle(self, frame: np.ndarray) -> Optional[Tuple[int, int, int]]:
+    def _detect_red_circle(self, frame: np.ndarray) -> tuple[int, int, int] | None:
         """Detect red circle in the frame."""
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
@@ -1447,9 +1539,21 @@ class CircleCentralDotEvaluator(BaseEvaluator):
     - Scene preservation (5%): Original dots unchanged
     """
 
-    TASK_WEIGHTS = {"center_identification": 0.50, "marking_accuracy": 0.30, "marking_appearance": 0.15, "scene_preservation": 0.05}
+    TASK_WEIGHTS = {
+        "center_identification": 0.50,
+        "marking_accuracy": 0.30,
+        "marking_appearance": 0.15,
+        "scene_preservation": 0.05,
+    }
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         if len(video_frames) < 2:
             return 0.0
 
@@ -1466,7 +1570,14 @@ class CircleCentralDotEvaluator(BaseEvaluator):
         # Need at least 500 new red pixels for a marking
         if red_increase < 500:
             # No red marking added - task not completed
-            self._last_task_details = {"center_identification": 0.0, "marking_accuracy": 0.0, "marking_appearance": 0.0, "scene_preservation": 1.0, "no_red_marking": True, "red_pixel_increase": int(red_increase)}
+            self._last_task_details = {
+                "center_identification": 0.0,
+                "marking_accuracy": 0.0,
+                "marking_appearance": 0.0,
+                "scene_preservation": 1.0,
+                "no_red_marking": True,
+                "red_pixel_increase": int(red_increase),
+            }
             return 0.05  # Very low score for no marking
 
         # 1. Center identification (50%)
@@ -1599,7 +1710,7 @@ class CircleCentralDotEvaluator(BaseEvaluator):
             # Many dots removed - very bad
             return 0.0
 
-    def _find_central_dot(self, frame: np.ndarray) -> Optional[Tuple[int, int]]:
+    def _find_central_dot(self, frame: np.ndarray) -> tuple[int, int] | None:
         """Find the central dot (y ≈ center of frame)."""
         dots = self._detect_black_dots(frame)
 
@@ -1613,7 +1724,7 @@ class CircleCentralDotEvaluator(BaseEvaluator):
         central_dot = min(dots, key=lambda d: abs(d[1] - center_y))
         return central_dot
 
-    def _detect_black_dots(self, frame: np.ndarray) -> List[Tuple[int, int]]:
+    def _detect_black_dots(self, frame: np.ndarray) -> list[tuple[int, int]]:
         """Detect black dots in the frame."""
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         _, binary = cv2.threshold(gray, 50, 255, cv2.THRESH_BINARY_INV)
@@ -1632,7 +1743,7 @@ class CircleCentralDotEvaluator(BaseEvaluator):
 
         return dots
 
-    def _detect_black_dots_with_size(self, frame: np.ndarray) -> List[Dict]:
+    def _detect_black_dots_with_size(self, frame: np.ndarray) -> list[dict]:
         """Detect black dots with size information."""
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         _, binary = cv2.threshold(gray, 50, 255, cv2.THRESH_BINARY_INV)
@@ -1664,7 +1775,7 @@ class CircleCentralDotEvaluator(BaseEvaluator):
         mask = cv2.inRange(hsv, lower_red1, upper_red1) | cv2.inRange(hsv, lower_red2, upper_red2)
         return int(np.sum(mask > 0))
 
-    def _detect_red_circle(self, frame: np.ndarray) -> Optional[Tuple[int, int, int]]:
+    def _detect_red_circle(self, frame: np.ndarray) -> tuple[int, int, int] | None:
         """Detect red circle."""
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
@@ -1697,9 +1808,21 @@ class IdentifyLargestAngleEvaluator(BaseEvaluator):
     - Triangle preservation (10%): Original triangle unchanged
     """
 
-    TASK_WEIGHTS = {"angle_recognition": 0.40, "marking_position": 0.35, "marking_specification": 0.15, "triangle_preservation": 0.10}
+    TASK_WEIGHTS = {
+        "angle_recognition": 0.40,
+        "marking_position": 0.35,
+        "marking_specification": 0.15,
+        "triangle_preservation": 0.10,
+    }
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         if len(video_frames) < 2:
             return 0.0
 
@@ -1722,7 +1845,9 @@ class IdentifyLargestAngleEvaluator(BaseEvaluator):
         self._last_task_details = scores
         return sum(scores[k] * self.TASK_WEIGHTS[k] for k in self.TASK_WEIGHTS)
 
-    def _evaluate_angle_recognition(self, first_frame: np.ndarray, final_frame: np.ndarray, gt_final_frame: Optional[np.ndarray] = None) -> float:
+    def _evaluate_angle_recognition(
+        self, first_frame: np.ndarray, final_frame: np.ndarray, gt_final_frame: np.ndarray | None = None
+    ) -> float:
         """Rule-based: Check if the largest angle vertex is identified."""
         # Detect circle marking
         circle = self._detect_red_circle(final_frame)
@@ -1761,7 +1886,9 @@ class IdentifyLargestAngleEvaluator(BaseEvaluator):
         else:
             return 0.2
 
-    def _evaluate_marking_position(self, first_frame: np.ndarray, final_frame: np.ndarray, gt_final_frame: Optional[np.ndarray] = None) -> float:
+    def _evaluate_marking_position(
+        self, first_frame: np.ndarray, final_frame: np.ndarray, gt_final_frame: np.ndarray | None = None
+    ) -> float:
         """Rule-based: Evaluate circle position at vertex."""
         circle = self._detect_red_circle(final_frame)
 
@@ -1829,7 +1956,7 @@ class IdentifyLargestAngleEvaluator(BaseEvaluator):
         else:
             return 0.1
 
-    def _find_largest_angle_vertex(self, frame: np.ndarray) -> Optional[Tuple[int, int]]:
+    def _find_largest_angle_vertex(self, frame: np.ndarray) -> tuple[int, int] | None:
         """Find the vertex with the largest angle."""
         vertices = self._detect_triangle_vertices(frame)
 
@@ -1854,7 +1981,7 @@ class IdentifyLargestAngleEvaluator(BaseEvaluator):
         largest = max(angles, key=lambda x: x[0])
         return largest[1]
 
-    def _detect_triangle_vertices(self, frame: np.ndarray) -> List[Tuple[int, int]]:
+    def _detect_triangle_vertices(self, frame: np.ndarray) -> list[tuple[int, int]]:
         """Detect triangle vertices using corner detection."""
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
@@ -1933,7 +2060,7 @@ class IdentifyLargestAngleEvaluator(BaseEvaluator):
 
         return []
 
-    def _detect_red_circle(self, frame: np.ndarray) -> Optional[Tuple[int, int, int]]:
+    def _detect_red_circle(self, frame: np.ndarray) -> tuple[int, int, int] | None:
         """Detect red circle."""
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 

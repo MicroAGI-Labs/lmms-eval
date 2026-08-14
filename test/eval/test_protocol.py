@@ -4,18 +4,17 @@ Validates the unified message protocol that all chat models consume,
 including construction, media extraction, and HuggingFace format conversion.
 """
 
+import numpy as np
 import pytest
+from lmms_eval.protocol import ChatAudioContent
+from lmms_eval.protocol import ChatImageContent
+from lmms_eval.protocol import ChatMessage
+from lmms_eval.protocol import ChatMessages
+from lmms_eval.protocol import ChatTextContent
+from lmms_eval.protocol import ChatVideoContent
+from lmms_eval.protocol import _fetch_openai_video
 from PIL import Image
 from pydantic import ValidationError
-
-from lmms_eval.protocol import (
-    ChatAudioContent,
-    ChatImageContent,
-    ChatMessage,
-    ChatMessages,
-    ChatTextContent,
-    ChatVideoContent,
-)
 
 
 @pytest.fixture
@@ -550,3 +549,126 @@ def test_to_hf_messages_does_not_mutate_video_kwargs():
 
     # Assert
     assert video_kwargs == {"nframes": 16, "backend": "decord"}
+
+
+def test_fetch_openai_video__returns_one_resized_frame_for_single_frame_file(monkeypatch, tmp_path) -> None:
+    video_path = tmp_path / "one-frame.mp4"
+    video_path.touch()
+    source_frame = np.zeros((8, 8, 3), dtype=np.uint8)
+    captured_payload = None
+
+    class Frame:
+        def asnumpy(self):
+            return source_frame
+
+    class SingleFrameVideoReader:
+        def __init__(self, path, ctx):
+            assert path == str(video_path)
+
+        def __len__(self):
+            return 1
+
+        def __getitem__(self, index):
+            assert index == 0
+            return Frame()
+
+    def fetch_single_frame_video(payload):
+        nonlocal captured_payload
+        captured_payload = payload
+        return np.array(["resized-frame", "padded-duplicate"])
+
+    monkeypatch.setattr("lmms_eval.protocol.VideoReader", SingleFrameVideoReader)
+    monkeypatch.setattr("lmms_eval.protocol.cpu", lambda _: "cpu")
+    monkeypatch.setattr("lmms_eval.protocol.fetch_video", fetch_single_frame_video)
+
+    video_input = _fetch_openai_video(str(video_path), {"nframes": 16})
+
+    assert video_input.tolist() == ["resized-frame"]
+    assert captured_payload["nframes"] == 16
+    assert len(captured_payload["video"]) == 1
+    assert isinstance(captured_payload["video"][0], Image.Image)
+
+
+def test_fetch_openai_video__preserves_original_path_when_decord_probe_fails(monkeypatch, tmp_path) -> None:
+    video_path = tmp_path / "video.mp4"
+    video_path.touch()
+    captured_payload = None
+
+    class UnreadableVideoReader:
+        def __init__(self, path, ctx):
+            assert path == str(video_path)
+
+        def __len__(self):
+            raise RuntimeError("decord probe failed")
+
+    def fetch_video_with_existing_backend_handling(payload):
+        nonlocal captured_payload
+        captured_payload = payload
+        return np.array(["frame-0", "frame-1"])
+
+    monkeypatch.setattr("lmms_eval.protocol.VideoReader", UnreadableVideoReader)
+    monkeypatch.setattr("lmms_eval.protocol.cpu", lambda _: "cpu")
+    monkeypatch.setattr("lmms_eval.protocol.fetch_video", fetch_video_with_existing_backend_handling)
+
+    video_input = _fetch_openai_video(str(video_path), {"nframes": 2})
+
+    assert video_input.tolist() == ["frame-0", "frame-1"]
+    assert captured_payload["video"] == str(video_path)
+
+
+def test_fetch_openai_video__preserves_qwen_path_for_multiframe_video(monkeypatch, tmp_path) -> None:
+    video_path = tmp_path / "video.mp4"
+    video_path.touch()
+    captured_payload = None
+
+    class MultiFrameVideoReader:
+        def __init__(self, path, ctx):
+            assert path == str(video_path)
+
+        def __len__(self):
+            return 4
+
+    def fetch_multiframe_video(payload):
+        nonlocal captured_payload
+        captured_payload = payload
+        return np.array(["frame-0", "frame-1"])
+
+    monkeypatch.setattr("lmms_eval.protocol.VideoReader", MultiFrameVideoReader)
+    monkeypatch.setattr("lmms_eval.protocol.cpu", lambda _: "cpu")
+    monkeypatch.setattr("lmms_eval.protocol.fetch_video", fetch_multiframe_video)
+
+    video_input = _fetch_openai_video(str(video_path), {"nframes": 2})
+
+    assert video_input.tolist() == ["frame-0", "frame-1"]
+    assert captured_payload["video"] == str(video_path)
+
+
+def test_fetch_openai_video__caps_requested_frames_to_short_video_factor(monkeypatch, tmp_path) -> None:
+    video_path = tmp_path / "short-video.mp4"
+    video_path.touch()
+    captured_payload = None
+    video_kwargs = {"nframes": 16}
+
+    class ShortVideoReader:
+        def __init__(self, path, ctx):
+            assert path == str(video_path)
+
+        def __len__(self):
+            return 15
+
+    def fetch_short_video(payload):
+        nonlocal captured_payload
+        captured_payload = payload
+        return np.array(["frame-0", "frame-1"])
+
+    monkeypatch.setattr("lmms_eval.protocol.VideoReader", ShortVideoReader)
+    monkeypatch.setattr("lmms_eval.protocol.cpu", lambda _: "cpu")
+    monkeypatch.setattr("lmms_eval.protocol.fetch_video", fetch_short_video)
+    monkeypatch.setattr("lmms_eval.protocol.FRAME_FACTOR", 2)
+
+    video_input = _fetch_openai_video(str(video_path), video_kwargs)
+
+    assert video_input.tolist() == ["frame-0", "frame-1"]
+    assert captured_payload["video"] == str(video_path)
+    assert captured_payload["nframes"] == 14
+    assert video_kwargs == {"nframes": 16}

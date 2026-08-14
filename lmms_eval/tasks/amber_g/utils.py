@@ -36,7 +36,13 @@ def get_nlp():
         except OSError:
             continue
 
-    raise OSError("No spaCy model found. Please install one:\n" "  pip install spacy\n" "  python -m spacy download en_core_web_sm\n" "or for better accuracy:\n" "  python -m spacy download en_core_web_md")
+    raise OSError(
+        "No spaCy model found. Please install one:\n"
+        "  pip install spacy\n"
+        "  python -m spacy download en_core_web_sm\n"
+        "or for better accuracy:\n"
+        "  python -m spacy download en_core_web_md"
+    )
 
 
 def load_metadata():
@@ -73,21 +79,21 @@ def load_metadata():
 
 def load_json(file_path):
     """Load JSON file and return the data."""
-    with open(file_path, "r", encoding="utf-8") as f:
+    with open(file_path, encoding="utf-8") as f:
         data = json.load(f)
     return data
 
 
 def load_text_lines(file_path):
     """Load text file and return list of stripped lines."""
-    with open(file_path, "r", encoding="utf-8") as file:
+    with open(file_path, encoding="utf-8") as file:
         return [line.strip() for line in file.readlines()]
 
 
 def load_metrics(metrics_path):
     """Initialize and return a metrics dict based on a metrics file with key=value lines."""
     metrics = {}
-    with open(metrics_path, "r", encoding="utf-8") as file:
+    with open(metrics_path, encoding="utf-8") as file:
         lines = file.readlines()
     for line in lines:
         parts = line.strip().split("=")
@@ -147,7 +153,9 @@ def prepare_association(association):
     return association, hallucination_words
 
 
-def process_generative_task(data_item, ground_truth_item, association, hallucination_words, global_safe_words, similarity_threshold, metrics):
+def process_generative_task(
+    data_item, ground_truth_item, association, hallucination_words, global_safe_words, similarity_threshold, metrics
+):
     """Process a generative task item and update the metrics dictionary accordingly."""
     question_id = data_item["question_id"]
     nouns = extract_nouns(data_item["text"])
@@ -365,7 +373,12 @@ def amber_g_process_result(doc, result):
     pred_text = result[0] if len(result) > 0 else ""
     question_id = doc.get("question_id", 0)
 
-    gt_item = {"question_id": question_id, "type": doc.get("task_type", "generative"), "truth": doc.get("truth", []), "hallu": doc.get("hallu", [])}
+    gt_item = {
+        "question_id": question_id,
+        "type": doc.get("task_type", "generative"),
+        "truth": doc.get("truth", []),
+        "hallu": doc.get("hallu", []),
+    }
 
     data_item = {"question_id": question_id, "text": pred_text}
 
@@ -373,7 +386,9 @@ def amber_g_process_result(doc, result):
     temp_metrics = _METRICS_INIT.copy()
 
     if gt_item["type"] == "generative":
-        process_generative_task(data_item, gt_item, _ASSOCIATION, _HALLUCINATION_WORDS, _SAFE_WORDS, SIMILARITY_THRESHOLD, temp_metrics)
+        process_generative_task(
+            data_item, gt_item, _ASSOCIATION, _HALLUCINATION_WORDS, _SAFE_WORDS, SIMILARITY_THRESHOLD, temp_metrics
+        )
 
         return {
             "amber_chair": temp_metrics.copy(),

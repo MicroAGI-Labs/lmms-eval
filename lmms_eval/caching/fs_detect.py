@@ -18,7 +18,6 @@ import os
 import shutil
 import subprocess
 from enum import Enum
-from typing import Optional
 
 from loguru import logger as eval_logger
 
@@ -62,7 +61,7 @@ _REMOTE_FS_TYPES = frozenset(
 )
 
 
-def _find_mount_linux(path: str) -> Optional[tuple]:
+def _find_mount_linux(path: str) -> tuple | None:
     """Find the mount entry for ``path`` from /proc/mounts.
 
     Returns ``(mount_point, fs_type)`` or ``None``.
@@ -71,7 +70,7 @@ def _find_mount_linux(path: str) -> Optional[tuple]:
         real_path = os.path.realpath(path)
         best_mount = ""
         best_fstype = ""
-        with open("/proc/mounts", "r") as f:
+        with open("/proc/mounts") as f:
             for line in f:
                 parts = line.split()
                 if len(parts) < 3:
@@ -79,17 +78,19 @@ def _find_mount_linux(path: str) -> Optional[tuple]:
                 mount_point = parts[1]
                 fs_type = parts[2]
                 # Longest prefix match = most specific mount
-                if (real_path == mount_point or real_path.startswith(mount_point + os.sep) or mount_point == "/") and len(mount_point) > len(best_mount):
+                if (
+                    real_path == mount_point or real_path.startswith(mount_point + os.sep) or mount_point == "/"
+                ) and len(mount_point) > len(best_mount):
                     best_mount = mount_point
                     best_fstype = fs_type
         if best_mount:
             return (best_mount, best_fstype)
-    except (OSError, IOError):
+    except OSError:
         pass
     return None
 
 
-def _find_mount_macos(path: str) -> Optional[tuple]:
+def _find_mount_macos(path: str) -> tuple | None:
     """Find the mount entry for ``path`` using ``mount`` command on macOS.
 
     Returns ``(mount_point, fs_type)`` or ``None``.
@@ -117,7 +118,9 @@ def _find_mount_macos(path: str) -> Optional[tuple]:
             fs_info = rest[paren_idx + 1 :].rstrip(")").strip()
             fs_type = fs_info.split(",")[0].strip()
 
-            if (real_path == mount_point or real_path.startswith(mount_point + os.sep) or mount_point == "/") and len(mount_point) > len(best_mount):
+            if (real_path == mount_point or real_path.startswith(mount_point + os.sep) or mount_point == "/") and len(
+                mount_point
+            ) > len(best_mount):
                 best_mount = mount_point
                 best_fstype = fs_type
 
@@ -169,7 +172,7 @@ def detect_fs_type(path: str) -> FsType:
     return FsType.LOCAL
 
 
-def find_local_scratch(min_free_gb: float = 1.0) -> Optional[str]:
+def find_local_scratch(min_free_gb: float = 1.0) -> str | None:
     """Find a suitable local fast-storage directory for cache scratch space.
 
     Priority order:

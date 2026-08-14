@@ -1,9 +1,8 @@
 import base64
 import io
 
-from PIL import Image
-
 from lmms_eval.tasks._task_utils.vqa_eval_metric import EvalAIAnswerProcessor
+from PIL import Image
 
 EVAL_AI_PROCESSOR = EvalAIAnswerProcessor()
 

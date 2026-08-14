@@ -2,7 +2,6 @@
 Specific evaluators for Out-of-Domain_50 tasks (Part 1).
 """
 
-from typing import Any, Dict, List, Optional, Tuple
 
 import cv2
 import numpy as np
@@ -24,7 +23,7 @@ class SeparateObjectsNoSpinEvaluator(BaseEvaluator):
 
     TASK_WEIGHTS = {"alignment": 0.35, "no_rotation": 0.30, "movement": 0.20, "fidelity": 0.15}
 
-    def _detect_colored_shapes(self, frame: np.ndarray) -> List[Dict]:
+    def _detect_colored_shapes(self, frame: np.ndarray) -> list[dict]:
         """Detect colored shapes and their properties."""
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
@@ -53,7 +52,14 @@ class SeparateObjectsNoSpinEvaluator(BaseEvaluator):
 
         return shapes
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         """Evaluate separate objects no spin task - rule-based, no SSIM."""
         if len(video_frames) < 2:
             return 0.0
@@ -164,7 +170,7 @@ class SeparateObjectsNoSpinEvaluator(BaseEvaluator):
         self._last_task_details = scores
         return sum(scores[k] * self.TASK_WEIGHTS[k] for k in self.TASK_WEIGHTS)
 
-    def _check_rightward_movement(self, initial_shapes: List[Dict], final_shapes: List[Dict]) -> float:
+    def _check_rightward_movement(self, initial_shapes: list[dict], final_shapes: list[dict]) -> float:
         """Check if shapes moved to the right side."""
         if not initial_shapes or not final_shapes:
             return 0.5
@@ -177,7 +183,7 @@ class SeparateObjectsNoSpinEvaluator(BaseEvaluator):
             return min(1.0, (final_avg_x - initial_avg_x) / 100.0 + 0.5)
         return 0.3
 
-    def _check_horizontal_movement(self, initial_shapes: List[Dict], final_shapes: List[Dict]) -> float:
+    def _check_horizontal_movement(self, initial_shapes: list[dict], final_shapes: list[dict]) -> float:
         """Check if movement is primarily horizontal."""
         if not initial_shapes or not final_shapes:
             return 0.5
@@ -211,9 +217,21 @@ class MultipleKeysForOneDoorEvaluator(BaseEvaluator):
     - Movement legality (20%): No wall crossing, valid grid moves
     """
 
-    TASK_WEIGHTS = {"key_collection": 0.30, "order_optimization": 0.25, "path_efficiency": 0.25, "movement_legality": 0.20}
+    TASK_WEIGHTS = {
+        "key_collection": 0.30,
+        "order_optimization": 0.25,
+        "path_efficiency": 0.25,
+        "movement_legality": 0.20,
+    }
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         if len(video_frames) < 2:
             return 0.0
 
@@ -261,7 +279,7 @@ class MultipleKeysForOneDoorEvaluator(BaseEvaluator):
         else:
             return 0.0
 
-    def _evaluate_visit_order(self, video_frames: List[np.ndarray]) -> float:
+    def _evaluate_visit_order(self, video_frames: list[np.ndarray]) -> float:
         """Rule-based: Check if keys are collected before reaching door."""
         door_reached_frame = None
         key_collection_frames = []
@@ -290,7 +308,7 @@ class MultipleKeysForOneDoorEvaluator(BaseEvaluator):
             return 0.4
         return 0.2
 
-    def _evaluate_path_efficiency(self, video_frames: List[np.ndarray]) -> float:
+    def _evaluate_path_efficiency(self, video_frames: list[np.ndarray]) -> float:
         """Rule-based: Check for minimal backtracking."""
         positions = []
         for frame in video_frames[:: max(1, len(video_frames) // 30)]:
@@ -321,7 +339,7 @@ class MultipleKeysForOneDoorEvaluator(BaseEvaluator):
         else:
             return max(0.2, 1.0 - revisit_ratio)
 
-    def _evaluate_movement_legality(self, video_frames: List[np.ndarray], first_frame: np.ndarray) -> float:
+    def _evaluate_movement_legality(self, video_frames: list[np.ndarray], first_frame: np.ndarray) -> float:
         """Rule-based: Check for wall crossing (illegal moves)."""
         # Detect walls from first frame (black pixels)
         wall_mask = self._detect_walls(first_frame)
@@ -421,13 +439,13 @@ class MultipleKeysForOneDoorEvaluator(BaseEvaluator):
         door_pixels = np.sum(door_mask > 0)
         return door_pixels > 100
 
-    def _detect_walls(self, frame: np.ndarray) -> Optional[np.ndarray]:
+    def _detect_walls(self, frame: np.ndarray) -> np.ndarray | None:
         """Detect wall regions (black/dark pixels) in the frame."""
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         _, wall_mask = cv2.threshold(gray, 30, 255, cv2.THRESH_BINARY_INV)
         return wall_mask
 
-    def _detect_agent_position(self, frame: np.ndarray) -> Optional[Tuple[int, int]]:
+    def _detect_agent_position(self, frame: np.ndarray) -> tuple[int, int] | None:
         """Detect green agent position in the frame."""
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
         # Green color range
@@ -473,7 +491,14 @@ class ConnectingColorEvaluator(BaseEvaluator):
 
     TASK_WEIGHTS = {"object_preservation": 0.20, "correct_connections": 0.50, "no_wrong_connections": 0.30}
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         """Evaluate connecting color task with proper connection counting."""
         scores = {}
 
@@ -519,10 +544,14 @@ class ConnectingColorEvaluator(BaseEvaluator):
             objects_by_color.setdefault(obj["color"], []).append(obj)
 
         # Count expected connections (pairs of same-color objects)
-        expected_connections = sum(len(objs) * (len(objs) - 1) // 2 for objs in objects_by_color.values() if len(objs) >= 2)
+        expected_connections = sum(
+            len(objs) * (len(objs) - 1) // 2 for objs in objects_by_color.values() if len(objs) >= 2
+        )
 
         # 2 & 3. Count correct and wrong connections
-        correct_count, wrong_count, connection_details = self._count_connections(last_frame, first_objects, objects_by_color)
+        correct_count, wrong_count, connection_details = self._count_connections(
+            last_frame, first_objects, objects_by_color
+        )
 
         # Store connection info
         scores["expected_connections"] = expected_connections
@@ -547,7 +576,7 @@ class ConnectingColorEvaluator(BaseEvaluator):
         self._last_task_details = scores
         return sum(scores.get(k, 0) * self.TASK_WEIGHTS[k] for k in self.TASK_WEIGHTS if k in scores)
 
-    def _detect_circular_objects(self, frame: np.ndarray) -> List[Dict]:
+    def _detect_circular_objects(self, frame: np.ndarray) -> list[dict]:
         """
         Detect colored objects (dots/circles/blobs) in the frame.
 
@@ -592,11 +621,13 @@ class ConnectingColorEvaluator(BaseEvaluator):
                         if M["m00"] > 0:
                             cx = int(M["m10"] / M["m00"])
                             cy = int(M["m01"] / M["m00"])
-                            objects.append({"color": color_name, "center": (cx, cy), "area": area, "circularity": circularity})
+                            objects.append(
+                                {"color": color_name, "center": (cx, cy), "area": area, "circularity": circularity}
+                            )
 
         return objects
 
-    def _evaluate_object_preservation(self, first_objects: List[Dict], last_objects: List[Dict]) -> float:
+    def _evaluate_object_preservation(self, first_objects: list[dict], last_objects: list[dict]) -> float:
         """Check if original objects are preserved in similar positions."""
         if not first_objects:
             return 0.0
@@ -613,7 +644,9 @@ class ConnectingColorEvaluator(BaseEvaluator):
 
         return matched / len(first_objects)
 
-    def _count_connections(self, frame: np.ndarray, first_objects: List[Dict], objects_by_color: Dict) -> Tuple[int, int, Dict]:
+    def _count_connections(
+        self, frame: np.ndarray, first_objects: list[dict], objects_by_color: dict
+    ) -> tuple[int, int, dict]:
         """
         Count correct and wrong line connections.
 
@@ -659,7 +692,9 @@ class ConnectingColorEvaluator(BaseEvaluator):
 
                     # Check if there's a continuous path of this color between them
                     if self._has_color_path(mask, obj1["center"], obj2["center"]):
-                        correct_connections.append({"color": color_name, "obj1": obj1["center"], "obj2": obj2["center"]})
+                        correct_connections.append(
+                            {"color": color_name, "obj1": obj1["center"], "obj2": obj2["center"]}
+                        )
 
         # Check wrong connections: different-color objects connected
         colors_list = list(objects_by_color.keys())
@@ -672,13 +707,15 @@ class ConnectingColorEvaluator(BaseEvaluator):
                 for obj1 in objs1:
                     for obj2 in objs2:
                         if self._has_any_line_connection(frame, obj1["center"], obj2["center"]):
-                            wrong_connections.append({"colors": (color1, color2), "obj1": obj1["center"], "obj2": obj2["center"]})
+                            wrong_connections.append(
+                                {"colors": (color1, color2), "obj1": obj1["center"], "obj2": obj2["center"]}
+                            )
 
         details = {"correct": correct_connections, "wrong": wrong_connections}
 
         return len(correct_connections), len(wrong_connections), details
 
-    def _has_color_path(self, color_mask: np.ndarray, p1: Tuple[int, int], p2: Tuple[int, int]) -> bool:
+    def _has_color_path(self, color_mask: np.ndarray, p1: tuple[int, int], p2: tuple[int, int]) -> bool:
         """
         Check if there's a continuous path of the specific color between two points.
         Uses line sampling with wider search region and checks for color presence along the path.
@@ -708,7 +745,7 @@ class ConnectingColorEvaluator(BaseEvaluator):
         # Connection exists if more than 30% of samples have the color (curves may not follow straight line)
         return connected_count > num_samples * 0.3
 
-    def _has_any_line_connection(self, frame: np.ndarray, p1: Tuple[int, int], p2: Tuple[int, int]) -> bool:
+    def _has_any_line_connection(self, frame: np.ndarray, p1: tuple[int, int], p2: tuple[int, int]) -> bool:
         """
         Check if there's any drawn line connecting two different-colored objects.
         Looks for non-background colored pixels along the path.
@@ -746,9 +783,21 @@ class SelectNextFigureAlternatingEvaluator(BaseEvaluator):
     - Animation quality (10%): Circle appears with smooth expansion
     """
 
-    TASK_WEIGHTS = {"pattern_recognition": 0.40, "selection_correctness": 0.35, "marking_accuracy": 0.15, "animation_quality": 0.10}
+    TASK_WEIGHTS = {
+        "pattern_recognition": 0.40,
+        "selection_correctness": 0.35,
+        "marking_accuracy": 0.15,
+        "animation_quality": 0.10,
+    }
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         if len(video_frames) < 2:
             return 0.0
 
@@ -876,7 +925,7 @@ class SelectNextFigureAlternatingEvaluator(BaseEvaluator):
             return 0.8
         return 0.5
 
-    def _evaluate_marking(self, final_frame: np.ndarray, first_frame: Optional[np.ndarray] = None) -> float:
+    def _evaluate_marking(self, final_frame: np.ndarray, first_frame: np.ndarray | None = None) -> float:
         """Rule-based: Evaluate red circle marking quality."""
         circles = self._detect_red_circles(final_frame, first_frame)
 
@@ -887,7 +936,7 @@ class SelectNextFigureAlternatingEvaluator(BaseEvaluator):
         else:
             return max(0.3, 1.0 - 0.2 * (len(circles) - 1))  # Penalty for multiple
 
-    def _evaluate_animation(self, video_frames: List[np.ndarray]) -> float:
+    def _evaluate_animation(self, video_frames: list[np.ndarray]) -> float:
         """Rule-based: Evaluate animation smoothness."""
         if len(video_frames) < 3:
             return 0.5
@@ -908,7 +957,7 @@ class SelectNextFigureAlternatingEvaluator(BaseEvaluator):
 
         return smoothness
 
-    def _detect_shapes_with_sizes(self, frame: np.ndarray) -> List[Tuple[int, int, int]]:
+    def _detect_shapes_with_sizes(self, frame: np.ndarray) -> list[tuple[int, int, int]]:
         """Detect shapes with their (x, y, area)."""
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         _, binary = cv2.threshold(gray, 200, 255, cv2.THRESH_BINARY_INV)
@@ -927,7 +976,7 @@ class SelectNextFigureAlternatingEvaluator(BaseEvaluator):
 
         return shapes
 
-    def _detect_candidate_shapes(self, frame: np.ndarray) -> List[Tuple[int, int, int]]:
+    def _detect_candidate_shapes(self, frame: np.ndarray) -> list[tuple[int, int, int]]:
         """Detect candidate shapes (typically in bottom portion)."""
         h, w = frame.shape[:2]
 
@@ -951,7 +1000,9 @@ class SelectNextFigureAlternatingEvaluator(BaseEvaluator):
 
         return candidates
 
-    def _detect_red_circles(self, frame: np.ndarray, first_frame: Optional[np.ndarray] = None) -> List[Tuple[int, int, int]]:
+    def _detect_red_circles(
+        self, frame: np.ndarray, first_frame: np.ndarray | None = None
+    ) -> list[tuple[int, int, int]]:
         """Detect red circles in the frame (new markings only if first_frame provided)."""
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
@@ -991,9 +1042,21 @@ class LocatePointInOverlappingAreaEvaluator(BaseEvaluator):
     - Marking accuracy (15%): No false positives (precision)
     """
 
-    TASK_WEIGHTS = {"overlap_identification": 0.30, "point_containment": 0.35, "marking_completeness": 0.20, "marking_accuracy": 0.15}
+    TASK_WEIGHTS = {
+        "overlap_identification": 0.30,
+        "point_containment": 0.35,
+        "marking_completeness": 0.20,
+        "marking_accuracy": 0.15,
+    }
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         if len(video_frames) < 2:
             return 0.0
 
@@ -1018,7 +1081,9 @@ class LocatePointInOverlappingAreaEvaluator(BaseEvaluator):
 
         # 3. Marking completeness (20%) - compare with GT marking count
         gt_marked_circles = self._detect_circles(gt_final_frame) if gt_final_frame is not None else []
-        scores["marking_completeness"] = self._evaluate_completeness(marked_circles, overlap_region, all_points, gt_marked_circles)
+        scores["marking_completeness"] = self._evaluate_completeness(
+            marked_circles, overlap_region, all_points, gt_marked_circles
+        )
 
         # 4. Marking accuracy (15%)
         scores["marking_accuracy"] = self._evaluate_marking_accuracy(marked_circles, overlap_region)
@@ -1026,7 +1091,7 @@ class LocatePointInOverlappingAreaEvaluator(BaseEvaluator):
         self._last_task_details = scores
         return sum(scores[k] * self.TASK_WEIGHTS[k] for k in self.TASK_WEIGHTS)
 
-    def _evaluate_overlap_understanding(self, overlap_region: Optional[np.ndarray]) -> float:
+    def _evaluate_overlap_understanding(self, overlap_region: np.ndarray | None) -> float:
         """Rule-based: Check if overlap region is detected."""
         if overlap_region is None:
             return 0.3
@@ -1040,7 +1105,12 @@ class LocatePointInOverlappingAreaEvaluator(BaseEvaluator):
         else:
             return 0.4
 
-    def _evaluate_point_marking(self, marked_circles: List[Tuple[int, int]], overlap_region: Optional[np.ndarray], all_points: List[Tuple[int, int]]) -> float:
+    def _evaluate_point_marking(
+        self,
+        marked_circles: list[tuple[int, int]],
+        overlap_region: np.ndarray | None,
+        all_points: list[tuple[int, int]],
+    ) -> float:
         """Rule-based: Check if marked points are in overlap region."""
         if len(marked_circles) == 0:
             return 0.0
@@ -1062,7 +1132,13 @@ class LocatePointInOverlappingAreaEvaluator(BaseEvaluator):
 
         return correct_marks / len(marked_circles)
 
-    def _evaluate_completeness(self, marked_circles: List[Tuple[int, int]], overlap_region: Optional[np.ndarray], all_points: List[Tuple[int, int]], gt_marked_circles: List[Tuple[int, int]] = None) -> float:
+    def _evaluate_completeness(
+        self,
+        marked_circles: list[tuple[int, int]],
+        overlap_region: np.ndarray | None,
+        all_points: list[tuple[int, int]],
+        gt_marked_circles: list[tuple[int, int]] = None,
+    ) -> float:
         """Rule-based: Check marking completeness compared to GT."""
         if len(marked_circles) == 0:
             return 0.0
@@ -1119,7 +1195,9 @@ class LocatePointInOverlappingAreaEvaluator(BaseEvaluator):
             return 0.7
         return 0.3
 
-    def _evaluate_marking_accuracy(self, marked_circles: List[Tuple[int, int]], overlap_region: Optional[np.ndarray]) -> float:
+    def _evaluate_marking_accuracy(
+        self, marked_circles: list[tuple[int, int]], overlap_region: np.ndarray | None
+    ) -> float:
         """Rule-based: Check for false positives (precision)."""
         if len(marked_circles) == 0:
             return 0.0
@@ -1138,7 +1216,7 @@ class LocatePointInOverlappingAreaEvaluator(BaseEvaluator):
 
         return true_positives / len(marked_circles)
 
-    def _detect_overlap_region(self, frame: np.ndarray) -> Optional[np.ndarray]:
+    def _detect_overlap_region(self, frame: np.ndarray) -> np.ndarray | None:
         """Detect overlapping region of two shapes."""
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
@@ -1186,7 +1264,7 @@ class LocatePointInOverlappingAreaEvaluator(BaseEvaluator):
 
         return None
 
-    def _detect_points(self, frame: np.ndarray) -> List[Tuple[int, int]]:
+    def _detect_points(self, frame: np.ndarray) -> list[tuple[int, int]]:
         """Detect small point/dot markers in frame."""
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         _, binary = cv2.threshold(gray, 50, 255, cv2.THRESH_BINARY_INV)
@@ -1205,7 +1283,7 @@ class LocatePointInOverlappingAreaEvaluator(BaseEvaluator):
 
         return points
 
-    def _detect_circles(self, frame: np.ndarray) -> List[Tuple[int, int]]:
+    def _detect_circles(self, frame: np.ndarray) -> list[tuple[int, int]]:
         """Detect marking circles in the frame."""
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
@@ -1242,9 +1320,21 @@ class LocateTopmostFigureEvaluator(BaseEvaluator):
     - Visual clarity (10%): Clear visible outline
     """
 
-    TASK_WEIGHTS = {"z_order_identification": 0.45, "outline_accuracy": 0.30, "marking_uniqueness": 0.15, "visual_clarity": 0.10}
+    TASK_WEIGHTS = {
+        "z_order_identification": 0.45,
+        "outline_accuracy": 0.30,
+        "marking_uniqueness": 0.15,
+        "visual_clarity": 0.10,
+    }
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         if len(video_frames) < 2:
             return 0.0
 
@@ -1342,7 +1432,7 @@ class LocateTopmostFigureEvaluator(BaseEvaluator):
             return 0.5
         return perimeter / 100
 
-    def _find_topmost_shape_center(self, frame: np.ndarray) -> Optional[Tuple[int, int]]:
+    def _find_topmost_shape_center(self, frame: np.ndarray) -> tuple[int, int] | None:
         """Find the center of the topmost (least occluded) shape."""
         # Convert to grayscale and find shapes
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
@@ -1365,7 +1455,7 @@ class LocateTopmostFigureEvaluator(BaseEvaluator):
             return (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
         return None
 
-    def _detect_outline(self, frame: np.ndarray) -> Optional[np.ndarray]:
+    def _detect_outline(self, frame: np.ndarray) -> np.ndarray | None:
         """Detect the main red outline in the frame."""
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
@@ -1382,7 +1472,7 @@ class LocateTopmostFigureEvaluator(BaseEvaluator):
             return max(contours, key=cv2.contourArea)
         return None
 
-    def _detect_all_outlines(self, frame: np.ndarray) -> List[np.ndarray]:
+    def _detect_all_outlines(self, frame: np.ndarray) -> list[np.ndarray]:
         """Detect all red outlines in the frame."""
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
@@ -1397,7 +1487,7 @@ class LocateTopmostFigureEvaluator(BaseEvaluator):
 
         return [c for c in contours if cv2.contourArea(c) > 100]
 
-    def _get_contour_center(self, contour: np.ndarray) -> Optional[Tuple[int, int]]:
+    def _get_contour_center(self, contour: np.ndarray) -> tuple[int, int] | None:
         """Get center of a contour."""
         M = cv2.moments(contour)
         if M["m00"] > 0:
@@ -1416,9 +1506,21 @@ class IdentifyUniqueFigureEvaluator(BaseEvaluator):
     - Scene preservation (10%): Original shapes unchanged
     """
 
-    TASK_WEIGHTS = {"shape_recognition": 0.40, "marking_precision": 0.35, "marking_quality": 0.15, "scene_preservation": 0.10}
+    TASK_WEIGHTS = {
+        "shape_recognition": 0.40,
+        "marking_precision": 0.35,
+        "marking_quality": 0.15,
+        "scene_preservation": 0.10,
+    }
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         if len(video_frames) < 2:
             return 0.0
 
@@ -1541,7 +1643,7 @@ class IdentifyUniqueFigureEvaluator(BaseEvaluator):
         else:
             return 0.4
 
-    def _find_unique_shape(self, frame: np.ndarray) -> Optional[Tuple[int, int]]:
+    def _find_unique_shape(self, frame: np.ndarray) -> tuple[int, int] | None:
         """Find the unique shape that differs from others."""
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         _, binary = cv2.threshold(gray, 200, 255, cv2.THRESH_BINARY_INV)
@@ -1617,7 +1719,7 @@ class IdentifyUniqueFigureEvaluator(BaseEvaluator):
 
         return self._count_shapes(frame_no_red)
 
-    def _detect_marking_circle(self, frame: np.ndarray) -> Optional[Tuple[int, int, int]]:
+    def _detect_marking_circle(self, frame: np.ndarray) -> tuple[int, int, int] | None:
         """Detect the marking circle (red)."""
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
@@ -1649,9 +1751,21 @@ class CircleLargestNumericalValueEvaluator(BaseEvaluator):
     - Animation quality (10%): Smooth expansion
     """
 
-    TASK_WEIGHTS = {"numerical_identification": 0.40, "circle_position": 0.30, "circle_style": 0.20, "animation_quality": 0.10}
+    TASK_WEIGHTS = {
+        "numerical_identification": 0.40,
+        "circle_position": 0.30,
+        "circle_style": 0.20,
+        "animation_quality": 0.10,
+    }
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         if len(video_frames) < 2:
             return 0.0
 
@@ -1747,7 +1861,7 @@ class CircleLargestNumericalValueEvaluator(BaseEvaluator):
 
         return 0.5 * size_score + 0.5 * color_score
 
-    def _evaluate_animation_quality(self, video_frames: List[np.ndarray]) -> float:
+    def _evaluate_animation_quality(self, video_frames: list[np.ndarray]) -> float:
         """Rule-based: Evaluate animation smoothness."""
         if len(video_frames) < 5:
             return 0.5
@@ -1767,7 +1881,7 @@ class CircleLargestNumericalValueEvaluator(BaseEvaluator):
 
         return smoothness
 
-    def _detect_number_regions(self, frame: np.ndarray) -> List[Tuple[int, int, int]]:
+    def _detect_number_regions(self, frame: np.ndarray) -> list[tuple[int, int, int]]:
         """Detect text/number regions."""
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         _, binary = cv2.threshold(gray, 100, 255, cv2.THRESH_BINARY_INV)
@@ -1786,7 +1900,7 @@ class CircleLargestNumericalValueEvaluator(BaseEvaluator):
 
         return regions
 
-    def _detect_red_circle(self, frame: np.ndarray) -> Optional[Tuple[int, int, int]]:
+    def _detect_red_circle(self, frame: np.ndarray) -> tuple[int, int, int] | None:
         """Detect red circle in the frame."""
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
@@ -1833,9 +1947,21 @@ class MarkSecondLargestShapeEvaluator(BaseEvaluator):
     - Scene preservation (10%): Original shapes unchanged
     """
 
-    TASK_WEIGHTS = {"size_recognition": 0.40, "marking_precision": 0.35, "marking_quality": 0.15, "scene_preservation": 0.10}
+    TASK_WEIGHTS = {
+        "size_recognition": 0.40,
+        "marking_precision": 0.35,
+        "marking_quality": 0.15,
+        "scene_preservation": 0.10,
+    }
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         if len(video_frames) < 2:
             return 0.0
 
@@ -1847,11 +1973,23 @@ class MarkSecondLargestShapeEvaluator(BaseEvaluator):
         marking_count = self._count_red_markings(final_frame)
         if marking_count == 0:
             # No marking at all - task failed
-            self._last_task_details = {"size_recognition": 0.0, "marking_precision": 0.0, "marking_quality": 0.0, "scene_preservation": 0.0, "error": "no_marking_found"}
+            self._last_task_details = {
+                "size_recognition": 0.0,
+                "marking_precision": 0.0,
+                "marking_quality": 0.0,
+                "scene_preservation": 0.0,
+                "error": "no_marking_found",
+            }
             return 0.0
         elif marking_count > 1:
             # Multiple markings - violation of "only one mark" rule
-            self._last_task_details = {"size_recognition": 0.0, "marking_precision": 0.0, "marking_quality": 0.0, "scene_preservation": 0.0, "error": f"multiple_markings_found: {marking_count}"}
+            self._last_task_details = {
+                "size_recognition": 0.0,
+                "marking_precision": 0.0,
+                "marking_quality": 0.0,
+                "scene_preservation": 0.0,
+                "error": f"multiple_markings_found: {marking_count}",
+            }
             return 0.0
 
         # CRITICAL CHECK: No new objects should be generated
@@ -1860,7 +1998,13 @@ class MarkSecondLargestShapeEvaluator(BaseEvaluator):
 
         if len(final_shapes_no_red) > len(first_shapes):
             # New objects generated - violation
-            self._last_task_details = {"size_recognition": 0.0, "marking_precision": 0.0, "marking_quality": 0.0, "scene_preservation": 0.0, "error": f"new_objects_generated: first={len(first_shapes)}, final={len(final_shapes_no_red)}"}
+            self._last_task_details = {
+                "size_recognition": 0.0,
+                "marking_precision": 0.0,
+                "marking_quality": 0.0,
+                "scene_preservation": 0.0,
+                "error": f"new_objects_generated: first={len(first_shapes)}, final={len(final_shapes_no_red)}",
+            }
             return 0.0
 
         # 1. Size recognition (40%) - CRITICAL: Is the CORRECT shape marked?
@@ -1900,7 +2044,7 @@ class MarkSecondLargestShapeEvaluator(BaseEvaluator):
         # Count significant red contours (filter noise)
         return len([c for c in contours if cv2.contourArea(c) > 100])
 
-    def _detect_shapes_without_red(self, frame: np.ndarray) -> List[Tuple[int, int, int]]:
+    def _detect_shapes_without_red(self, frame: np.ndarray) -> list[tuple[int, int, int]]:
         """Detect shapes excluding red marking."""
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
         lower_red1 = np.array([0, 100, 100])
@@ -1937,7 +2081,9 @@ class MarkSecondLargestShapeEvaluator(BaseEvaluator):
             return 0.0  # STRICT: Can't determine marking position
 
         # Check if marking is on second largest
-        dist = np.sqrt((marking_center[0] - second_largest_center[0]) ** 2 + (marking_center[1] - second_largest_center[1]) ** 2)
+        dist = np.sqrt(
+            (marking_center[0] - second_largest_center[0]) ** 2 + (marking_center[1] - second_largest_center[1]) ** 2
+        )
 
         if dist < 40:
             return 1.0
@@ -1995,7 +2141,7 @@ class MarkSecondLargestShapeEvaluator(BaseEvaluator):
         else:
             return 0.0  # STRICT: Too many shapes changed
 
-    def _detect_shapes_with_area(self, frame: np.ndarray) -> List[Tuple[int, int, int]]:
+    def _detect_shapes_with_area(self, frame: np.ndarray) -> list[tuple[int, int, int]]:
         """Detect shapes with (x, y, area)."""
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         _, binary = cv2.threshold(gray, 200, 255, cv2.THRESH_BINARY_INV)
@@ -2014,7 +2160,7 @@ class MarkSecondLargestShapeEvaluator(BaseEvaluator):
 
         return shapes
 
-    def _detect_red_border(self, frame: np.ndarray) -> Optional[np.ndarray]:
+    def _detect_red_border(self, frame: np.ndarray) -> np.ndarray | None:
         """Detect red border/outline in the frame."""
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
@@ -2031,7 +2177,7 @@ class MarkSecondLargestShapeEvaluator(BaseEvaluator):
             return max(contours, key=cv2.contourArea)
         return None
 
-    def _get_contour_center(self, contour: np.ndarray) -> Optional[Tuple[int, int]]:
+    def _get_contour_center(self, contour: np.ndarray) -> tuple[int, int] | None:
         """Get center of a contour."""
         M = cv2.moments(contour)
         if M["m00"] > 0:
@@ -2050,9 +2196,21 @@ class SelectLongestPolygonSideEvaluator(BaseEvaluator):
     - Visual quality (10%): Circle style
     """
 
-    TASK_WEIGHTS = {"longest_side_identification": 0.50, "marking_position": 0.25, "marking_uniqueness": 0.15, "visual_quality": 0.10}
+    TASK_WEIGHTS = {
+        "longest_side_identification": 0.50,
+        "marking_position": 0.25,
+        "marking_uniqueness": 0.15,
+        "visual_quality": 0.10,
+    }
 
-    def _evaluate_task_specific(self, video_frames: List[np.ndarray], gt_frames: List[np.ndarray], gt_first_frame: Optional[np.ndarray], gt_final_frame: Optional[np.ndarray], eval_info: Dict) -> float:
+    def _evaluate_task_specific(
+        self,
+        video_frames: list[np.ndarray],
+        gt_frames: list[np.ndarray],
+        gt_first_frame: np.ndarray | None,
+        gt_final_frame: np.ndarray | None,
+        eval_info: dict,
+    ) -> float:
         if len(video_frames) < 2:
             return 0.0
 
@@ -2061,7 +2219,9 @@ class SelectLongestPolygonSideEvaluator(BaseEvaluator):
         final_frame = video_frames[-1]
 
         # 1. Longest side identification (50%)
-        scores["longest_side_identification"] = self._evaluate_side_identification(first_frame, final_frame, gt_final_frame)
+        scores["longest_side_identification"] = self._evaluate_side_identification(
+            first_frame, final_frame, gt_final_frame
+        )
 
         # 2. Marking position (25%)
         scores["marking_position"] = self._evaluate_marking_position(final_frame)
@@ -2075,7 +2235,9 @@ class SelectLongestPolygonSideEvaluator(BaseEvaluator):
         self._last_task_details = scores
         return sum(scores[k] * self.TASK_WEIGHTS[k] for k in self.TASK_WEIGHTS)
 
-    def _evaluate_side_identification(self, first_frame: np.ndarray, final_frame: np.ndarray, gt_final_frame: Optional[np.ndarray] = None) -> float:
+    def _evaluate_side_identification(
+        self, first_frame: np.ndarray, final_frame: np.ndarray, gt_final_frame: np.ndarray | None = None
+    ) -> float:
         """Rule-based: Check if the correct side is identified."""
         # Detect marking in final frame
         circle = self._detect_marking_circle(final_frame)
@@ -2156,7 +2318,7 @@ class SelectLongestPolygonSideEvaluator(BaseEvaluator):
         else:
             return 0.5
 
-    def _find_longest_edge_midpoint(self, frame: np.ndarray) -> Optional[Tuple[int, int]]:
+    def _find_longest_edge_midpoint(self, frame: np.ndarray) -> tuple[int, int] | None:
         """Find midpoint of the longest edge in the polygon."""
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         _, binary = cv2.threshold(gray, 200, 255, cv2.THRESH_BINARY_INV)
@@ -2192,7 +2354,7 @@ class SelectLongestPolygonSideEvaluator(BaseEvaluator):
 
         return longest_midpoint
 
-    def _detect_marking_circle(self, frame: np.ndarray) -> Optional[Tuple[int, int, int]]:
+    def _detect_marking_circle(self, frame: np.ndarray) -> tuple[int, int, int] | None:
         """Detect the marking circle (red, orange, or yellow)."""
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
@@ -2216,7 +2378,7 @@ class SelectLongestPolygonSideEvaluator(BaseEvaluator):
 
         return None
 
-    def _detect_all_marking_circles(self, frame: np.ndarray) -> List[Tuple[int, int, int]]:
+    def _detect_all_marking_circles(self, frame: np.ndarray) -> list[tuple[int, int, int]]:
         """Detect all marking circles."""
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 

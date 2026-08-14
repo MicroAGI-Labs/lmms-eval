@@ -36,7 +36,6 @@ import os
 import random
 import re
 from collections import defaultdict
-from typing import Any, Dict, List, Optional
 
 import requests
 from datasets import Dataset
@@ -60,7 +59,7 @@ JUDGE_MODEL = os.getenv("CAPTIONQA_JUDGE_MODEL", "Qwen/Qwen2.5-72B-Instruct")
 QA_SYSTEM_PROMPT = "You are given a caption describing an image, and a question about the image. Answer with a SINGLE LETTER (A, B, C, ...), no explanation."
 
 
-def _is_yesno_question(question_text: str, choices: List[str]) -> bool:
+def _is_yesno_question(question_text: str, choices: list[str]) -> bool:
     """Check if question is a yes/no question."""
     choice_texts = [str(c).strip().lower() for c in choices]
     has_yes = any("yes" in choice for choice in choice_texts)
@@ -68,11 +67,31 @@ def _is_yesno_question(question_text: str, choices: List[str]) -> bool:
     if has_yes and has_no:
         return True
     question_lower = question_text.strip().lower()
-    yesno_starters = ["is ", "are ", "was ", "were ", "do ", "does ", "did ", "have ", "has ", "had ", "can ", "could ", "will ", "would ", "should ", "shall ", "may ", "might ", "must "]
+    yesno_starters = [
+        "is ",
+        "are ",
+        "was ",
+        "were ",
+        "do ",
+        "does ",
+        "did ",
+        "have ",
+        "has ",
+        "had ",
+        "can ",
+        "could ",
+        "will ",
+        "would ",
+        "should ",
+        "shall ",
+        "may ",
+        "might ",
+        "must ",
+    ]
     return any(question_lower.startswith(s) for s in yesno_starters)
 
 
-def _compute_all_shuffle_permutations() -> Dict[tuple, List[int]]:
+def _compute_all_shuffle_permutations() -> dict[tuple, list[int]]:
     """
     Compute all shuffle permutations matching the original CaptionQA implementation.
 
@@ -89,7 +108,7 @@ def _compute_all_shuffle_permutations() -> Dict[tuple, List[int]]:
 
     # Use the exact same RNG setup as the original
     rng = random.Random(SHUFFLE_SEED)
-    shuffle_cache: Dict[tuple, List[int]] = {}
+    shuffle_cache: dict[tuple, list[int]] = {}
 
     for entry in all_dataset:
         image_id = str(entry.get("id", "unknown"))
@@ -101,7 +120,14 @@ def _compute_all_shuffle_permutations() -> Dict[tuple, List[int]]:
                 cat = entry.get("category", [])
                 if isinstance(cat, list):
                     cat = cat[0] if cat else ""
-                questions = [{"question": entry["question"], "choices": entry.get("choices", []), "answer": entry.get("answer"), "category": cat}]
+                questions = [
+                    {
+                        "question": entry["question"],
+                        "choices": entry.get("choices", []),
+                        "answer": entry.get("answer"),
+                        "category": cat,
+                    }
+                ]
 
         for q_idx, q in enumerate(questions):
             question_text = q.get("question", "")
@@ -188,7 +214,7 @@ def captionqa_process_docs(dataset: Dataset) -> Dataset:
     return dataset
 
 
-def get_shuffle_permutation(doc: Dict, q_idx: int, n_choices: int) -> List[int]:
+def get_shuffle_permutation(doc: dict, q_idx: int, n_choices: int) -> list[int]:
     """
     Get the shuffle permutation for a question.
 
@@ -256,7 +282,7 @@ def captionqa_doc_to_text(doc, lmms_eval_specific_kwargs=None):
 # ---------- Helper Functions ----------
 
 
-def extract_letter(answer_text: str, num_options: int) -> Optional[str]:
+def extract_letter(answer_text: str, num_options: int) -> str | None:
     """Extract answer letter from model output."""
     if not answer_text:
         return None
@@ -288,7 +314,7 @@ def extract_letter(answer_text: str, num_options: int) -> Optional[str]:
     return None
 
 
-def normalize_gt_letter(choices: List[str], answer: str) -> Optional[str]:
+def normalize_gt_letter(choices: list[str], answer: str) -> str | None:
     """Extract ground truth answer letter from question."""
     if not choices or not isinstance(answer, str):
         return None
@@ -300,14 +326,14 @@ def normalize_gt_letter(choices: List[str], answer: str) -> Optional[str]:
     return None
 
 
-def add_cannot_answer_option(question_text: str, choices: List[str]) -> List[str]:
+def add_cannot_answer_option(question_text: str, choices: list[str]) -> list[str]:
     """Add 'cannot answer from the caption' option to non-yes/no questions."""
     if _is_yesno_question(question_text, choices):
         return choices
     return choices + [CANNOT_ANSWER_TEXT]
 
 
-def build_caption_qa_prompt(caption: str, question: str, choices: List[str]) -> str:
+def build_caption_qa_prompt(caption: str, question: str, choices: list[str]) -> str:
     """Build prompt for QA with caption."""
     lines = [f"{LETTER_ALPH[i]}. {choice}" for i, choice in enumerate(choices)]
 
@@ -344,7 +370,16 @@ def call_llm_judge(prompt: str) -> str:
         api_url = f"{base_url}/v1/chat/completions"
 
     try:
-        resp = requests.post(api_url, json={"model": JUDGE_MODEL, "messages": [{"role": "system", "content": QA_SYSTEM_PROMPT}, {"role": "user", "content": prompt}], "temperature": 0.0, "max_tokens": 4}, timeout=60)
+        resp = requests.post(
+            api_url,
+            json={
+                "model": JUDGE_MODEL,
+                "messages": [{"role": "system", "content": QA_SYSTEM_PROMPT}, {"role": "user", "content": prompt}],
+                "temperature": 0.0,
+                "max_tokens": 4,
+            },
+            timeout=60,
+        )
         resp.raise_for_status()
         return resp.json()["choices"][0]["message"]["content"]
     except Exception as e:
@@ -379,7 +414,14 @@ def captionqa_process_results(doc, results):
             cat = doc.get("category", [])
             if isinstance(cat, list):
                 cat = cat[0] if cat else ""
-            questions = [{"question": doc["question"], "choices": doc.get("choices", []), "answer": doc.get("answer"), "category": cat}]
+            questions = [
+                {
+                    "question": doc["question"],
+                    "choices": doc.get("choices", []),
+                    "answer": doc.get("answer"),
+                    "category": cat,
+                }
+            ]
 
     question_results = []
 

@@ -1,15 +1,8 @@
-from typing import List, Optional, Tuple, Union
 
 import librosa
 import numpy as np
 import torch
 from accelerate import Accelerator, DistributedType
-from loguru import logger as eval_logger
-from moviepy import VideoFileClip
-from PIL import Image
-from tqdm import tqdm
-from transformers import Qwen2_5OmniForConditionalGeneration, Qwen2_5OmniProcessor
-
 from lmms_eval import utils
 from lmms_eval.api.instance import Instance
 from lmms_eval.api.model import lmms
@@ -17,6 +10,11 @@ from lmms_eval.api.registry import register_model
 from lmms_eval.models.model_utils.audio_processing import split_audio
 from lmms_eval.models.model_utils.load_video import read_video
 from lmms_eval.models.model_utils.media_encoder import encode_image_to_base64
+from loguru import logger as eval_logger
+from moviepy import VideoFileClip
+from PIL import Image
+from tqdm import tqdm
+from transformers import Qwen2_5OmniForConditionalGeneration, Qwen2_5OmniProcessor
 
 try:
     from qwen_omni_utils import process_mm_info
@@ -37,15 +35,15 @@ class Qwen2_5_Omni(lmms):
     def __init__(
         self,
         pretrained: str = "Qwen/Qwen2.5-Omni-7B",
-        device: Optional[str] = "cuda",
-        device_map: Optional[str] = "auto",
-        batch_size: Optional[Union[int, str]] = 1,
+        device: str | None = "cuda",
+        device_map: str | None = "auto",
+        batch_size: int | str | None = 1,
         use_cache=True,
-        attn_implementation: Optional[bool] = "eager",
+        attn_implementation: bool | None = "eager",
         max_num_frames: int = 768,
-        use_custom_video_loader: Optional[bool] = False,
-        fps: Optional[float] = None,  # Only applicable if use_custom_video_loader is True
-        max_image_size: Optional[int] = None,  # Only applicable if use_custom_video_loader is True
+        use_custom_video_loader: bool | None = False,
+        fps: float | None = None,  # Only applicable if use_custom_video_loader is True
+        max_image_size: int | None = None,  # Only applicable if use_custom_video_loader is True
         system_prompt: str = "You are Qwen, a virtual human developed by the Qwen Team, Alibaba Group, capable of perceiving auditory and visual inputs, as well as generating text and speech.",
         **kwargs,
     ) -> None:
@@ -72,8 +70,12 @@ class Qwen2_5_Omni(lmms):
             self._device = torch.device(f"cuda:{accelerator.local_process_index}")
             self.device_map = f"cuda:{accelerator.local_process_index}"
 
-        Qwen2_5OmniForConditionalGeneration._tp_plan = [] if Qwen2_5OmniForConditionalGeneration._tp_plan is None else Qwen2_5OmniForConditionalGeneration._tp_plan
-        self._model = Qwen2_5OmniForConditionalGeneration.from_pretrained(pretrained, torch_dtype="auto", device_map=self.device_map, attn_implementation=attn_implementation).eval()
+        Qwen2_5OmniForConditionalGeneration._tp_plan = (
+            [] if Qwen2_5OmniForConditionalGeneration._tp_plan is None else Qwen2_5OmniForConditionalGeneration._tp_plan
+        )
+        self._model = Qwen2_5OmniForConditionalGeneration.from_pretrained(
+            pretrained, torch_dtype="auto", device_map=self.device_map, attn_implementation=attn_implementation
+        ).eval()
         self.processor = Qwen2_5OmniProcessor.from_pretrained("Qwen/Qwen2.5-Omni-7B")
         self.max_num_frames = max_num_frames
         self._tokenizer = self.processor.tokenizer
@@ -143,7 +145,7 @@ class Qwen2_5_Omni(lmms):
     def world_size(self):
         return self._world_size
 
-    def loglikelihood(self, requests: List[Instance]) -> List[Tuple[float, bool]]:
+    def loglikelihood(self, requests: list[Instance]) -> list[tuple[float, bool]]:
         raise NotImplementedError("Loglikelihood is not implemented for Qwen2.5_Omni")
 
     def flatten(self, input):
@@ -166,7 +168,7 @@ class Qwen2_5_Omni(lmms):
         clip = VideoFileClip(video_path)
         return clip.audio is not None
 
-    def generate_until(self, requests: List[Instance]) -> List[str]:
+    def generate_until(self, requests: list[Instance]) -> list[str]:
         res = []
         current_use_audio = False  # Flag to check whether we are using video or not
 
@@ -204,7 +206,9 @@ class Qwen2_5_Omni(lmms):
                 if isinstance(until, str):
                     until = [until]
                 elif not isinstance(until, list):
-                    raise ValueError(f"Expected `gen_kwargs['until']` to be of type Union[str,list] but got {type(until)}")
+                    raise ValueError(
+                        f"Expected `gen_kwargs['until']` to be of type Union[str,list] but got {type(until)}"
+                    )
 
             # For better performance, please visit the Qwen-Omni repo to get the latest system prompt based on tasks.
             # https://github.com/QwenLM/Qwen2.5-Omni/tree/main/cookbooks
@@ -221,14 +225,34 @@ class Qwen2_5_Omni(lmms):
                                 img = Image.fromarray(frame)
                                 b64 = encode_image_to_base64(img, image_format="JPEG", convert_rgb=True, quality=85)
                                 image_contents.append(f"data:image/jpeg;base64,{b64}")
-                            message.append({"role": "user", "content": [{"type": "video", "video": image_contents}, {"type": "text", "text": context}]})
+                            message.append(
+                                {
+                                    "role": "user",
+                                    "content": [
+                                        {"type": "video", "video": image_contents},
+                                        {"type": "text", "text": context},
+                                    ],
+                                }
+                            )
                         else:  # Model video loader
-                            message.append({"role": "user", "content": [{"type": "video", "video": visual}, {"type": "text", "text": context}]})
+                            message.append(
+                                {
+                                    "role": "user",
+                                    "content": [{"type": "video", "video": visual}, {"type": "text", "text": context}],
+                                }
+                            )
 
                     elif isinstance(visual, Image.Image):  # Single image
-                        message.append({"role": "user", "content": [{"type": "image", "image": visual}, {"type": "text", "text": context}]})
+                        message.append(
+                            {
+                                "role": "user",
+                                "content": [{"type": "image", "image": visual}, {"type": "text", "text": context}],
+                            }
+                        )
 
-                    elif isinstance(visual, (list, tuple)) and all(isinstance(v, Image.Image) for v in visual):  # Multiple images
+                    elif isinstance(visual, (list, tuple)) and all(
+                        isinstance(v, Image.Image) for v in visual
+                    ):  # Multiple images
                         single_message = {"role": "user", "content": []}
                         for v in visual:
                             single_message["content"].append({"type": "image", "image": v})
@@ -246,7 +270,9 @@ class Qwen2_5_Omni(lmms):
                         single_message["content"].append({"type": "text", "text": context})
                         message.append(single_message)
 
-                    elif isinstance(visual, (list, tuple)) and all(isinstance(v, dict) for v in visual):  # Multiple audios
+                    elif isinstance(visual, (list, tuple)) and all(
+                        isinstance(v, dict) for v in visual
+                    ):  # Multiple audios
                         current_use_audio = True
                         for i, v in enumerate(visual):
                             audio = self.resample_audio(v["array"], v["sampling_rate"])
@@ -262,7 +288,15 @@ class Qwen2_5_Omni(lmms):
 
             text = self.processor.apply_chat_template(message, add_generation_prompt=True, tokenize=False)
             audios, images, videos = process_mm_info(message, use_audio_in_video=current_use_audio)
-            inputs = self.processor(text=text, audio=audios, images=images, videos=videos, return_tensors="pt", padding=True, use_audio_in_video=current_use_audio)
+            inputs = self.processor(
+                text=text,
+                audio=audios,
+                images=images,
+                videos=videos,
+                return_tensors="pt",
+                padding=True,
+                use_audio_in_video=current_use_audio,
+            )
 
             if self.device_map == "auto":
                 inputs = inputs.to("cuda").to(self.model.dtype)
@@ -304,7 +338,9 @@ class Qwen2_5_Omni(lmms):
                 continue
 
             generated_ids_trimmed = [out_ids[len(in_ids) :] for in_ids, out_ids in zip(inputs.input_ids, cont)]
-            answers = self.processor.batch_decode(generated_ids_trimmed, skip_special_tokens=True, clean_up_tokenization_spaces=False)
+            answers = self.processor.batch_decode(
+                generated_ids_trimmed, skip_special_tokens=True, clean_up_tokenization_spaces=False
+            )
             for i, ans in enumerate(answers):
                 answers[i] = ans
             content = []
@@ -318,5 +354,5 @@ class Qwen2_5_Omni(lmms):
         pbar.close()
         return res
 
-    def generate_until_multi_round(self, requests) -> List[str]:
+    def generate_until_multi_round(self, requests) -> list[str]:
         raise NotImplementedError("TODO: Implement multi-round generation")

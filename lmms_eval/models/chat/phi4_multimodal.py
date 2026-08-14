@@ -1,17 +1,15 @@
 import time
-from typing import List
 
 import numpy as np
-from loguru import logger as eval_logger
-from PIL import Image
-from tqdm import tqdm
-
 from lmms_eval import utils
 from lmms_eval.api.instance import GenerationResult, Instance, TokenCounts
 from lmms_eval.api.registry import register_model
 from lmms_eval.models.model_utils.gen_metrics import log_metrics
 from lmms_eval.models.simple.phi4_multimodal import Phi4 as Phi4Simple
 from lmms_eval.protocol import ChatMessages
+from loguru import logger as eval_logger
+from PIL import Image
+from tqdm import tqdm
 
 
 @register_model("phi4_multimodal")
@@ -28,7 +26,7 @@ class Phi4(Phi4Simple):
         else:
             return f"<|{role}|>"
 
-    def generate_until(self, requests: List[Instance]) -> List[GenerationResult]:
+    def generate_until(self, requests: list[Instance]) -> list[GenerationResult]:
         res = []
 
         def _collate(x):
@@ -36,7 +34,11 @@ class Phi4(Phi4Simple):
 
         re_ords = utils.Collator([reg.args for reg in requests], _collate, group_fn=lambda x: x[2], grouping=True)
         chunks = re_ords.get_batched(n=self.batch_size, batch_fn=None)
-        num_iters = len(requests) // self.batch_size if len(requests) % self.batch_size == 0 else len(requests) // self.batch_size + 1
+        num_iters = (
+            len(requests) // self.batch_size
+            if len(requests) % self.batch_size == 0
+            else len(requests) // self.batch_size + 1
+        )
         pbar = tqdm(total=num_iters, disable=(self.rank != 0), desc="Model Responding")
         total_elapsed_time = 0
         total_tokens = 0
@@ -45,7 +47,7 @@ class Phi4(Phi4Simple):
             task = task[0]
             split = split[0]
             chat_messages = [doc_to_messages[0](self.task_dict[task][split][ids]) for ids in doc_id]
-            chat_messages: List[ChatMessages] = [ChatMessages(**{"messages": message}) for message in chat_messages]
+            chat_messages: list[ChatMessages] = [ChatMessages(**{"messages": message}) for message in chat_messages]
             visuals = []
             videos = []
             audios = []
@@ -90,7 +92,9 @@ class Phi4(Phi4Simple):
                     text, images, processed_audios = self.default_process(visuals + videos + audios, [""])
                     text = prompt_text
 
-                    inputs = self._processor(text=text, images=images, audios=processed_audios, return_tensors="pt").to(self.device)
+                    inputs = self._processor(text=text, images=images, audios=processed_audios, return_tensors="pt").to(
+                        self.device
+                    )
 
                     if self.accelerator.is_main_process:
                         eval_logger.debug(f"Prompt for doc ID {doc_id[0]}:\n\n{text}\n")

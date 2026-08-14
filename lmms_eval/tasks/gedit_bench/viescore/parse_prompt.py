@@ -8,8 +8,10 @@ def create_python_file_with_texts(folder_path, output_file):
             for file in files:
                 if file.endswith(".txt"):
                     file_path = os.path.join(root, file)
-                    var_name = "_" + file_path.replace(folder_path, "").replace(os.sep, "_").replace(".txt", "").strip("_")
-                    with open(file_path, "r", encoding="utf-8") as f:
+                    var_name = "_" + file_path.replace(folder_path, "").replace(os.sep, "_").replace(".txt", "").strip(
+                        "_"
+                    )
+                    with open(file_path, encoding="utf-8") as f:
                         content = f.read().replace('"""', '"""')
                         out_file.write(f'{var_name} = """{content}"""\n\n')
 

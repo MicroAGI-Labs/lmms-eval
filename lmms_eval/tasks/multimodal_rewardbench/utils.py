@@ -56,7 +56,9 @@ def multimodal_rewardbench_process_results(doc, results):
     acc = int(pred_ans == gt_ans)
 
     category = doc["Category"]
-    key_name = "multimodal_rewardbench_accuracy"  # TODO: add category keys. currently reporting only the overall accuracy
+    key_name = (
+        "multimodal_rewardbench_accuracy"  # TODO: add category keys. currently reporting only the overall accuracy
+    )
 
     # Note: the key name here is very important. It decides which aggregation function will receive the results
     # We note down the question id/category to help us aggregate the results later
@@ -92,7 +94,7 @@ def multimodal_rewardbench_aggregate_results(results):
         accs[category].append(score)
 
     for task in accs:
-        eval_logger.info(f"{task}: {sum(accs[task])} / {len(accs[task])} = {(sum(accs[task])/len(accs[task])):.2f}")
+        eval_logger.info(f"{task}: {sum(accs[task])} / {len(accs[task])} = {(sum(accs[task]) / len(accs[task])):.2f}")
 
     total_score = sum(accs["all"]) / len(accs["all"])  # TODO: micro or macro-avg? currently: micro-avg.
     return total_score

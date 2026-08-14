@@ -1,13 +1,8 @@
 from datetime import timedelta
-from typing import List, Optional, Tuple, Union
 
 import torch
 from accelerate import Accelerator, DistributedType, InitProcessGroupKwargs
 from accelerate.state import AcceleratorState
-from loguru import logger
-from tqdm import tqdm
-from transformers import AutoTokenizer
-
 from lmms_eval.api.instance import Instance
 from lmms_eval.api.model import lmms
 from lmms_eval.api.registry import register_model
@@ -18,6 +13,9 @@ from lmms_eval.models.mplug_owl_video.processing_mplug_owl import (
     MplugOwlImageProcessor,
     MplugOwlProcessor,
 )
+from loguru import logger
+from tqdm import tqdm
+from transformers import AutoTokenizer
 
 eval_logger = logger
 
@@ -27,11 +25,11 @@ class mplug_Owl(lmms):
     def __init__(
         self,
         pretrained: str = "MAGAer13/mplug-owl-llama-7b-video",
-        device: Optional[str] = "cuda:0",
-        dtype: Optional[Union[str, torch.dtype]] = "auto",
-        batch_size: Optional[Union[int, str]] = 1,
+        device: str | None = "cuda:0",
+        dtype: str | torch.dtype | None = "auto",
+        batch_size: int | str | None = 1,
         device_map="cuda:0",
-        num_frames: Union[str, int] = 4,
+        num_frames: str | int = 4,
         **kwargs,
     ) -> None:
         """
@@ -77,7 +75,11 @@ class mplug_Owl(lmms):
         self.model.to(self.device)
 
         if accelerator.num_processes > 1:
-            assert accelerator.distributed_type in [DistributedType.FSDP, DistributedType.MULTI_GPU, DistributedType.DEEPSPEED], "Unsupported distributed type provided. Only DDP and FSDP are supported."
+            assert accelerator.distributed_type in [
+                DistributedType.FSDP,
+                DistributedType.MULTI_GPU,
+                DistributedType.DEEPSPEED,
+            ], "Unsupported distributed type provided. Only DDP and FSDP are supported."
             # If you want to use DistributedType.DEEPSPEED, you have to run accelerate config before using the model
             # Also, you have to select zero stage 0 (equivalent to DDP) in order to make the prepare model works
             # I tried to set different parameters in the kwargs to let default zero 2 stage works, but it didn't work.
@@ -87,8 +89,13 @@ class mplug_Owl(lmms):
                     "train_batch_size": self.batch_size_per_gpu * accelerator.num_processes,
                 }
                 AcceleratorState().deepspeed_plugin.deepspeed_config_process(must_match=True, **kwargs)
-                eval_logger.info("Detected that you are using DistributedType.DEEPSPEED. Make sure you run `accelerate config` and set zero stage to 0")
-            if accelerator.distributed_type == DistributedType.FSDP or accelerator.distributed_type == DistributedType.DEEPSPEED:
+                eval_logger.info(
+                    "Detected that you are using DistributedType.DEEPSPEED. Make sure you run `accelerate config` and set zero stage to 0"
+                )
+            if (
+                accelerator.distributed_type == DistributedType.FSDP
+                or accelerator.distributed_type == DistributedType.DEEPSPEED
+            ):
                 self._model = accelerator.prepare(self.model)
             else:
                 self._model = accelerator.prepare_model(self.model, evaluation_mode=True)
@@ -156,7 +163,7 @@ class mplug_Owl(lmms):
         prompts = [f" <|video|> Question : {question} Answer : "]
         return prompts
 
-    def generate_until(self, requests) -> List[str]:
+    def generate_until(self, requests) -> list[str]:
         res = []
         pbar = tqdm(total=len(requests), disable=(self.rank != 0), desc="Model Responding")
 
@@ -164,10 +171,20 @@ class mplug_Owl(lmms):
             # encode, pad, and truncate contexts for this batch
             visuals = [doc_to_visual(self.task_dict[task][split][doc_id])]
             visuals = self.flatten(visuals)
-            inputs = self.processor(text=self.format_prompt(contexts), videos=visuals, num_frames=self.num_frames, return_tensors="pt")
+            inputs = self.processor(
+                text=self.format_prompt(contexts), videos=visuals, num_frames=self.num_frames, return_tensors="pt"
+            )
             pixel_values_videos = inputs["video_pixel_values"]
             if pixel_values_videos.shape[2] != self.num_frames:
-                empty_frames = torch.zeros((1, pixel_values_videos.shape[1], self.num_frames - pixel_values_videos.shape[2], *pixel_values_videos.shape[3:]), dtype=pixel_values_videos.dtype)
+                empty_frames = torch.zeros(
+                    (
+                        1,
+                        pixel_values_videos.shape[1],
+                        self.num_frames - pixel_values_videos.shape[2],
+                        *pixel_values_videos.shape[3:],
+                    ),
+                    dtype=pixel_values_videos.dtype,
+                )
                 pixel_values_videos = torch.cat([pixel_values_videos, empty_frames], dim=2)
                 inputs["video_pixel_values"] = pixel_values_videos
             inputs = {k: v.bfloat16() if v.dtype == torch.float else v for k, v in inputs.items()}
@@ -182,7 +199,11 @@ class mplug_Owl(lmms):
             if "top_k" not in gen_kwargs:
                 gen_kwargs["top_k"] = 1
 
-            generate_kwargs = {"do_sample": gen_kwargs["do_sample"], "top_k": gen_kwargs["top_k"], "max_length": gen_kwargs["max_length"]}
+            generate_kwargs = {
+                "do_sample": gen_kwargs["do_sample"],
+                "top_k": gen_kwargs["top_k"],
+                "max_length": gen_kwargs["max_length"],
+            }
 
             with torch.no_grad():
                 outputs = self.model.generate(**inputs, **generate_kwargs)
@@ -192,8 +213,8 @@ class mplug_Owl(lmms):
         pbar.close()
         return res
 
-    def loglikelihood(self, requests: List[Instance]) -> List[Tuple[float, bool]]:
+    def loglikelihood(self, requests: list[Instance]) -> list[tuple[float, bool]]:
         return super().loglikelihood(requests)
 
-    def generate_until_multi_round(self, requests) -> List[str]:
+    def generate_until_multi_round(self, requests) -> list[str]:
         raise NotImplementedError("TODO: Implement multi-round generation")

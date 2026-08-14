@@ -1,6 +1,5 @@
 import os
 import re
-import time
 from pathlib import Path
 
 import numpy as np
@@ -78,7 +77,9 @@ def song_describer_doc_to_audio(doc):
         # Get sampling rate (song-describer is 16kHz)
         sampling_rate = getattr(audio_file, "_desired_sample_rate", 16000)
 
-        eval_logger.debug(f"Audio array shape: {audio_array.shape}, dtype: {audio_array.dtype}, sampling_rate: {sampling_rate}")
+        eval_logger.debug(
+            f"Audio array shape: {audio_array.shape}, dtype: {audio_array.dtype}, sampling_rate: {sampling_rate}"
+        )
 
         return [{"array": audio_array, "sampling_rate": sampling_rate}]
 
@@ -100,7 +101,7 @@ def song_describer_doc_to_text(doc, lmms_eval_specific_kwargs):
 
 
 # Load config for evaluation
-with open(Path(__file__).parent / "song_describer_validation.yaml", "r") as f:
+with open(Path(__file__).parent / "song_describer_validation.yaml") as f:
     raw_data = f.readlines()
     safe_data = []
     for i, line in enumerate(raw_data):
@@ -126,7 +127,9 @@ def get_eval_model():
     if _eval_model is None:
         eval_logger.info(f"Loading evaluation model: {EVAL_MODEL_NAME}")
         _eval_tokenizer = AutoTokenizer.from_pretrained(EVAL_MODEL_NAME, trust_remote_code=True)
-        _eval_model = AutoModelForCausalLM.from_pretrained(EVAL_MODEL_NAME, torch_dtype=torch.bfloat16, device_map="auto", trust_remote_code=True).eval()
+        _eval_model = AutoModelForCausalLM.from_pretrained(
+            EVAL_MODEL_NAME, torch_dtype=torch.bfloat16, device_map="auto", trust_remote_code=True
+        ).eval()
         eval_logger.info("Evaluation model loaded successfully")
 
     return _eval_model, _eval_tokenizer
@@ -167,7 +170,10 @@ def get_eval(max_tokens: int, content: str):
     model, tokenizer = get_eval_model()
 
     messages = [
-        {"role": "system", "content": "You are a professional music critic and evaluator. Provide objective and detailed assessments."},
+        {
+            "role": "system",
+            "content": "You are a professional music critic and evaluator. Provide objective and detailed assessments.",
+        },
         {"role": "user", "content": content},
     ]
 
@@ -188,7 +194,9 @@ def get_eval(max_tokens: int, content: str):
             )
 
         # Decode only the generated part (excluding input)
-        generated_ids = [output_ids[len(input_ids) :] for input_ids, output_ids in zip(model_inputs.input_ids, generated_ids)]
+        generated_ids = [
+            output_ids[len(input_ids) :] for input_ids, output_ids in zip(model_inputs.input_ids, generated_ids)
+        ]
 
         response = tokenizer.batch_decode(generated_ids, skip_special_tokens=True)[0].strip()
 

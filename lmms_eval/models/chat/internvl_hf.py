@@ -1,25 +1,23 @@
 import time
 import warnings
 from datetime import timedelta
-from typing import List, Optional, Tuple
 
 import torch
 from accelerate import Accelerator, DistributedType
 from accelerate.state import AcceleratorState
 from accelerate.utils import InitProcessGroupKwargs
-from loguru import logger as eval_logger
-from tqdm import tqdm
-from transformers import (
-    AutoProcessor,
-    InternVLForConditionalGeneration,
-)
-
 from lmms_eval import utils
 from lmms_eval.api.instance import GenerationResult, Instance, TokenCounts
 from lmms_eval.api.model import lmms
 from lmms_eval.api.registry import register_model
 from lmms_eval.models.model_utils.gen_metrics import log_metrics
 from lmms_eval.protocol import ChatMessages
+from loguru import logger as eval_logger
+from tqdm import tqdm
+from transformers import (
+    AutoProcessor,
+    InternVLForConditionalGeneration,
+)
 
 warnings.filterwarnings("ignore")
 
@@ -67,10 +65,10 @@ class InternVLHf(lmms):
         min_patches: int = 1,
         max_patches: int = 12,
         num_frames: int = 32,
-        fps: Optional[float] = None,
-        trust_remote_code: Optional[bool] = False,
-        low_cpu_mem_usage: Optional[bool] = False,
-        attn_implementation: Optional[str] = None,
+        fps: float | None = None,
+        trust_remote_code: bool | None = False,
+        low_cpu_mem_usage: bool | None = False,
+        attn_implementation: str | None = None,
         use_cache: bool = True,
         **kwargs,
     ) -> None:
@@ -128,9 +126,14 @@ class InternVLHf(lmms):
                     "train_batch_size": self.batch_size_per_gpu * accelerator.num_processes,
                 }
                 AcceleratorState().deepspeed_plugin.deepspeed_config_process(must_match=True, **kwargs)
-                eval_logger.info("Detected that you are using DistributedType.DEEPSPEED. Make sure you run `accelerate config` and set zero stage to 0")
+                eval_logger.info(
+                    "Detected that you are using DistributedType.DEEPSPEED. Make sure you run `accelerate config` and set zero stage to 0"
+                )
 
-            if accelerator.distributed_type == DistributedType.FSDP or accelerator.distributed_type == DistributedType.DEEPSPEED:
+            if (
+                accelerator.distributed_type == DistributedType.FSDP
+                or accelerator.distributed_type == DistributedType.DEEPSPEED
+            ):
                 self._model = accelerator.prepare(self.model)
             else:
                 self._model = accelerator.prepare_model(self.model, evaluation_mode=True)
@@ -204,7 +207,7 @@ class InternVLHf(lmms):
                 new_list.append(j)
         return new_list
 
-    def generate_until(self, requests: List[Instance]) -> List[GenerationResult]:
+    def generate_until(self, requests: list[Instance]) -> list[GenerationResult]:
         """Generate responses for a list of requests.
 
         Args:
@@ -213,7 +216,7 @@ class InternVLHf(lmms):
         Returns:
             List of generated response strings.
         """
-        res: List[GenerationResult] = []
+        res: list[GenerationResult] = []
 
         # A dummy collate here to sort by doc id
         def _collate(x):
@@ -224,7 +227,11 @@ class InternVLHf(lmms):
         # in the same batch.
         re_ords = utils.Collator([reg.args for reg in requests], _collate, group_fn=lambda x: x[2], grouping=True)
         chunks = re_ords.get_batched(n=self.batch_size, batch_fn=None)
-        num_iters = len(requests) // self.batch_size if len(requests) % self.batch_size == 0 else len(requests) // self.batch_size + 1
+        num_iters = (
+            len(requests) // self.batch_size
+            if len(requests) % self.batch_size == 0
+            else len(requests) // self.batch_size + 1
+        )
         pbar = tqdm(total=num_iters, disable=(self.rank != 0), desc="Model Responding")
         total_elapsed_time = 0
         total_tokens = 0
@@ -233,7 +240,7 @@ class InternVLHf(lmms):
             task = task[0]
             split = split[0]
             chat_messages = [doc_to_messages[0](self.task_dict[task][split][ids]) for ids in doc_id]
-            chat_messages: List[ChatMessages] = [ChatMessages(**{"messages": message}) for message in chat_messages]
+            chat_messages: list[ChatMessages] = [ChatMessages(**{"messages": message}) for message in chat_messages]
             visuals = []
             videos = []
             for messages in chat_messages:
@@ -326,7 +333,11 @@ class InternVLHf(lmms):
                 eval_logger.debug(f"Generated text for doc ID {doc_id[0]}:\n\n{answers}\n")
 
             for i, answer in enumerate(answers):
-                token_counts = TokenCounts(output_tokens=len(generated_ids_trimmed[i])) if generated_ids_trimmed is not None else None
+                token_counts = (
+                    TokenCounts(output_tokens=len(generated_ids_trimmed[i]))
+                    if generated_ids_trimmed is not None
+                    else None
+                )
                 res.append(GenerationResult(text=answer, token_counts=token_counts))
                 self.cache_hook.add_partial("generate_until", (text, gen_kwargs), answer)
             pbar.update(1)
@@ -346,11 +357,11 @@ class InternVLHf(lmms):
         pbar.close()
         return res
 
-    def loglikelihood(self, requests: List[Instance]) -> List[Tuple[float, bool]]:
+    def loglikelihood(self, requests: list[Instance]) -> list[tuple[float, bool]]:
         """Compute log-likelihood for requests. Not implemented for InternVLHf."""
         # TODO: Implement log-likelihood computation for InternVLHf.
         raise NotImplementedError("Loglikelihood is not implemented for InternVLHf.")
 
-    def generate_until_multi_round(self, requests) -> List[str]:
+    def generate_until_multi_round(self, requests) -> list[str]:
         """Generate multi-round responses. Not implemented for InternVLHf."""
         raise NotImplementedError("Multi-round generation is not implemented for InternVLHf.")

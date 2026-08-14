@@ -1,7 +1,5 @@
 import json
 
-from loguru import logger as eval_logger
-
 from lmms_eval.api.metrics import anls
 from lmms_eval.tasks._task_utils.file_utils import generate_submission_file
 from lmms_eval.tasks._task_utils.reasoning_utils import (
@@ -9,6 +7,7 @@ from lmms_eval.tasks._task_utils.reasoning_utils import (
     format_reward,
     make_reasoning_doc_to_messages,
 )
+from loguru import logger as eval_logger
 
 
 def infovqa_doc_to_visual(doc):

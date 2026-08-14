@@ -18,9 +18,11 @@ try:
         user,
     )
 except ImportError:
-    eval_logger.debug("SGLang is not installed. If you want to use llava_sglang, please install it using pip install 'sglang[all]' ")
+    eval_logger.debug(
+        "SGLang is not installed. If you want to use llava_sglang, please install it using pip install 'sglang[all]' "
+    )
 
-with open(Path(__file__).parent / "_default_template_yaml", "r") as f:
+with open(Path(__file__).parent / "_default_template_yaml") as f:
     raw_data = f.readlines()
     safe_data = []
     for i, line in enumerate(raw_data):
@@ -307,8 +309,18 @@ def vdc_process_results_generic(doc, result):
     eval_results = llmms_eval(doc)
 
     return {
-        "llmms_eval_score": {"video_name": doc["video_name"], "caption": doc["caption"], "pred": pred, "score": eval_results["score"]},
-        "llmms_eval_acc": {"video_name": doc["video_name"], "caption": doc["caption"], "pred": pred, "acc": eval_results["acc"]},
+        "llmms_eval_score": {
+            "video_name": doc["video_name"],
+            "caption": doc["caption"],
+            "pred": pred,
+            "score": eval_results["score"],
+        },
+        "llmms_eval_acc": {
+            "video_name": doc["video_name"],
+            "caption": doc["caption"],
+            "pred": pred,
+            "acc": eval_results["acc"],
+        },
     }
 
 

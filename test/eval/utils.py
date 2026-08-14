@@ -8,7 +8,6 @@ import threading
 import time
 from contextlib import contextmanager
 from functools import wraps
-from typing import Optional
 
 
 def with_temp_dir(test_func):
@@ -115,12 +114,12 @@ class ServerProcess:
             server.stop()
     """
 
-    def __init__(self, host: str = "localhost", port: Optional[int] = None):
+    def __init__(self, host: str = "localhost", port: int | None = None):
         self.host = host
         self.port = port or find_free_port()
-        self.process: Optional[subprocess.Popen] = None
+        self.process: subprocess.Popen | None = None
         self._output_lines = []
-        self._log_thread: Optional[threading.Thread] = None
+        self._log_thread: threading.Thread | None = None
         self._stop_logging = threading.Event()
 
     @property
@@ -239,7 +238,7 @@ class ServerProcess:
 
 
 @contextmanager
-def managed_server(host: str = "localhost", port: Optional[int] = None):
+def managed_server(host: str = "localhost", port: int | None = None):
     """
     Context manager for running a server during tests.
 

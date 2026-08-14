@@ -12,7 +12,7 @@ OPTIONS = ["A", "B", "C", "D", "E"]
 
 
 def _load_task_config():
-    with open(Path(__file__).parent / "_default_template_yaml", "r") as f:
+    with open(Path(__file__).parent / "_default_template_yaml") as f:
         raw_data = f.readlines()
 
     safe_data = []
@@ -170,7 +170,9 @@ def neptune_doc_to_text(doc, lmms_eval_specific_kwargs=None):
     post_prompt = lmms_eval_specific_kwargs.get("post_prompt", DEFAULT_POST_PROMPT)
 
     option_map = _build_option_map(doc)
-    options_block = "\n".join([f"{option_letter}. {option_map[option_letter]}" for option_letter in OPTIONS if option_letter in option_map])
+    options_block = "\n".join(
+        [f"{option_letter}. {option_map[option_letter]}" for option_letter in OPTIONS if option_letter in option_map]
+    )
     question = str(doc.get("question", "")).strip()
 
     return f"{pre_prompt}{question}\n{options_block}{post_prompt}"

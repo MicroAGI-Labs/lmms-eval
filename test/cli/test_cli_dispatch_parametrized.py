@@ -6,7 +6,6 @@ logic more concisely and is easier to extend.
 """
 
 import pytest
-
 from lmms_eval.cli.dispatch import _is_eval_wizard, _is_legacy_invocation
 from lmms_eval.cli.models_cmd import _col
 

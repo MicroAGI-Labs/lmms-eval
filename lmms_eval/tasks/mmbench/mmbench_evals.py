@@ -10,7 +10,9 @@ from loguru import logger as eval_logger
 
 
 class MMBench_Evaluator:
-    def __init__(self, sys_prompt="There are several options:", API_KEY="", API_URL="", model_version="gpt-3.5-turbo-0613"):
+    def __init__(
+        self, sys_prompt="There are several options:", API_KEY="", API_URL="", model_version="gpt-3.5-turbo-0613"
+    ):
         self.sys_prompt = sys_prompt
         self.model_version = model_version
         self.API_KEY = API_KEY
@@ -96,7 +98,20 @@ class MMBench_Evaluator:
                     break
                 if ch in splits:
                     return ch
-        tups = [("", "."), ("", ","), ("", ":"), ("", ")"), ("", ")."), ("(", ")"), ("(", ")."), (":", ""), (":", ","), (":", "."), (":", ")"), (":", ").")]
+        tups = [
+            ("", "."),
+            ("", ","),
+            ("", ":"),
+            ("", ")"),
+            ("", ")."),
+            ("(", ")"),
+            ("(", ")."),
+            (":", ""),
+            (":", ","),
+            (":", "."),
+            (":", ")"),
+            (":", ")."),
+        ]
         for tup in tups:
             if count(splits, choices, prefix=tup[0], suffix=tup[1]) == 1:
                 for ch in choices:
@@ -145,7 +160,13 @@ class MMBench_Evaluator:
         messages = [
             {"role": "user", "content": prompt},
         ]
-        payload = {"model": self.model_version, "messages": messages, "temperature": temperature, "max_tokens": max_tokens, "n": n}
+        payload = {
+            "model": self.model_version,
+            "messages": messages,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+            "n": n,
+        }
 
         while patience > 0:
             patience -= 1

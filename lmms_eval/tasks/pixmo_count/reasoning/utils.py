@@ -6,7 +6,9 @@ from lmms_eval.tasks.pixmo_count.utils import (
     pixmo_count_doc_to_visual,
 )
 
-pixmo_count_reasoning_doc_to_messages = make_reasoning_doc_to_messages(pixmo_count_doc_to_visual, pixmo_count_doc_to_text)
+pixmo_count_reasoning_doc_to_messages = make_reasoning_doc_to_messages(
+    pixmo_count_doc_to_visual, pixmo_count_doc_to_text
+)
 
 
 def pixmo_count_reasoning_process_results(doc, results):
@@ -24,7 +26,9 @@ def pixmo_count_reasoning_process_results(doc, results):
     acc_score = 0
     format_score = 0
     for pred in results:
-        score_dict = compute_score(data_source="pixmo_count", solution_str=pred.strip(), ground_truth=ground_truth, extra_info=extra_info)
+        score_dict = compute_score(
+            data_source="pixmo_count", solution_str=pred.strip(), ground_truth=ground_truth, extra_info=extra_info
+        )
         acc_score += score_dict["acc_score"]
         format_score += score_dict.get("format_reward_score", 0.0)
 

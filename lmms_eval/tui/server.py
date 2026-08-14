@@ -601,7 +601,11 @@ async def export_yaml(request: ExportYamlRequest) -> ExportYamlResponse:
     if request.device:
         config["device"] = request.device
 
-    header = "# LMMs-Eval config exported from Web UI\n" "# Usage: python -m lmms_eval --config <this_file>.yaml\n" "# CLI args override YAML values.\n\n"
+    header = (
+        "# LMMs-Eval config exported from Web UI\n"
+        "# Usage: python -m lmms_eval --config <this_file>.yaml\n"
+        "# CLI args override YAML values.\n\n"
+    )
     yaml_content = header + yaml.dump(config, default_flow_style=False, sort_keys=False, allow_unicode=True)
     return ExportYamlResponse(yaml_content=yaml_content)
 
@@ -777,7 +781,11 @@ async def list_log_runs(logs_path: str = Query("./logs/")) -> list[LogRunSummary
         for task_name, task_metrics in task_results.items():
             if not isinstance(task_metrics, dict):
                 continue
-            metrics[str(task_name)] = {str(metric_name): metric_value for metric_name, metric_value in task_metrics.items() if metric_name != "alias"}
+            metrics[str(task_name)] = {
+                str(metric_name): metric_value
+                for metric_name, metric_value in task_metrics.items()
+                if metric_name != "alias"
+            }
 
         config = result_data.get("config")
         if not isinstance(config, dict):

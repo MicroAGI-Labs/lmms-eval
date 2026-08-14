@@ -1,20 +1,19 @@
 from __future__ import annotations
 
 import re
-from typing import Any, List, Optional, Tuple, Union
+from typing import Any
 
 import numpy as np
 import torch
 from accelerate import Accelerator, DistributedType
-from loguru import logger as eval_logger
-from PIL import Image
-from tqdm import tqdm
-from transformers import AutoModelForCausalLM, AutoProcessor, AutoTokenizer
-
 from lmms_eval import utils
 from lmms_eval.api.instance import Instance
 from lmms_eval.api.model import lmms
 from lmms_eval.api.registry import register_model
+from loguru import logger as eval_logger
+from PIL import Image
+from tqdm import tqdm
+from transformers import AutoModelForCausalLM, AutoProcessor, AutoTokenizer
 
 
 @register_model("penguinvl")
@@ -26,18 +25,18 @@ class PenguinVL(lmms):
     def __init__(
         self,
         pretrained: str = "tencent/Penguin-VL-8B",
-        model_path: Optional[str] = None,
-        device: Optional[str] = "cuda",
-        device_map: Optional[str] = "auto",
-        batch_size: Optional[Union[int, str]] = 1,
+        model_path: str | None = None,
+        device: str | None = "cuda",
+        device_map: str | None = "auto",
+        batch_size: int | str | None = 1,
         use_cache: bool = True,
-        attn_implementation: Optional[str] = "flash_attention_2",
-        system_prompt: Optional[str] = None,
+        attn_implementation: str | None = "flash_attention_2",
+        system_prompt: str | None = None,
         add_generation_prompt: bool = True,
         add_system_prompt: bool = True,
         max_num_frames: int = 180,
         fps: float = 1.0,
-        max_frames: Optional[int] = None,
+        max_frames: int | None = None,
         temperature: float = 0.0,
         top_p: float = 0.95,
         top_k: int = 50,
@@ -58,7 +57,9 @@ class PenguinVL(lmms):
 
         valid_attn_implementations = [None, "flash_attention_2", "sdpa", "eager"]
         if attn_implementation not in valid_attn_implementations:
-            raise ValueError(f"attn_implementation must be one of {valid_attn_implementations}, got {attn_implementation}")
+            raise ValueError(
+                f"attn_implementation must be one of {valid_attn_implementations}, got {attn_implementation}"
+            )
 
         accelerator = Accelerator()
         self.accelerator = accelerator
@@ -158,7 +159,7 @@ class PenguinVL(lmms):
     def world_size(self):
         return self._world_size
 
-    def loglikelihood(self, requests: List[Instance]) -> List[Tuple[float, bool]]:
+    def loglikelihood(self, requests: list[Instance]) -> list[tuple[float, bool]]:
         raise NotImplementedError("Loglikelihood is not implemented for PenguinVL")
 
     def _is_video_path(self, visual: Any) -> bool:
@@ -251,7 +252,10 @@ class PenguinVL(lmms):
 
         visual_clips = self._normalize_visuals_to_clips(visuals)
         wrap_single_image_in_list = len(visual_clips) > 1
-        visual_contents = [self._build_visual_content(clip, wrap_single_image_in_list=wrap_single_image_in_list) for clip in visual_clips]
+        visual_contents = [
+            self._build_visual_content(clip, wrap_single_image_in_list=wrap_single_image_in_list)
+            for clip in visual_clips
+        ]
         if visual_contents:
             image_token_count = len(re.findall(r"<image(?: \d+)?>", context))
             if image_token_count == len(visual_contents):
@@ -283,7 +287,7 @@ class PenguinVL(lmms):
             moved_inputs[key] = value
         return moved_inputs
 
-    def generate_until(self, requests: List[Instance]) -> List[str]:
+    def generate_until(self, requests: list[Instance]) -> list[str]:
         res = []
 
         def _collate(x):
@@ -303,7 +307,9 @@ class PenguinVL(lmms):
             if isinstance(until, str):
                 until = [until]
             elif not isinstance(until, list):
-                raise ValueError(f"Expected `gen_kwargs['until']` to be of type Union[str, list], but got {type(until)}")
+                raise ValueError(
+                    f"Expected `gen_kwargs['until']` to be of type Union[str, list], but got {type(until)}"
+                )
             until = [item for item in until if item != "\n\n"]
 
             current_gen_kwargs = {
@@ -368,5 +374,5 @@ class PenguinVL(lmms):
         pbar.close()
         return res
 
-    def generate_until_multi_round(self, requests) -> List[str]:
+    def generate_until_multi_round(self, requests) -> list[str]:
         raise NotImplementedError("TODO: Implement multi-round generation")

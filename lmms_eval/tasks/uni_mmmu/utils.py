@@ -2,7 +2,7 @@ import ast
 import json
 import re
 from io import BytesIO
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from PIL import Image
 
@@ -55,7 +55,7 @@ Analyze the problem and provide:
 Be rigorous and show all calculations."""
 
 
-def _extract_image_bytes(img_data: Any) -> Optional[Image.Image]:
+def _extract_image_bytes(img_data: Any) -> Image.Image | None:
     if img_data is None:
         return None
     if isinstance(img_data, Image.Image):
@@ -67,7 +67,7 @@ def _extract_image_bytes(img_data: Any) -> Optional[Image.Image]:
     return None
 
 
-def _find_json_object(text: str) -> Optional[str]:
+def _find_json_object(text: str) -> str | None:
     if not text:
         return None
     start = text.find("{")
@@ -90,7 +90,7 @@ def _find_json_object(text: str) -> Optional[str]:
     return None
 
 
-def _parse_json_list(raw: str) -> List[Any]:
+def _parse_json_list(raw: str) -> list[Any]:
     try:
         return json.loads(raw)
     except (json.JSONDecodeError, TypeError):
@@ -102,7 +102,7 @@ def _parse_json_list(raw: str) -> List[Any]:
     return []
 
 
-def _find_last_json_list(text: str) -> Optional[str]:
+def _find_last_json_list(text: str) -> str | None:
     matches = list(re.finditer(r"\[.*?\]", text, re.DOTALL))
     for match in reversed(matches):
         candidate = match.group(0)
@@ -137,7 +137,7 @@ def _extract_final_answer(text: str) -> str:
     return lines[-1] if lines else ""
 
 
-def jigsaw_doc_to_visual(doc: Dict) -> List[Image.Image]:
+def jigsaw_doc_to_visual(doc: dict) -> list[Image.Image]:
     images = []
     for key in ["ref_image", "cand0_image", "cand1_image"]:
         if key in doc and doc[key]:
@@ -147,11 +147,11 @@ def jigsaw_doc_to_visual(doc: Dict) -> List[Image.Image]:
     return images
 
 
-def jigsaw_doc_to_text(doc: Dict, lmms_eval_specific_kwargs: Optional[Dict] = None) -> str:
+def jigsaw_doc_to_text(doc: dict, lmms_eval_specific_kwargs: dict | None = None) -> str:
     return JIGSAW_PROMPT
 
 
-def jigsaw_process_results(doc: Dict, results: List[str]) -> Dict[str, float]:
+def jigsaw_process_results(doc: dict, results: list[str]) -> dict[str, float]:
     result_text = results[0] if results else ""
 
     if isinstance(result_text, str):
@@ -206,7 +206,7 @@ def jigsaw_process_results(doc: Dict, results: List[str]) -> Dict[str, float]:
     return {"exact_match": correct}
 
 
-def maze_doc_to_visual(doc: Dict) -> List[Image.Image]:
+def maze_doc_to_visual(doc: dict) -> list[Image.Image]:
     if "initial_image" in doc and doc["initial_image"]:
         img = _extract_image_bytes(doc["initial_image"])
         if img:
@@ -214,11 +214,11 @@ def maze_doc_to_visual(doc: Dict) -> List[Image.Image]:
     return []
 
 
-def maze_doc_to_text(doc: Dict, lmms_eval_specific_kwargs: Optional[Dict] = None) -> str:
+def maze_doc_to_text(doc: dict, lmms_eval_specific_kwargs: dict | None = None) -> str:
     return MAZE_PROMPT
 
 
-def maze_process_results(doc: Dict, results: List[str]) -> Dict[str, float]:
+def maze_process_results(doc: dict, results: list[str]) -> dict[str, float]:
     result_text = results[0] if results else ""
 
     if isinstance(result_text, str):
@@ -256,7 +256,7 @@ def maze_process_results(doc: Dict, results: List[str]) -> Dict[str, float]:
     return {"exact_match": exact, "frame_accuracy": frame_acc}
 
 
-def sliding_doc_to_visual(doc: Dict) -> List[Image.Image]:
+def sliding_doc_to_visual(doc: dict) -> list[Image.Image]:
     if "initial_image" in doc and doc["initial_image"]:
         img = _extract_image_bytes(doc["initial_image"])
         if img:
@@ -264,11 +264,11 @@ def sliding_doc_to_visual(doc: Dict) -> List[Image.Image]:
     return []
 
 
-def sliding_doc_to_text(doc: Dict, lmms_eval_specific_kwargs: Optional[Dict] = None) -> str:
+def sliding_doc_to_text(doc: dict, lmms_eval_specific_kwargs: dict | None = None) -> str:
     return SLIDING_PROMPT
 
 
-def sliding_process_results(doc: Dict, results: List[str]) -> Dict[str, float]:
+def sliding_process_results(doc: dict, results: list[str]) -> dict[str, float]:
     result_text = results[0] if results else ""
 
     if isinstance(result_text, str):
@@ -306,7 +306,7 @@ def sliding_process_results(doc: Dict, results: List[str]) -> Dict[str, float]:
     return {"exact_match": exact, "frame_accuracy": frame_acc}
 
 
-def geometry_doc_to_visual(doc: Dict) -> List[Image.Image]:
+def geometry_doc_to_visual(doc: dict) -> list[Image.Image]:
     if "image" in doc and doc["image"]:
         img = _extract_image_bytes(doc["image"])
         if img:
@@ -314,12 +314,12 @@ def geometry_doc_to_visual(doc: Dict) -> List[Image.Image]:
     return []
 
 
-def geometry_doc_to_text(doc: Dict, lmms_eval_specific_kwargs: Optional[Dict] = None) -> str:
+def geometry_doc_to_text(doc: dict, lmms_eval_specific_kwargs: dict | None = None) -> str:
     question = doc.get("question", doc.get("problem", ""))
     return f"{GEOMETRY_PROMPT}\n\nProblem: {question}"
 
 
-def geometry_process_results(doc: Dict, results: List[str]) -> Dict[str, float]:
+def geometry_process_results(doc: dict, results: list[str]) -> dict[str, float]:
     result_text = results[0] if results else ""
 
     if isinstance(result_text, str):

@@ -142,7 +142,9 @@ def spotting_evaluation(prediction_list, img_metas):
             if x1 >= x2 or y1 >= y2:
                 continue
 
-            res_submit_list.append(",".join([str(x1), str(y1), str(x2), str(y1), str(x2), str(y2), str(x1), str(y2), rec]))
+            res_submit_list.append(
+                ",".join([str(x1), str(y1), str(x2), str(y1), str(x2), str(y2), str(x1), str(y2), rec])
+            )
 
         res_gt_list = []
         for bbox, rec in zip(img_metas["bbox_list"], img_metas["content"]):
@@ -172,7 +174,9 @@ def spotting_evaluation(prediction_list, img_metas):
 
         command = {"g": gt_zip_path, "s": submit_zip_path, "o": temp_dir, "p": '{"IOU_CONSTRAINT":0.5}'}
 
-        result = rrc_evaluation_funcs.main_evaluation(command, default_evaluation_params, validate_data, evaluate_method)
+        result = rrc_evaluation_funcs.main_evaluation(
+            command, default_evaluation_params, validate_data, evaluate_method
+        )
         method = result.get("method", {})
         if isinstance(method, dict):
             score = method.get("hmean", 0)

@@ -27,9 +27,9 @@ To add a new baseline:
     2. Add task entry under the model with hf_url pointing to the JSONL file
 """
 
-from typing import Any, Dict
+from typing import Any
 
-BASELINE_REGISTRY: Dict[str, Dict[str, Any]] = {
+BASELINE_REGISTRY: dict[str, dict[str, Any]] = {
     "qwen25vl": {
         "_meta": {
             "model": "Qwen2.5-VL-7B-Instruct",

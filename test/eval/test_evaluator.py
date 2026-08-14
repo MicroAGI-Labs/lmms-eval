@@ -6,11 +6,8 @@ cache integration, is_simple vs chat model paths.
 Does NOT cover: simple_evaluate, evaluate (too many dependencies).
 """
 
-import copy
 import json
 from unittest.mock import MagicMock
-
-import pytest
 
 from lmms_eval.api.instance import Instance
 from lmms_eval.evaluator import _run_generate_until_agentic
@@ -272,7 +269,13 @@ def test_doc_to_text_string_return_updates_context():
     def _string_doc_to_text(doc, previous_output, round_idx, previous_round_info):
         call_count[0] += 1
         if round_idx >= 2:
-            return (None, None, True, previous_output, {"state": {}, "tool_calls": 0, "valid_tool_calls": 0, "invalid_steps": 0})
+            return (
+                None,
+                None,
+                True,
+                previous_output,
+                {"state": {}, "tool_calls": 0, "valid_tool_calls": 0, "invalid_steps": 0},
+            )
         return f"updated_context_{round_idx}"
 
     lm = _make_simple_model(["r1", "r2"])

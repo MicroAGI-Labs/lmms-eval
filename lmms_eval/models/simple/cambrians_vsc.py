@@ -1,6 +1,5 @@
 import math
 import os
-from typing import List, Optional, Tuple, Union
 
 import torch
 from loguru import logger as eval_logger
@@ -56,8 +55,8 @@ class CambriansVSC(CambrianS):
     def __init__(
         self,
         pretrained: str = "",
-        torch_dtype: Optional[Union[str, torch.dtype]] = "float16",
-        batch_size: Optional[Union[int, str]] = 1,
+        torch_dtype: str | torch.dtype | None = "float16",
+        batch_size: int | str | None = 1,
         device_map: str = "cuda:0",
         conv_template: str = "qwen_2",
         use_cache: bool = True,
@@ -105,15 +104,25 @@ class CambriansVSC(CambrianS):
             self.cache_dir = os.path.join(".cache", self.pretrained, "visual_features")
             os.makedirs(self.cache_dir, exist_ok=True)
 
-    def loglikelihood(self, requests: List[Instance]) -> List[Tuple[float, bool]]:
+    def loglikelihood(self, requests: list[Instance]) -> list[tuple[float, bool]]:
         raise NotImplementedError
 
-    def generate_until(self, requests) -> List[str]:
+    def generate_until(self, requests) -> list[str]:
         res = []
         pbar = tqdm(total=len(requests), disable=(self.rank != 0), desc="Model Responding")
 
         class Dataset(torch.utils.data.Dataset):
-            def __init__(self, requests, task_dict, tokenizer, image_processor, model_config, conv_template, enable_visual_feature_caching, cache_dir):
+            def __init__(
+                self,
+                requests,
+                task_dict,
+                tokenizer,
+                image_processor,
+                model_config,
+                conv_template,
+                enable_visual_feature_caching,
+                cache_dir,
+            ):
                 self.requests = requests
                 self.task_dict = task_dict
                 self.tokenizer = tokenizer
@@ -150,12 +159,18 @@ class CambriansVSC(CambrianS):
                     visual_tensor_path = visuals[0].replace("/", "_") + ".pt"
                     if feature_path_exists(visuals):
                         visual_tensors = torch.load(os.path.join(self.cache_dir, visual_tensor_path))
-                        vit_visual_tensors = torch.load(os.path.join(self.cache_dir, visual_tensor_path.replace(".pt", "_vit.pt")))
-                        visual_sizes = torch.load(os.path.join(self.cache_dir, visual_tensor_path.replace(".pt", "_size.pt")))
+                        vit_visual_tensors = torch.load(
+                            os.path.join(self.cache_dir, visual_tensor_path.replace(".pt", "_vit.pt"))
+                        )
+                        visual_sizes = torch.load(
+                            os.path.join(self.cache_dir, visual_tensor_path.replace(".pt", "_size.pt"))
+                        )
                         visual_tensors = (visual_tensors, vit_visual_tensors)
                         visual_tensors_type = "feature"
                     else:
-                        visual_tensors, visual_sizes, _ = process_videos(visuals, self.image_processor, self.model_config, num_threads=1)
+                        visual_tensors, visual_sizes, _ = process_videos(
+                            visuals, self.image_processor, self.model_config, num_threads=1
+                        )
                         visual_tensors_type = "raw"
 
                     if isinstance(qs, str):
@@ -175,8 +190,19 @@ class CambriansVSC(CambrianS):
                 conv.append_message(conv.roles[1], None)
                 prompt = conv.get_prompt()
 
-                input_ids = tokenizer_image_token(prompt, self.tokenizer, IMAGE_TOKEN_INDEX, return_tensors="pt").unsqueeze(0)
-                return input_ids, visual_tensors_type, visual_tensors, visual_sizes, prompt, gen_kwargs, visual_tensor_path, contexts
+                input_ids = tokenizer_image_token(
+                    prompt, self.tokenizer, IMAGE_TOKEN_INDEX, return_tensors="pt"
+                ).unsqueeze(0)
+                return (
+                    input_ids,
+                    visual_tensors_type,
+                    visual_tensors,
+                    visual_sizes,
+                    prompt,
+                    gen_kwargs,
+                    visual_tensor_path,
+                    contexts,
+                )
 
         dataset = Dataset(
             requests,
@@ -188,22 +214,42 @@ class CambriansVSC(CambrianS):
             self.enable_visual_feature_caching,
             getattr(self, "cache_dir", None),
         )
-        dataloader = torch.utils.data.DataLoader(dataset, batch_size=1, shuffle=False, collate_fn=lambda x: x[0], num_workers=0, pin_memory=True)
+        dataloader = torch.utils.data.DataLoader(
+            dataset, batch_size=1, shuffle=False, collate_fn=lambda x: x[0], num_workers=0, pin_memory=True
+        )
 
-        for _, (input_ids, visual_tensors_type, visual_tensors, visual_sizes, cur_prompt, gen_kwargs, visual_tensor_path, contexts) in enumerate(dataloader):
+        for _, (
+            input_ids,
+            visual_tensors_type,
+            visual_tensors,
+            visual_sizes,
+            cur_prompt,
+            gen_kwargs,
+            visual_tensor_path,
+            contexts,
+        ) in enumerate(dataloader):
             gen_kwargs.setdefault("max_new_tokens", 16)
             gen_kwargs.setdefault("temperature", 0)
             gen_kwargs.setdefault("top_p", None)
             gen_kwargs.setdefault("num_beams", 1)
 
-            pre_vid_input_ids = self.tokenizer("<|im_start|>system\nYou are a helpful assistant.<|im_end|>\n<|im_start|>user\n", return_tensors="pt").input_ids.to(self._device)
-            episodic_caption_input_ids = self.tokenizer(f"{contexts}<|im_end|>\n<|im_start|>assistant\n", return_tensors="pt").input_ids.to(self._device)
+            pre_vid_input_ids = self.tokenizer(
+                "<|im_start|>system\nYou are a helpful assistant.<|im_end|>\n<|im_start|>user\n", return_tensors="pt"
+            ).input_ids.to(self._device)
+            episodic_caption_input_ids = self.tokenizer(
+                f"{contexts}<|im_end|>\n<|im_start|>assistant\n", return_tensors="pt"
+            ).input_ids.to(self._device)
 
             with torch.inference_mode():
 
                 def add_newline_tokens(visual_features: torch.Tensor) -> torch.Tensor:
                     visual_features = torch.cat(
-                        [visual_features, self.model.model.image_newline[None, None, None, :].expand(*visual_features.size()[:2], 1, -1)],
+                        [
+                            visual_features,
+                            self.model.model.image_newline[None, None, None, :].expand(
+                                *visual_features.size()[:2], 1, -1
+                            ),
+                        ],
                         dim=2,
                     )
                     return visual_features.flatten(1, 2).flatten(0, 1)
@@ -217,14 +263,22 @@ class CambriansVSC(CambrianS):
                     miv_side_len = int(math.sqrt(miv_token_len))
 
                     for block_idx in range(math.ceil(visual_tensors.size(0) / block_size)):
-                        chunked_visual_features = visual_tensors[block_idx * block_size : (block_idx + 1) * block_size].half().to(self._device)
+                        chunked_visual_features = (
+                            visual_tensors[block_idx * block_size : (block_idx + 1) * block_size]
+                            .half()
+                            .to(self._device)
+                        )
                         chunked_visual_features = self.model.encode_images([chunked_visual_features])[0]
                         vit_chunked_visual_features = chunked_visual_features.clone()
                         chunked_visual_features = self.model.get_model().mm_projector(chunked_visual_features)
 
                         feature_side_len = int(math.sqrt(chunked_visual_features.size(1)))
-                        chunked_visual_features = chunked_visual_features.unflatten(1, (feature_side_len, feature_side_len)).permute(0, 3, 1, 2)
-                        vit_chunked_visual_features = vit_chunked_visual_features.unflatten(1, (feature_side_len, feature_side_len)).permute(0, 3, 1, 2)
+                        chunked_visual_features = chunked_visual_features.unflatten(
+                            1, (feature_side_len, feature_side_len)
+                        ).permute(0, 3, 1, 2)
+                        vit_chunked_visual_features = vit_chunked_visual_features.unflatten(
+                            1, (feature_side_len, feature_side_len)
+                        ).permute(0, 3, 1, 2)
 
                         if feature_side_len != miv_side_len:
                             chunked_visual_features = torch.nn.functional.interpolate(
@@ -249,8 +303,13 @@ class CambriansVSC(CambrianS):
                     if self.enable_visual_feature_caching and visual_tensor_path:
                         os.makedirs(self.cache_dir, exist_ok=True)
                         torch.save(visual_features.cpu(), os.path.join(self.cache_dir, visual_tensor_path))
-                        torch.save(vit_visual_features.cpu(), os.path.join(self.cache_dir, visual_tensor_path.replace(".pt", "_vit.pt")))
-                        torch.save(visual_sizes, os.path.join(self.cache_dir, visual_tensor_path.replace(".pt", "_size.pt")))
+                        torch.save(
+                            vit_visual_features.cpu(),
+                            os.path.join(self.cache_dir, visual_tensor_path.replace(".pt", "_vit.pt")),
+                        )
+                        torch.save(
+                            visual_sizes, os.path.join(self.cache_dir, visual_tensor_path.replace(".pt", "_size.pt"))
+                        )
                 elif visual_tensors_type == "feature":
                     visual_tensors, vit_visual_features = visual_tensors
                     visual_features = visual_tensors.to(self._device)
@@ -263,9 +322,18 @@ class CambriansVSC(CambrianS):
                 _patch_cambrian_qwen2(self.model)
 
                 pre_img_embeds = self.model.get_input_embeddings()(pre_vid_input_ids)
-                global_kv_cache = [{"key_states": [], "value_states": [], "modalities": [], "lengths": [], "surprising_scores": []} for _ in range(self.model.config.num_hidden_layers)]
-                runtime_kv_cache = [{"key_states": [], "value_states": [], "modalities": [], "lengths": [], "surprising_scores": []} for _ in range(self.model.config.num_hidden_layers)]
-                episodic_kv_cache = [{"key_states": [], "value_states": [], "modalities": [], "lengths": [], "surprising_scores": []} for _ in range(self.model.config.num_hidden_layers)]
+                global_kv_cache = [
+                    {"key_states": [], "value_states": [], "modalities": [], "lengths": [], "surprising_scores": []}
+                    for _ in range(self.model.config.num_hidden_layers)
+                ]
+                runtime_kv_cache = [
+                    {"key_states": [], "value_states": [], "modalities": [], "lengths": [], "surprising_scores": []}
+                    for _ in range(self.model.config.num_hidden_layers)
+                ]
+                episodic_kv_cache = [
+                    {"key_states": [], "value_states": [], "modalities": [], "lengths": [], "surprising_scores": []}
+                    for _ in range(self.model.config.num_hidden_layers)
+                ]
 
                 out = self.model(
                     input_ids=None,
@@ -280,8 +348,12 @@ class CambriansVSC(CambrianS):
                 )
 
                 for layer_idx, (key_states, value_states) in enumerate(out.past_key_values):
-                    _append_cache_entry(global_kv_cache[layer_idx], key_states, value_states, "T", key_states.size(2), 1.0)
-                    _append_cache_entry(runtime_kv_cache[layer_idx], key_states, value_states, "T", key_states.size(2), 1.0)
+                    _append_cache_entry(
+                        global_kv_cache[layer_idx], key_states, value_states, "T", key_states.size(2), 1.0
+                    )
+                    _append_cache_entry(
+                        runtime_kv_cache[layer_idx], key_states, value_states, "T", key_states.size(2), 1.0
+                    )
 
                 episodic_starts = 1
                 outputs = []
@@ -289,18 +361,24 @@ class CambriansVSC(CambrianS):
                 for frame_idx in range(visual_features.size(0)):
                     past_key_values = []
                     for layer_cache in runtime_kv_cache:
-                        past_key_values.append((torch.cat(layer_cache["key_states"], dim=2), torch.cat(layer_cache["value_states"], dim=2)))
+                        past_key_values.append(
+                            (torch.cat(layer_cache["key_states"], dim=2), torch.cat(layer_cache["value_states"], dim=2))
+                        )
 
                     frame_feature = visual_features[frame_idx : frame_idx + 1]
                     if frame_idx == 0:
                         surprisingness_score = 1.0
                     else:
-                        frame_feature_prediction = frame_feature_prediction.unflatten(1, (vit_visual_features.size(1), vit_visual_features.size(2) + 1))[:, :, :-1]
+                        frame_feature_prediction = frame_feature_prediction.unflatten(
+                            1, (vit_visual_features.size(1), vit_visual_features.size(2) + 1)
+                        )[:, :, :-1]
                         surprisingness_score = (
                             1
                             - torch.cosine_similarity(
                                 frame_feature_prediction.flatten(1, 2),
-                                vit_visual_features[frame_idx : frame_idx + 1].flatten(1, 2).to(frame_feature_prediction.device),
+                                vit_visual_features[frame_idx : frame_idx + 1]
+                                .flatten(1, 2)
+                                .to(frame_feature_prediction.device),
                                 dim=-1,
                             )
                             .mean(1)
@@ -320,21 +398,37 @@ class CambriansVSC(CambrianS):
                     )
                     frame_feature_prediction = self.model.model.nfp_head(out.hidden_states)
 
-                    for layer_idx, (layer_wise_past_key_values, layer_wise_output_cache) in enumerate(zip(past_key_values, out.past_key_values)):
+                    for layer_idx, (layer_wise_past_key_values, layer_wise_output_cache) in enumerate(
+                        zip(past_key_values, out.past_key_values)
+                    ):
                         input_seq_len = layer_wise_past_key_values[0].size(2)
                         key_states = layer_wise_output_cache[0][..., input_seq_len:, :].clone()
                         value_states = layer_wise_output_cache[1][..., input_seq_len:, :].clone()
-                        _append_cache_entry(runtime_kv_cache[layer_idx], key_states, value_states, "I", key_states.size(2), surprisingness_score)
+                        _append_cache_entry(
+                            runtime_kv_cache[layer_idx],
+                            key_states,
+                            value_states,
+                            "I",
+                            key_states.size(2),
+                            surprisingness_score,
+                        )
 
-                        if self.sensory_window_size > 0 and len(runtime_kv_cache[layer_idx]["key_states"]) > self.sensory_window_size + 1:
+                        if (
+                            self.sensory_window_size > 0
+                            and len(runtime_kv_cache[layer_idx]["key_states"]) > self.sensory_window_size + 1
+                        ):
                             key_states = runtime_kv_cache[layer_idx]["key_states"].pop(1)
                             value_states = runtime_kv_cache[layer_idx]["value_states"].pop(1)
                             modality = runtime_kv_cache[layer_idx]["modalities"].pop(1)
                             surprise_score = runtime_kv_cache[layer_idx]["surprising_scores"].pop(1)
                             length = runtime_kv_cache[layer_idx]["lengths"].pop(1)
-                            _append_cache_entry(global_kv_cache[layer_idx], key_states, value_states, modality, length, surprise_score)
+                            _append_cache_entry(
+                                global_kv_cache[layer_idx], key_states, value_states, modality, length, surprise_score
+                            )
 
-                    if (frame_idx > 0 and surprisingness_score > self.surprise_threshold) or (frame_idx == visual_features.size(0) - 1):
+                    if (frame_idx > 0 and surprisingness_score > self.surprise_threshold) or (
+                        frame_idx == visual_features.size(0) - 1
+                    ):
                         episodic_ends = frame_idx + 1
                         if frame_idx == visual_features.size(0) - 1:
                             episodic_ends = frame_idx + 2
@@ -346,7 +440,9 @@ class CambriansVSC(CambrianS):
                             layer_cache["lengths"] = []
                             layer_cache["surprising_scores"] = []
 
-                        num_kvcache_elements = len(global_kv_cache[0]["key_states"]) + len(runtime_kv_cache[0]["key_states"]) - 1
+                        num_kvcache_elements = (
+                            len(global_kv_cache[0]["key_states"]) + len(runtime_kv_cache[0]["key_states"]) - 1
+                        )
                         for element_idx in range(num_kvcache_elements):
                             if element_idx == 0:
                                 for layer_idx in range(len(episodic_kv_cache)):
@@ -383,9 +479,16 @@ class CambriansVSC(CambrianS):
 
                         past_key_values = []
                         for layer_cache in episodic_kv_cache:
-                            past_key_values.append((torch.cat(layer_cache["key_states"], dim=2), torch.cat(layer_cache["value_states"], dim=2)))
+                            past_key_values.append(
+                                (
+                                    torch.cat(layer_cache["key_states"], dim=2),
+                                    torch.cat(layer_cache["value_states"], dim=2),
+                                )
+                            )
 
-                        assert past_key_values[0][0].size(2) == add_newline_tokens(frame_feature).size(0) * (episodic_ends - episodic_starts) + global_kv_cache[0]["key_states"][0].size(2)
+                        assert past_key_values[0][0].size(2) == add_newline_tokens(frame_feature).size(0) * (
+                            episodic_ends - episodic_starts
+                        ) + global_kv_cache[0]["key_states"][0].size(2)
                         episodic_starts = episodic_ends
 
                         out = self.model(
@@ -400,7 +503,10 @@ class CambriansVSC(CambrianS):
                         )
                         logits = out.logits[:, -1, :].softmax(-1)
                         pred = logits.argmax(dim=-1)
-                        output_ids = torch.cat([torch.zeros_like(pred)[:, None].long().fill_(self._tokenizer.pad_token_id), pred[:, None]], dim=1)
+                        output_ids = torch.cat(
+                            [torch.zeros_like(pred)[:, None].long().fill_(self._tokenizer.pad_token_id), pred[:, None]],
+                            dim=1,
+                        )
 
                         for _ in range(gen_kwargs["max_new_tokens"] - 1):
                             if pred == self._tokenizer.eos_token_id:
@@ -432,5 +538,5 @@ class CambriansVSC(CambrianS):
 
         return res
 
-    def generate_until_multi_round(self, requests) -> List[str]:
+    def generate_until_multi_round(self, requests) -> list[str]:
         raise NotImplementedError

@@ -10,7 +10,7 @@ from openai import OpenAI
 
 
 def load_phyx_config():
-    with open(Path(__file__).parent / "phyx.yaml", "r") as f:
+    with open(Path(__file__).parent / "phyx.yaml") as f:
         raw_data = f.readlines()
         safe_data = []
         for line in raw_data:
@@ -26,27 +26,32 @@ config = load_phyx_config()
 class PhyXEvaluator:
     def __init__(self):
         if not config["metadata"]["quick_extract"]:
-            self.juder_model = config["metadata"]["eval_model_name"]
-            API_URL = "https://api.deepseek.com"
-            API_KEY = os.getenv("Deepseek_API", "")
-            if API_KEY == "":
-                eval_logger.error("To judge via Deepseek, please set api env following `export Deepseek_API=$Your_KEY`")
+            self.juder_model = os.environ["JUDGE_MODEL_NAME"]
+            api_url = os.environ["JUDGE_BASE_URL"]
+            api_key = os.environ["JUDGE_API_KEY"]
             self.headers = {
-                "Authorization": f"Bearer {API_KEY}",
+                "Authorization": f"Bearer {api_key}",
                 "Content-Type": "application/json",
             }
-            self.client = OpenAI(api_key=API_KEY, base_url=API_URL)
+            self.client = OpenAI(api_key=api_key, base_url=api_url)
         else:
             self.juder_model = None
             self.headers = None
             self.client = None
 
     def judger_generate(self, prompt, temperature=0, max_tokens=128, n=1, patience=5, sleep_time=0):
-        assert not config["metadata"]["quick_extract"], "To employ LLM to extract answer, please set `quick_extract=False`"
+        assert not config["metadata"]["quick_extract"], (
+            "To employ LLM to extract answer, please set `quick_extract=False`"
+        )
         messages = [
             {"role": "user", "content": prompt},
         ]
-        payload = {"model": self.juder_model, "messages": messages, "temperature": temperature, "max_tokens": max_tokens}
+        payload = {
+            "model": self.juder_model,
+            "messages": messages,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+        }
 
         while patience > 0:
             patience -= 1
@@ -169,8 +174,8 @@ class PhyXEvaluator:
         examples = self.get_ICE()
         for example in examples:
             prompt += example + "\n"
-        prompt += "Ground truth answer: {} \n".format(gt_answer)
-        prompt += "Predicted answer: {} \n".format(pred)
+        prompt += f"Ground truth answer: {gt_answer} \n"
+        prompt += f"Predicted answer: {pred} \n"
         prompt += "Judegement:"
         return prompt
 
@@ -185,8 +190,8 @@ class PhyXEvaluator:
         examples = self.get_ICE_MC()
         for example in examples:
             prompt += example + "\n"
-        prompt += "Ground truth answer: {} \n".format(gt_answer)
-        prompt += "Predicted answer: {} \n".format(pred)
+        prompt += f"Ground truth answer: {gt_answer} \n"
+        prompt += f"Predicted answer: {pred} \n"
         prompt += "Judegement:"
         return prompt
 
@@ -264,7 +269,7 @@ class PhyXEvaluator:
                     log += "Semantic equal via LLM."
                     return dict(log=log, res=1, extracted=prediction)
                 elif "0" in res or res == 0:
-                    log += "LLM judgement {}".format(res)
+                    log += f"LLM judgement {res}"
                     return dict(log=log, res=0, extracted=prediction)
         log += "All 5 retries failed.\n"
         return dict(log=log, res=0, extracted=prediction)
@@ -305,7 +310,7 @@ class PhyXEvaluator:
                     log += "Semantic equal via LLM."
                     return dict(log=log, res=1, extracted=prediction)
                 elif "0" in res or res == 0:
-                    log += "LLM judgement {}".format(res)
+                    log += f"LLM judgement {res}"
                     return dict(log=log, res=0, extracted=prediction)
         log += "All 5 retries failed.\n"
         return dict(log=log, res=0, extracted=prediction)
@@ -352,7 +357,11 @@ class PhyXEvaluator:
             else:
                 ret["extracted"] = "SAME as predict"
 
-        if ret["gt"].strip().lower() == ret["extracted"].strip().lower() or ret["gt"].strip().lower() == ret["pred"].strip().lower() or ret["gt"] in ret["pred"]:
+        if (
+            ret["gt"].strip().lower() == ret["extracted"].strip().lower()
+            or ret["gt"].strip().lower() == ret["pred"].strip().lower()
+            or ret["gt"] in ret["pred"]
+        ):
             ret["match"] = 1
             return ret
 

@@ -6,7 +6,6 @@ from collections import defaultdict
 from pathlib import Path
 
 import yaml
-
 from lmms_eval.loggers.evaluation_tracker import GeneralConfigTracker
 from lmms_eval.tasks._task_utils.mmmu_mcq_utils import (
     get_multi_choice_info as shared_get_multi_choice_info,
@@ -16,7 +15,7 @@ from lmms_eval.tasks._task_utils.mmmu_mcq_utils import (
 )
 from lmms_eval.utils import sanitize_model_name
 
-with open(Path(__file__).parent / "_default_template_yaml", "r") as f:
+with open(Path(__file__).parent / "_default_template_yaml") as f:
     raw_data = f.readlines()
     safe_data = []
     for i, line in enumerate(raw_data):
@@ -79,7 +78,13 @@ def jmmmu_pro_process_results(doc, results):
     id = doc["id"]
     # Calculate correct flag by comparing answer and parsed_pred
     correct = eval_multi_choice(doc["answer"], parsed_pred)
-    jmmmu_pro_acc = {"id": id, "subdomain": extract_subset_name(doc["id"]), "question_type": doc["question_type"], "answer": doc["answer"], "parsed_pred": parsed_pred}
+    jmmmu_pro_acc = {
+        "id": id,
+        "subdomain": extract_subset_name(doc["id"]),
+        "question_type": doc["question_type"],
+        "answer": doc["answer"],
+        "parsed_pred": parsed_pred,
+    }
     return {
         "jmmmu_pro_acc": jmmmu_pro_acc,
         "submission": {

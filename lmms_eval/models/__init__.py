@@ -11,7 +11,12 @@ from loguru import logger
 from lmms_eval.models.registry_v2 import ModelManifest, ModelRegistryV2
 
 logger.remove()
-log_format = "<green>{time:YYYY-MM-DD HH:mm:ss}</green> | " "<level>{level: <8}</level> | " "<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - " "<level>{message}</level>"
+log_format = (
+    "<green>{time:YYYY-MM-DD HH:mm:ss}</green> | "
+    "<level>{level: <8}</level> | "
+    "<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - "
+    "<level>{message}</level>"
+)
 logger.add(sys.stdout, level="WARNING", format=log_format)
 
 
@@ -89,6 +94,7 @@ AVAILABLE_SIMPLE_MODELS = {
     "qwen3_omni": "Qwen3_Omni",
     "qwen3_vl": "Qwen3_VL",
     "qwen3_5": "Qwen3_5",
+    "cosmos_reason2": "CosmosReason2",
     "reka": "Reka",
     "ross": "Ross",
     "sam3": "SAM3",
@@ -125,6 +131,7 @@ AVAILABLE_CHAT_TEMPLATE_MODELS = {
     "qwen2_5_vl": "Qwen2_5_VL",
     "thyme": "Thyme",
     "openai": "OpenAICompatible",
+    "genai": "GenAIVertex",
     "vllm": "VLLM",
     "vllm_generate": "VLLMGenerate",
     "sglang": "Sglang",
@@ -181,7 +188,8 @@ def _merge_legacy_plugin_models(registry: ModelRegistryV2) -> None:
         return
 
     warnings.warn(
-        "LMMS_EVAL_PLUGINS is deprecated. Prefer Python entry-points group " "'lmms_eval.models' for plugin model registration.",
+        "LMMS_EVAL_PLUGINS is deprecated. Prefer Python entry-points group "
+        "'lmms_eval.models' for plugin model registration.",
         DeprecationWarning,
         stacklevel=2,
     )

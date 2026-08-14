@@ -1,9 +1,6 @@
 import os
 import time
 
-from loguru import logger as eval_logger
-from openai import AzureOpenAI, OpenAI
-
 from lmms_eval.llm_judge import ServerConfig, get_server
 from lmms_eval.tasks.mmrefine.prompts import (
     EVAL_PROMPT_CORRECT,
@@ -11,6 +8,8 @@ from lmms_eval.tasks.mmrefine.prompts import (
     PARSING_PROMPT,
     REFINEMENT_PROMPT,
 )
+from loguru import logger as eval_logger
+from openai import AzureOpenAI, OpenAI
 
 
 class MMRefineEvaluator:
@@ -97,26 +96,55 @@ class MMRefineEvaluator:
                 solution_correctness = int(resp.strip())
             except:
                 try:
-                    solution_correctness = self.get_chat_response(PARSING_PROMPT.format(target="Output", model_response=resp), temperature=0, max_tokens=256, n=1)
+                    solution_correctness = self.get_chat_response(
+                        PARSING_PROMPT.format(target="Output", model_response=resp), temperature=0, max_tokens=256, n=1
+                    )
                 except:
                     solution_correctness = 0
             return {
                 "solution_correctness": solution_correctness,
             }
         else:
-            full_prompt = EVAL_PROMPT_INCORRECT.format(initial_solution=problem["initial_solution"], feedback=prediction, reference_feedback=problem["reference_feedback"])
+            full_prompt = EVAL_PROMPT_INCORRECT.format(
+                initial_solution=problem["initial_solution"],
+                feedback=prediction,
+                reference_feedback=problem["reference_feedback"],
+            )
             try:
                 resp = self.get_chat_response(full_prompt, temperature=0, max_tokens=1024, n=1)
                 try:
-                    error_detection = int(self.get_chat_response(PARSING_PROMPT.format(target="Error Detection", model_response=resp), temperature=0, max_tokens=256, n=1).strip())
+                    error_detection = int(
+                        self.get_chat_response(
+                            PARSING_PROMPT.format(target="Error Detection", model_response=resp),
+                            temperature=0,
+                            max_tokens=256,
+                            n=1,
+                        ).strip()
+                    )
                 except:
                     error_detection = 0
                 try:
-                    error_correction = int(self.get_chat_response(PARSING_PROMPT.format(target="Error Correction", model_response=resp), temperature=0, max_tokens=256, n=1).strip())
+                    error_correction = int(
+                        self.get_chat_response(
+                            PARSING_PROMPT.format(target="Error Correction", model_response=resp),
+                            temperature=0,
+                            max_tokens=256,
+                            n=1,
+                        ).strip()
+                    )
                 except:
                     error_correction = 0
                 try:
-                    solution_correctness = int(self.get_chat_response(PARSING_PROMPT.format(target="Effectiveness and Correctness of the Feedback", model_response=resp), temperature=0, max_tokens=256, n=1).strip())
+                    solution_correctness = int(
+                        self.get_chat_response(
+                            PARSING_PROMPT.format(
+                                target="Effectiveness and Correctness of the Feedback", model_response=resp
+                            ),
+                            temperature=0,
+                            max_tokens=256,
+                            n=1,
+                        ).strip()
+                    )
                 except:
                     solution_correctness = 0
             except Exception as e:

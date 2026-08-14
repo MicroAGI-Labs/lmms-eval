@@ -1,4 +1,3 @@
-from typing import List
 
 import numpy as np
 from librosa import resample
@@ -9,7 +8,7 @@ def downsample_audio(audio_array: np.ndarray, original_sr: int, target_sr: int) 
     return audio_resample_array
 
 
-def split_audio(audio_arrays: np.ndarray, chunk_lim: int) -> List:
+def split_audio(audio_arrays: np.ndarray, chunk_lim: int) -> list:
     """
     Splits the audio into chunks of a given length.
     Args:

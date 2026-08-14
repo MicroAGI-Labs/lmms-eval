@@ -145,7 +145,9 @@ def parse_open_response(response):
             # if last one, accept it's an equation (the entire response can be just one sentence with equation)
             if index == len(sub_responses) - 1:
                 indicators_of_keys.extend(["="])
-            shortest_key_response = None  # the shortest response that may contain the answer (tail part of the response)
+            shortest_key_response = (
+                None  # the shortest response that may contain the answer (tail part of the response)
+            )
             for indicator in indicators_of_keys:
                 if indicator in resp:
                     if not shortest_key_response:
@@ -198,7 +200,12 @@ def mirb_process_results(doc, results):
     else:
         parsed_pred = parse_open_response(pred)
     task_type = doc["subset"]
-    data_dict = {"question_id": doc["question_id"], "subset": task_type, "pred_answer": parsed_pred, "answers": doc["answers"]}
+    data_dict = {
+        "question_id": doc["question_id"],
+        "subset": task_type,
+        "pred_answer": parsed_pred,
+        "answers": doc["answers"],
+    }
     return {"mirb_score": data_dict}
 
 
@@ -278,7 +285,12 @@ def mirb_aggregation(results):
     print("=" * 50)
 
     # print across evaluation dimension
-    groups = {"Knowledge": ["food", "sightseeing"], "Reasoning": ["codeu", "plot_code", "analogy", "3d_scene"], "Perception": ["image_jigsaw", "count", "attribute"], "Multi-Hop": ["visual_chain", "arxiv"]}
+    groups = {
+        "Knowledge": ["food", "sightseeing"],
+        "Reasoning": ["codeu", "plot_code", "analogy", "3d_scene"],
+        "Perception": ["image_jigsaw", "count", "attribute"],
+        "Multi-Hop": ["visual_chain", "arxiv"],
+    }
 
     # Compute the averages for each group
     averages_dict = compute_averages_from_task_scores(task_score, groups)

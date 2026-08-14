@@ -124,13 +124,17 @@ def calculate_ocr_metrics(pred, gt, return_detailed=False):
     overall_score = (avg_rouge + bleu_score + semantic_score) / 3.0
 
     if return_detailed:
-        return {"average_rouge": avg_rouge, "bleu_score": bleu_score, "semantic_similarity": semantic_score, "overall_quality": overall_score}
+        return {
+            "average_rouge": avg_rouge,
+            "bleu_score": bleu_score,
+            "semantic_similarity": semantic_score,
+            "overall_quality": overall_score,
+        }
     else:
         return overall_score
 
 
 if __name__ == "__main__":
-
     res = calculate_answer_accuracy("A. ", "A")
     res = calculate_three_level_accuracy("A C B", "A B C")
     res = calculate_multiple_choice_f1("A C B", "A B C")

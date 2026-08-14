@@ -113,7 +113,12 @@ def phones_for_word(text: str) -> list[str]:
                 prefixes_to_remove = ["AH0 "]
                 text = "a" + text.removeprefix("'")
         pronunciations = pronouncing.phones_for_word(text)
-    pronunciations = [(prefix + pr + suffix).removeprefix(prefix_to_remove) for prefix, pr, suffix, prefix_to_remove in itertools.product(prefixes, pronunciations, suffixes, prefixes_to_remove)]
+    pronunciations = [
+        (prefix + pr + suffix).removeprefix(prefix_to_remove)
+        for prefix, pr, suffix, prefix_to_remove in itertools.product(
+            prefixes, pronunciations, suffixes, prefixes_to_remove
+        )
+    ]
 
     if not pronunciations:
         file_logger.error(f"OOV: {text}")
@@ -389,7 +394,10 @@ def check_constraint(response, constraint, constraint_val):
             if len(lines) != len(syllable_count_intervals):
                 return 0
             try:
-                all_match = all(any(min_count <= syll_count <= max_count for syll_count in count_syllables(line)) for line, (min_count, max_count) in zip(lines, syllable_count_intervals))
+                all_match = all(
+                    any(min_count <= syll_count <= max_count for syll_count in count_syllables(line))
+                    for line, (min_count, max_count) in zip(lines, syllable_count_intervals)
+                )
             except IndexError:
                 all_match = None
             score = 1 if all_match else 0
@@ -411,7 +419,10 @@ def check_constraint(response, constraint, constraint_val):
             # Check that 1. The words for the same letter all rhyme
             letter_to_rhyming_parts = {}
             for letter, words in letter_to_words.items():
-                rhyming_parts: list[set[str]] = [{rhyming_part_include_unstressed(pronunciations) for pronunciations in phones_for_word(word)} for word in words]
+                rhyming_parts: list[set[str]] = [
+                    {rhyming_part_include_unstressed(pronunciations) for pronunciations in phones_for_word(word)}
+                    for word in words
+                ]
                 common_rhyming_parts = set.intersection(*rhyming_parts)
                 if not common_rhyming_parts:
                     return 0

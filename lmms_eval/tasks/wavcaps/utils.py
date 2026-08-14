@@ -21,7 +21,7 @@ def wavcaps_doc_to_text(doc, lmms_eval_specific_kwargs):
 
 # functions for the clotho_asqa_v2 task, need to be tested later
 
-with open(Path(__file__).parent / "wavcaps.yaml", "r") as f:
+with open(Path(__file__).parent / "wavcaps.yaml") as f:
     raw_data = f.readlines()
     safe_data = []
     for i, line in enumerate(raw_data):

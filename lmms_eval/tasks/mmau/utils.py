@@ -3,9 +3,8 @@ import random
 from collections import defaultdict
 
 import numpy as np
-from loguru import logger as eval_logger
-
 from lmms_eval.tasks._task_utils.file_utils import generate_submission_file
+from loguru import logger as eval_logger
 
 
 def doc_to_audio(doc):
@@ -65,7 +64,19 @@ def mmau_aggregate_results(results):
 def mmau_aggregate_results_for_submission(results, args):
     path = generate_submission_file("mmau_submission.json", args)
     filtered_results = []
-    keys_to_keep = ["id", "audio_id", "question", "choices", "model_prediction", "dataset", "task", "split", "category", "sub-category", "difficulty"]
+    keys_to_keep = [
+        "id",
+        "audio_id",
+        "question",
+        "choices",
+        "model_prediction",
+        "dataset",
+        "task",
+        "split",
+        "category",
+        "sub-category",
+        "difficulty",
+    ]
 
     for result in results:
         filtered_result = {key: result[key] for key in keys_to_keep if key in result}

@@ -6,14 +6,22 @@ which evaluates 6D spatial reasoning capabilities of large multimodal models.
 
 import re
 from collections import defaultdict
-from typing import Any, Optional
+from typing import Any
 
 from loguru import logger as eval_logger
 from PIL import Image
 
 TASK_INSTRUCTIONS: dict[str, str] = {
-    "L1_single": ("You are an intelligent chatbot designed to answer questions based on " "an image. Your task is to analyze the images, identify attributes of " "the objects, and then determine the answer to the question.\n"),
-    "L2_objects": ("You are an intelligent chatbot designed to answer questions based on " "an image. Your task is to analyze the images, identify attributes of " "multiple objects, and then determine the answer to the question.\n"),
+    "L1_single": (
+        "You are an intelligent chatbot designed to answer questions based on "
+        "an image. Your task is to analyze the images, identify attributes of "
+        "the objects, and then determine the answer to the question.\n"
+    ),
+    "L2_objects": (
+        "You are an intelligent chatbot designed to answer questions based on "
+        "an image. Your task is to analyze the images, identify attributes of "
+        "multiple objects, and then determine the answer to the question.\n"
+    ),
     "L3_2d_spatial": (
         "You are an intelligent chatbot designed to answer questions based on "
         "an image. Your task is to analyze the images, identify attributes of "
@@ -86,7 +94,7 @@ def spatial457_doc_to_visual(doc: dict[str, Any]) -> list[Image.Image]:
 
 def spatial457_doc_to_text(
     doc: dict[str, Any],
-    lmms_eval_specific_kwargs: Optional[dict[str, Any]] = None,
+    lmms_eval_specific_kwargs: dict[str, Any] | None = None,
 ) -> str:
     """Convert a document to prompt text for Spatial457.
 
@@ -119,7 +127,7 @@ def spatial457_doc_to_text(
 def spatial457_process_results(
     doc: dict[str, Any],
     results: list[str],
-    lmms_eval_specific_kwargs: Optional[dict[str, Any]] = None,
+    lmms_eval_specific_kwargs: dict[str, Any] | None = None,
 ) -> dict[str, dict[str, Any]]:
     """Process model results for Spatial457 evaluation.
 

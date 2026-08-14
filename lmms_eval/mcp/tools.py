@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Optional
 
 from loguru import logger
 from mcp.server.fastmcp import FastMCP
@@ -27,7 +26,7 @@ def register_tools(mcp: FastMCP, scheduler) -> None:
     # ---- Tier 1: Discovery Tools (no torch imports) ----
 
     @mcp.tool()
-    def list_tasks(query: Optional[str] = None) -> dict:
+    def list_tasks(query: str | None = None) -> dict:
         """List available evaluation tasks/benchmarks.
 
         Args:
@@ -138,7 +137,14 @@ def register_tools(mcp: FastMCP, scheduler) -> None:
         for model_id in MODEL_REGISTRY_V2.list_canonical_model_ids():
             manifest = MODEL_REGISTRY_V2.get_manifest(model_id)
             aliases = list(manifest.aliases) if include_aliases else []
-            models.append(ModelInfo(model_id=model_id, has_chat=manifest.chat_class_path is not None, has_simple=manifest.simple_class_path is not None, aliases=aliases))
+            models.append(
+                ModelInfo(
+                    model_id=model_id,
+                    has_chat=manifest.chat_class_path is not None,
+                    has_simple=manifest.simple_class_path is not None,
+                    aliases=aliases,
+                )
+            )
 
         resp = ModelListResponse(models=models, total=len(models))
         return resp.model_dump()
@@ -174,11 +180,11 @@ def register_tools(mcp: FastMCP, scheduler) -> None:
     async def evaluate(
         model: str,
         tasks: list[str],
-        model_args: Optional[dict] = None,
-        batch_size: Optional[int] = None,
-        limit: Optional[int] = None,
-        num_fewshot: Optional[int] = None,
-        gen_kwargs: Optional[str] = None,
+        model_args: dict | None = None,
+        batch_size: int | None = None,
+        limit: int | None = None,
+        num_fewshot: int | None = None,
+        gen_kwargs: str | None = None,
         log_samples: bool = True,
         num_gpus: int = 1,
         mode: str = "auto",
@@ -263,7 +269,11 @@ def register_tools(mcp: FastMCP, scheduler) -> None:
 
         except Exception as e:
             logger.error(f"[MCP] Error waiting for job {job_id}: {e}")
-            return EvalRunSubmitted(run_id=job_id, status="unknown", message=f"Error tracking job: {e}. Use get_run_status('{job_id}') to check.").model_dump()
+            return EvalRunSubmitted(
+                run_id=job_id,
+                status="unknown",
+                message=f"Error tracking job: {e}. Use get_run_status('{job_id}') to check.",
+            ).model_dump()
 
     @mcp.tool()
     async def get_run_status(run_id: str) -> dict:
@@ -320,7 +330,9 @@ def register_tools(mcp: FastMCP, scheduler) -> None:
             raise ValueError(f"Run '{run_id}' not found.")
 
         if job.status.value != "completed":
-            return EvalRunResult(run_id=run_id, status=job.status.value, error=f"Run is not completed yet. Status: {job.status.value}").model_dump()
+            return EvalRunResult(
+                run_id=run_id, status=job.status.value, error=f"Run is not completed yet. Status: {job.status.value}"
+            ).model_dump()
 
         result_data = job.result
         if result_data:

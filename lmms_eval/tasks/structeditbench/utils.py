@@ -30,9 +30,8 @@ import base64
 import json
 import os
 import time
-from collections import defaultdict
 from io import BytesIO
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import numpy as np
 from loguru import logger as eval_logger
@@ -112,7 +111,7 @@ def _normalize_category(category: Any) -> str:
     return c or "unknown"
 
 
-def image_to_base64(image: Any) -> Optional[str]:
+def image_to_base64(image: Any) -> str | None:
     """Encode image to base64 PNG. Returns None on failure."""
     try:
         buffer = BytesIO()
@@ -125,7 +124,13 @@ def image_to_base64(image: Any) -> Optional[str]:
 
 def structeditbench_doc_to_visual(doc):
     """Return the source image for editing."""
-    img = doc.get("source_image") or doc.get("input_image") or doc.get("image") or doc.get("input_image_raw") or doc.get("source")
+    img = (
+        doc.get("source_image")
+        or doc.get("input_image")
+        or doc.get("image")
+        or doc.get("input_image_raw")
+        or doc.get("source")
+    )
     if img is None:
         return []
     try:
@@ -140,7 +145,9 @@ def structeditbench_doc_to_visual(doc):
 
 
 def structeditbench_doc_to_text(doc, lmms_eval_specific_kwargs=None):
-    instruction = doc.get("instruction") or doc.get("edit_prompt") or doc.get("prompt") or doc.get("edit_instruction") or ""
+    instruction = (
+        doc.get("instruction") or doc.get("edit_prompt") or doc.get("prompt") or doc.get("edit_instruction") or ""
+    )
     pre_prompt = ""
     post_prompt = ""
     if lmms_eval_specific_kwargs:
@@ -153,7 +160,7 @@ def structeditbench_doc_to_target(doc):
     return doc.get("instruction") or doc.get("edit_prompt") or doc.get("prompt") or doc.get("edit_instruction") or ""
 
 
-def _get_openai_client(*, api_key: str, base_url: Optional[str], timeout: int):
+def _get_openai_client(*, api_key: str, base_url: str | None, timeout: int):
     try:
         from openai import OpenAI
     except ImportError as e:
@@ -164,7 +171,7 @@ def _get_openai_client(*, api_key: str, base_url: Optional[str], timeout: int):
     return OpenAI(**kwargs)
 
 
-def _get_eval_config() -> Dict[str, Any]:
+def _get_eval_config() -> dict[str, Any]:
     api_key = os.getenv("STRUCTEDITBENCH_API_KEY")
     base_url = os.getenv("STRUCTEDITBENCH_BASE_URL")
     if not api_key:
@@ -186,12 +193,14 @@ def _get_eval_config() -> Dict[str, Any]:
     }
 
 
-def _get_or_create_client(cfg: Dict[str, Any]):
+def _get_or_create_client(cfg: dict[str, Any]):
     global _openai_client
     if _openai_client is not None:
         return _openai_client
     _openai_client = _get_openai_client(api_key=cfg["api_key"], base_url=cfg["base_url"], timeout=int(cfg["timeout"]))
-    eval_logger.info(f"Initialized StructEditBench OpenAI client (eval_model={cfg.get('eval_model')}, judge_model={cfg.get('judge_model')})")
+    eval_logger.info(
+        f"Initialized StructEditBench OpenAI client (eval_model={cfg.get('eval_model')}, judge_model={cfg.get('judge_model')})"
+    )
     return _openai_client
 
 
@@ -205,8 +214,17 @@ def _detect_default_model_name(client) -> str:
     return "default"
 
 
-def _call_chat(client, *, model: str, messages: List[Dict[str, Any]], max_tokens: int, temperature: float, max_retries: int, call_delay: float) -> str:
-    last_error: Optional[Exception] = None
+def _call_chat(
+    client,
+    *,
+    model: str,
+    messages: list[dict[str, Any]],
+    max_tokens: int,
+    temperature: float,
+    max_retries: int,
+    call_delay: float,
+) -> str:
+    last_error: Exception | None = None
     for attempt in range(max(1, int(max_retries))):
         try:
             if call_delay and call_delay > 0:
@@ -221,10 +239,14 @@ def _call_chat(client, *, model: str, messages: List[Dict[str, Any]], max_tokens
         except Exception as e:
             last_error = e
             msg = str(e).lower()
-            transient = any(k in msg for k in ["timeout", "timed out", "504", "502", "503", "gateway", "rate limit", "overloaded"])
+            transient = any(
+                k in msg for k in ["timeout", "timed out", "504", "502", "503", "gateway", "rate limit", "overloaded"]
+            )
             if transient and attempt < max_retries - 1:
                 wait_time = (2**attempt) * 2
-                eval_logger.warning(f"structeditbench eval API transient error (attempt {attempt + 1}/{max_retries}). Retrying in {wait_time}s...")
+                eval_logger.warning(
+                    f"structeditbench eval API transient error (attempt {attempt + 1}/{max_retries}). Retrying in {wait_time}s..."
+                )
                 time.sleep(wait_time)
                 continue
             raise
@@ -239,7 +261,9 @@ def _judge_is_correct(text: str) -> bool:
     return text.strip().lower().startswith("correct")
 
 
-def _evaluate_one_image(edited_image: Image.Image, qa_list: List[Dict[str, Any]]) -> Tuple[float, float, float, List[Dict[str, Any]]]:
+def _evaluate_one_image(
+    edited_image: Image.Image, qa_list: list[dict[str, Any]]
+) -> tuple[float, float, float, list[dict[str, Any]]]:
     max_qa_env = os.getenv("STRUCTEDITBENCH_MAX_QA")
     if max_qa_env:
         qa_list = qa_list[: int(max_qa_env)]
@@ -262,7 +286,7 @@ def _evaluate_one_image(edited_image: Image.Image, qa_list: List[Dict[str, Any]]
 
     editing_correct = editing_total = 0
     maintain_correct = maintain_total = 0
-    qa_results: List[Dict[str, Any]] = []
+    qa_results: list[dict[str, Any]] = []
     failed_qa_count = 0
 
     for i, qa in enumerate(qa_list or []):
@@ -329,7 +353,7 @@ def _evaluate_one_image(edited_image: Image.Image, qa_list: List[Dict[str, Any]]
             )
         except Exception as e:
             failed_qa_count += 1
-            eval_logger.warning(f"QA {i+1}/{len(qa_list)} failed: {str(e)[:120]}...")
+            eval_logger.warning(f"QA {i + 1}/{len(qa_list)} failed: {str(e)[:120]}...")
             continue
 
     if failed_qa_count > 0:
@@ -381,7 +405,12 @@ def structeditbench_process_results(doc, results, **kwargs):
 
     if edited_image_pil is None:
         # Fallback: allow evaluation-only datasets that already contain the model image
-        cand_fields = [f"output_image_{model_name}", f"output_image_{model_name.lower()}", "output_image", "edited_image"]
+        cand_fields = [
+            f"output_image_{model_name}",
+            f"output_image_{model_name.lower()}",
+            "output_image",
+            "edited_image",
+        ]
         for f in cand_fields:
             v = doc.get(f)
             if v is None:
@@ -418,7 +447,11 @@ def structeditbench_process_results(doc, results, **kwargs):
         eval_logger.error(f"structeditbench scoring failed for key={key}: {e}")
         editing_acc, maintain_acc, weighted_acc, qa_results = 0.0, 0.0, 0.0, []
 
-    eval_logger.info(f"[structeditbench] key={key} category={category} weighted={weighted_acc:.2f}% " f"edit={editing_acc:.2f}% maintain={maintain_acc:.2f}% " f"(qa={len(qa_results)}/{len(qa_list) if isinstance(qa_list, list) else 0})")
+    eval_logger.info(
+        f"[structeditbench] key={key} category={category} weighted={weighted_acc:.2f}% "
+        f"edit={editing_acc:.2f}% maintain={maintain_acc:.2f}% "
+        f"(qa={len(qa_results)}/{len(qa_list) if isinstance(qa_list, list) else 0})"
+    )
 
     base_entry = {
         "key": key,

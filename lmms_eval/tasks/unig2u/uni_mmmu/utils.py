@@ -7,7 +7,6 @@ import json
 import os
 import re
 from io import BytesIO
-from typing import Any, Dict, List, Optional
 
 # Azure OpenAI imports
 from azure.identity import (
@@ -16,11 +15,10 @@ from azure.identity import (
     ManagedIdentityCredential,
     get_bearer_token_provider,
 )
-from openai import AzureOpenAI
-from PIL import Image
-
 from lmms_eval.azure_openai_compat import build_client as build_azure_compat_client
 from lmms_eval.azure_openai_compat import has_endpoint_support
+from openai import AzureOpenAI
+from PIL import Image
 
 # ============================================================================
 # GPT-4o API Client (from api.py)
@@ -81,7 +79,7 @@ def call_gpt4o(prompt: str, max_tokens: int = 512) -> str:
 # ============================================================================
 
 
-def find_first_json_substring(text: str) -> Optional[str]:
+def find_first_json_substring(text: str) -> str | None:
     """Extract first JSON object from text."""
     if not text:
         return None
@@ -110,7 +108,7 @@ def find_first_json_substring(text: str) -> Optional[str]:
 # ============================================================================
 
 
-def jigsaw_doc_to_visual(doc: Dict) -> List[Image.Image]:
+def jigsaw_doc_to_visual(doc: dict) -> list[Image.Image]:
     """Get visual inputs for jigsaw task."""
     images = []
     for key in ["ref_image", "cand0_image", "cand1_image"]:
@@ -120,7 +118,7 @@ def jigsaw_doc_to_visual(doc: Dict) -> List[Image.Image]:
     return images
 
 
-def jigsaw_doc_to_text(doc: Dict, lmms_eval_specific_kwargs: Dict = None) -> str:
+def jigsaw_doc_to_text(doc: dict, lmms_eval_specific_kwargs: dict = None) -> str:
     """Get text prompt for jigsaw task - text-only evaluation."""
     prompt = """You are a unified vision-language model. You will be given:
 (1) a 2×2 reference image with the bottom-right cell hidden, and
@@ -147,7 +145,7 @@ Inputs:"""
     return prompt
 
 
-def jigsaw_process_results(doc: Dict, results: List[str]) -> Dict[str, float]:
+def jigsaw_process_results(doc: dict, results: list[str]) -> dict[str, float]:
     """Process jigsaw results - text evaluation only."""
     result_raw = results[0] if results else ""
 
@@ -223,7 +221,7 @@ def jigsaw_process_results(doc: Dict, results: List[str]) -> Dict[str, float]:
 # ============================================================================
 
 
-def maze_doc_to_visual(doc: Dict) -> List[Image.Image]:
+def maze_doc_to_visual(doc: dict) -> list[Image.Image]:
     """Get visual input for maze task."""
     if "initial_image" in doc and doc["initial_image"]:
         img_bytes = doc["initial_image"]["bytes"] if isinstance(doc["initial_image"], dict) else doc["initial_image"]
@@ -231,7 +229,7 @@ def maze_doc_to_visual(doc: Dict) -> List[Image.Image]:
     return []
 
 
-def maze_doc_to_text(doc: Dict, lmms_eval_specific_kwargs: Dict = None) -> str:
+def maze_doc_to_text(doc: dict, lmms_eval_specific_kwargs: dict = None) -> str:
     """Get text prompt for maze task - text-only evaluation."""
     prompt = """You are a precise maze solver.
 
@@ -253,7 +251,7 @@ NO EXTRAS
     return prompt
 
 
-def maze_process_results(doc: Dict, results: List[str]) -> Dict[str, float]:
+def maze_process_results(doc: dict, results: list[str]) -> dict[str, float]:
     """Process maze results - text evaluation only using GPT-4o."""
     result_raw = results[0] if results else ""
 
@@ -303,7 +301,7 @@ def maze_process_results(doc: Dict, results: List[str]) -> Dict[str, float]:
 # ============================================================================
 
 
-def sliding_doc_to_visual(doc: Dict) -> List[Image.Image]:
+def sliding_doc_to_visual(doc: dict) -> list[Image.Image]:
     """Get visual input for sliding puzzle task."""
     if "initial_image" in doc and doc["initial_image"]:
         img_bytes = doc["initial_image"]["bytes"] if isinstance(doc["initial_image"], dict) else doc["initial_image"]
@@ -311,7 +309,7 @@ def sliding_doc_to_visual(doc: Dict) -> List[Image.Image]:
     return []
 
 
-def sliding_doc_to_text(doc: Dict, lmms_eval_specific_kwargs: Dict = None) -> str:
+def sliding_doc_to_text(doc: dict, lmms_eval_specific_kwargs: dict = None) -> str:
     """Get text prompt for sliding puzzle task - text-only evaluation."""
     prompt = """You are a precise sliding puzzle solver.
 
@@ -337,7 +335,7 @@ NO EXTRAS
     return prompt
 
 
-def sliding_process_results(doc: Dict, results: List[str]) -> Dict[str, float]:
+def sliding_process_results(doc: dict, results: list[str]) -> dict[str, float]:
     """Process sliding puzzle results - text evaluation only."""
     result_raw = results[0] if results else ""
 
@@ -481,16 +479,16 @@ NO EXTRAS
 - Do not restate the instructions."""
 
 
-def jigsaw_doc_to_text_visual_cot(doc: Dict, lmms_eval_specific_kwargs: Dict = None) -> str:
+def jigsaw_doc_to_text_visual_cot(doc: dict, lmms_eval_specific_kwargs: dict = None) -> str:
     """Visual CoT prompt for jigsaw task - aligned with original Uni-MMMU."""
     return JIGSAW_PROMPT
 
 
-def maze_doc_to_text_visual_cot(doc: Dict, lmms_eval_specific_kwargs: Dict = None) -> str:
+def maze_doc_to_text_visual_cot(doc: dict, lmms_eval_specific_kwargs: dict = None) -> str:
     """Visual CoT prompt for maze task - aligned with original Uni-MMMU."""
     return MAZE_PROMPT
 
 
-def sliding_doc_to_text_visual_cot(doc: Dict, lmms_eval_specific_kwargs: Dict = None) -> str:
+def sliding_doc_to_text_visual_cot(doc: dict, lmms_eval_specific_kwargs: dict = None) -> str:
     """Visual CoT prompt for sliding puzzle - aligned with original Uni-MMMU."""
     return SLIDING_PROMPT

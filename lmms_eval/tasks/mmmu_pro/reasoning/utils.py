@@ -4,7 +4,6 @@ from collections import defaultdict
 from pathlib import Path
 
 import yaml
-
 from lmms_eval.tasks._task_utils.mmmu_mcq_utils import (
     get_multi_choice_info as shared_get_multi_choice_info,
 )
@@ -19,7 +18,7 @@ SYSTEM_PROMPT = (
     "Please provide a clear, concise response within <answer> </answer> tags that directly addresses the question."
 )
 
-with open(Path(__file__).parent / "_default_template_yaml", "r") as f:
+with open(Path(__file__).parent / "_default_template_yaml") as f:
     raw_data = f.readlines()
     safe_data = []
     for i, line in enumerate(raw_data):
@@ -104,11 +103,16 @@ def mmmu_pro_reward_process_results(doc, results):
     question = mmmu_pro_doc_to_text(doc)
     extra_info = {"question": question}
     for pred in results:
-        score_dict = compute_score(data_source="mmmu_val", solution_str=pred.strip(), ground_truth=doc["answer"], extra_info=extra_info)
+        score_dict = compute_score(
+            data_source="mmmu_val", solution_str=pred.strip(), ground_truth=doc["answer"], extra_info=extra_info
+        )
         acc_score += score_dict["acc_score"]
         format_score += score_dict.get("format_reward_score", 0.0)
 
-    return {"acc_score": acc_score / len(results) if results else 0.0, "format_score": format_score / len(results) if results else 0.0}
+    return {
+        "acc_score": acc_score / len(results) if results else 0.0,
+        "format_score": format_score / len(results) if results else 0.0,
+    }
 
 
 # MMMU-PRO's all questions are multiple-choice questions
@@ -136,7 +140,9 @@ def mmmu_pro_composite_process_results(doc, results):
     while len(cutout_letters) < len(gt_list):
         cutout_letters.append("")
 
-    assert len(cutout_letters) == len(gt_list), f"Mismatch in lengths: cutout_letters ({len(cutout_letters)}) != gt_list ({len(gt_list)})"
+    assert len(cutout_letters) == len(gt_list), (
+        f"Mismatch in lengths: cutout_letters ({len(cutout_letters)}) != gt_list ({len(gt_list)})"
+    )
 
     mmmu_acc = {"id": doc["id"], "subject": doc["subject"], "answer": gt_list, "parsed_pred": cutout_letters}
     return {"mmmu_acc": mmmu_acc}
@@ -417,7 +423,9 @@ def parse_open_response(response):
             # if last one, accept it's an equation (the entire response can be just one sentence with equation)
             if index == len(sub_responses) - 1:
                 indicators_of_keys.extend(["="])
-            shortest_key_response = None  # the shortest response that may contain the answer (tail part of the response)
+            shortest_key_response = (
+                None  # the shortest response that may contain the answer (tail part of the response)
+            )
             for indicator in indicators_of_keys:
                 if indicator in resp:
                     if not shortest_key_response:

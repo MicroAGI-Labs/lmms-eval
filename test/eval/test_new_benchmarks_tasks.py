@@ -2,7 +2,6 @@ import unittest
 from pathlib import Path
 
 import yaml
-
 from lmms_eval.tasks import TaskManager
 from lmms_eval.tasks.av_asr import utils as av_asr_utils
 from lmms_eval.tasks.countix import utils as countix_utils

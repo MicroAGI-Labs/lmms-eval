@@ -7,11 +7,10 @@ from pathlib import Path
 
 import pandas as pd
 import yaml
+from lmms_eval.tasks.hrbench.hrbench_evals import HRBenchEval
 from PIL import Image
 
-from lmms_eval.tasks.hrbench.hrbench_evals import HRBenchEval
-
-with open(Path(__file__).parent / "hrbench.yaml", "r") as f:
+with open(Path(__file__).parent / "hrbench.yaml") as f:
     raw_data = f.readlines()
     safe_data = []
     for i, line in enumerate(raw_data):
@@ -21,7 +20,11 @@ with open(Path(__file__).parent / "hrbench.yaml", "r") as f:
 
     config = yaml.safe_load("".join(safe_data))
 
-hrbench_evaluator = HRBenchEval(api_key=os.getenv("OPENAI_API_KEY", "YOUR_API_KEY"), gpt_model=os.getenv("MODEL_VERSION", "gpt-4o-2024-11-20"), max_workers=config["metadata"]["max_workers"])
+hrbench_evaluator = HRBenchEval(
+    api_key=os.getenv("OPENAI_API_KEY", "YOUR_API_KEY"),
+    gpt_model=os.getenv("MODEL_VERSION", "gpt-4o-2024-11-20"),
+    max_workers=config["metadata"]["max_workers"],
+)
 
 
 def decode_base64_to_image(base64_string, target_size=-1):
@@ -74,7 +77,10 @@ def hrbench_process_results(doc, results):
     if gt.lower() == gpt_prediction.lower():
         gpt_score = 1
 
-    return {category: {"index": doc["index"], "cycle_category": cycle_category, "gpt_score": gpt_score}, "average": {"index": doc["index"], "cycle_category": cycle_category, "gpt_score": gpt_score}}
+    return {
+        category: {"index": doc["index"], "cycle_category": cycle_category, "gpt_score": gpt_score},
+        "average": {"index": doc["index"], "cycle_category": cycle_category, "gpt_score": gpt_score},
+    }
 
 
 def hrbench_aggregate_results(results, args):

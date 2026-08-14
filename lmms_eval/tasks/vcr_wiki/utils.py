@@ -8,13 +8,12 @@ import evaluate
 import numpy as np
 import spacy
 import yaml
+from lmms_eval.tasks._task_utils.file_utils import generate_submission_file
 from loguru import logger as eval_logger
 from nltk.util import ngrams
 from spacy.cli import download
 
-from lmms_eval.tasks._task_utils.file_utils import generate_submission_file
-
-with open(Path(__file__).parent / "_default_template_vcr_yaml", "r") as f:
+with open(Path(__file__).parent / "_default_template_vcr_yaml") as f:
     raw_data = f.readlines()
     safe_data = []
     for i, line in enumerate(raw_data):
@@ -37,7 +36,9 @@ if config["metadata"]["load_package"]:
         nlp_en = spacy.load("en_core_web_sm")
         download("zh_core_web_sm")
         nlp_zh = spacy.load("zh_core_web_sm")
-        eval_logger.debug("Spacy models not loaded due to load_package is False. Please set load_package to True in the config file to load them.")
+        eval_logger.debug(
+            "Spacy models not loaded due to load_package is False. Please set load_package to True in the config file to load them."
+        )
 else:
     nlp = {"en": None, "zh": None}
     rouge = None

@@ -1,4 +1,4 @@
-from typing import Callable, Dict, Union
+from collections.abc import Callable
 
 import evaluate as hf_evaluate
 from loguru import logger as eval_logger
@@ -17,7 +17,9 @@ def register_model(*names):
             assert issubclass(cls, lmms), f"Model '{name}' ({cls.__name__}) must extend lmms class"
 
             if name in MODEL_REGISTRY:
-                eval_logger.debug(f"Model '{name}' already registered ({MODEL_REGISTRY[name].__name__}); overwriting with {cls.__name__}.")
+                eval_logger.debug(
+                    f"Model '{name}' already registered ({MODEL_REGISTRY[name].__name__}); overwriting with {cls.__name__}."
+                )
 
             MODEL_REGISTRY[name] = cls
         return cls
@@ -29,7 +31,9 @@ def get_model(model_name):
     try:
         return MODEL_REGISTRY[model_name]
     except KeyError:
-        raise ValueError(f"Attempted to load model '{model_name}', but no model for this name found! Supported model names: {', '.join(MODEL_REGISTRY.keys())}")
+        raise ValueError(
+            f"Attempted to load model '{model_name}', but no model for this name found! Supported model names: {', '.join(MODEL_REGISTRY.keys())}"
+        )
 
 
 TASK_REGISTRY = {}  # Key: task name, Value: task ConfigurableTask class
@@ -40,7 +44,7 @@ func2task_index = {}  # Key: task ConfigurableTask class, Value: task name
 OUTPUT_TYPE_REGISTRY = {}
 METRIC_REGISTRY = {}
 METRIC_AGGREGATION_REGISTRY = {}
-AGGREGATION_REGISTRY: Dict[str, Callable[[], Dict[str, Callable]]] = {}
+AGGREGATION_REGISTRY: dict[str, Callable[[], dict[str, Callable]]] = {}
 HIGHER_IS_BETTER_REGISTRY = {}
 FILTER_REGISTRY = {}
 
@@ -120,7 +124,9 @@ def get_metric(name: str, hf_evaluate_metric=False) -> Callable:
         if name in METRIC_REGISTRY:
             return METRIC_REGISTRY[name]
         else:
-            eval_logger.warning(f"Could not find registered metric '{name}' in lm-eval, searching in HF Evaluate library...")
+            eval_logger.warning(
+                f"Could not find registered metric '{name}' in lm-eval, searching in HF Evaluate library..."
+            )
 
     try:
         metric_object = hf_evaluate.load(name)
@@ -133,7 +139,9 @@ def get_metric(name: str, hf_evaluate_metric=False) -> Callable:
 
 def register_aggregation(name):
     def decorate(fn):
-        assert name not in AGGREGATION_REGISTRY, f"aggregation named '{name}' conflicts with existing registered aggregation!"
+        assert name not in AGGREGATION_REGISTRY, (
+            f"aggregation named '{name}' conflicts with existing registered aggregation!"
+        )
 
         AGGREGATION_REGISTRY[name] = fn
         return fn
@@ -146,7 +154,7 @@ def get_aggregation(name):
         return AGGREGATION_REGISTRY[name]
     except KeyError:
         eval_logger.warning(
-            "{} not a registered aggregation metric!".format(name),
+            f"{name} not a registered aggregation metric!",
         )
 
 
@@ -155,7 +163,7 @@ def get_metric_aggregation(name):
         return METRIC_AGGREGATION_REGISTRY[name]
     except KeyError:
         eval_logger.warning(
-            "{} metric is not assigned a default aggregation!".format(name),
+            f"{name} metric is not assigned a default aggregation!",
         )
 
 
@@ -176,7 +184,7 @@ def register_filter(name):
     return decorate
 
 
-def get_filter(filter_name: Union[str, Callable]) -> Callable:
+def get_filter(filter_name: str | Callable) -> Callable:
     try:
         return FILTER_REGISTRY[filter_name]
     except KeyError as e:

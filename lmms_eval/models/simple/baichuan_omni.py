@@ -21,7 +21,6 @@ import os
 import tempfile
 import traceback
 import uuid
-from typing import List, Optional, Tuple, Union
 
 import librosa
 import numpy as np
@@ -71,13 +70,13 @@ class BaichuanOmni(lmms):
     def __init__(
         self,
         pretrained: str = "baichuan-inc/Baichuan-Omni-1d5",
-        device: Optional[str] = "cuda",
-        device_map: Optional[str] = "auto",
-        batch_size: Optional[Union[int, str]] = 1,
+        device: str | None = "cuda",
+        device_map: str | None = "auto",
+        batch_size: int | str | None = 1,
         use_cache: bool = True,
         max_num_frames: int = 32,
         system_prompt: str = "You are a helpful assistant.",
-        cache_dir: Optional[str] = None,
+        cache_dir: str | None = None,
         **kwargs,
     ) -> None:
         super().__init__()
@@ -129,11 +128,17 @@ class BaichuanOmni(lmms):
         )
 
         # Get special tokens
-        self.image_start_token = self._tokenizer.convert_ids_to_tokens(self._model.config.video_config.image_start_token_id)
+        self.image_start_token = self._tokenizer.convert_ids_to_tokens(
+            self._model.config.video_config.image_start_token_id
+        )
         self.image_end_token = self._tokenizer.convert_ids_to_tokens(self._model.config.video_config.image_end_token_id)
-        self.video_start_token = self._tokenizer.convert_ids_to_tokens(self._model.config.video_config.video_start_token_id)
+        self.video_start_token = self._tokenizer.convert_ids_to_tokens(
+            self._model.config.video_config.video_start_token_id
+        )
         self.video_end_token = self._tokenizer.convert_ids_to_tokens(self._model.config.video_config.video_end_token_id)
-        self.audio_start_token = self._tokenizer.convert_ids_to_tokens(self._model.config.audio_config.audio_start_token_id)
+        self.audio_start_token = self._tokenizer.convert_ids_to_tokens(
+            self._model.config.audio_config.audio_start_token_id
+        )
         self.audio_end_token = self._tokenizer.convert_ids_to_tokens(self._model.config.audio_config.audio_end_token_id)
 
         self._config = self._model.config
@@ -197,7 +202,7 @@ class BaichuanOmni(lmms):
     def world_size(self):
         return self._world_size
 
-    def loglikelihood(self, requests: List[Instance]) -> List[Tuple[float, bool]]:
+    def loglikelihood(self, requests: list[Instance]) -> list[tuple[float, bool]]:
         raise NotImplementedError("Loglikelihood is not implemented for BaichuanOmni")
 
     def flatten(self, input_list):
@@ -266,28 +271,52 @@ class BaichuanOmni(lmms):
         if visual is not None:
             if isinstance(visual, str) and visual.endswith((".mp4", ".avi", ".mov", ".mkv", ".webm")):
                 # Video file path
-                content_parts.append(f"{self.video_start_token}" + ujson.dumps({"local": visual}, ensure_ascii=False) + f"{self.video_end_token}")
+                content_parts.append(
+                    f"{self.video_start_token}"
+                    + ujson.dumps({"local": visual}, ensure_ascii=False)
+                    + f"{self.video_end_token}"
+                )
             elif isinstance(visual, Image.Image):
                 # Single image
                 img_path = self._save_image(visual)
-                content_parts.append(f"{self.image_start_token}" + ujson.dumps({"local": img_path}, ensure_ascii=False) + f"{self.image_end_token}")
+                content_parts.append(
+                    f"{self.image_start_token}"
+                    + ujson.dumps({"local": img_path}, ensure_ascii=False)
+                    + f"{self.image_end_token}"
+                )
             elif isinstance(visual, (list, tuple)):
                 for v in visual:
                     if isinstance(v, Image.Image):
                         img_path = self._save_image(v)
-                        content_parts.append(f"{self.image_start_token}" + ujson.dumps({"local": img_path}, ensure_ascii=False) + f"{self.image_end_token}")
+                        content_parts.append(
+                            f"{self.image_start_token}"
+                            + ujson.dumps({"local": img_path}, ensure_ascii=False)
+                            + f"{self.image_end_token}"
+                        )
                     elif isinstance(v, dict) and "array" in v:
                         # Audio dict
                         audio = self.resample_audio(v["array"], v["sampling_rate"])
                         audio_path = self._save_audio(audio)
-                        content_parts.append(f"{self.audio_start_token}" + ujson.dumps({"path": audio_path}, ensure_ascii=False) + f"{self.audio_end_token}")
+                        content_parts.append(
+                            f"{self.audio_start_token}"
+                            + ujson.dumps({"path": audio_path}, ensure_ascii=False)
+                            + f"{self.audio_end_token}"
+                        )
                     elif isinstance(v, str) and v.endswith((".mp4", ".avi", ".mov", ".mkv", ".webm")):
-                        content_parts.append(f"{self.video_start_token}" + ujson.dumps({"local": v}, ensure_ascii=False) + f"{self.video_end_token}")
+                        content_parts.append(
+                            f"{self.video_start_token}"
+                            + ujson.dumps({"local": v}, ensure_ascii=False)
+                            + f"{self.video_end_token}"
+                        )
             elif isinstance(visual, dict) and "array" in visual:
                 # Audio dict
                 audio = self.resample_audio(visual["array"], visual["sampling_rate"])
                 audio_path = self._save_audio(audio)
-                content_parts.append(f"{self.audio_start_token}" + ujson.dumps({"path": audio_path}, ensure_ascii=False) + f"{self.audio_end_token}")
+                content_parts.append(
+                    f"{self.audio_start_token}"
+                    + ujson.dumps({"path": audio_path}, ensure_ascii=False)
+                    + f"{self.audio_end_token}"
+                )
 
         # Add text
         content_parts.append(context)
@@ -297,10 +326,12 @@ class BaichuanOmni(lmms):
     def _format_prompt(self, user_content: str) -> str:
         """Format the full prompt with role prefixes."""
         # System message + User message + Assistant prefix
-        prompt = f"{ROLE_PREFIX['system']}{self.system_prompt}" f"{ROLE_PREFIX['user']}{user_content}" f"{ROLE_PREFIX['assistant']}"
+        prompt = (
+            f"{ROLE_PREFIX['system']}{self.system_prompt}{ROLE_PREFIX['user']}{user_content}{ROLE_PREFIX['assistant']}"
+        )
         return prompt
 
-    def generate_until(self, requests: List[Instance]) -> List[str]:
+    def generate_until(self, requests: list[Instance]) -> list[str]:
         res = []
 
         def _collate(x):
@@ -357,7 +388,9 @@ class BaichuanOmni(lmms):
 
                     # Handle images
                     if inputs.images is not None:
-                        model_inputs["images"] = [torch.tensor(img, dtype=torch.float32).cuda() for img in inputs.images]
+                        model_inputs["images"] = [
+                            torch.tensor(img, dtype=torch.float32).cuda() for img in inputs.images
+                        ]
                         if inputs.patch_nums is not None:
                             model_inputs["patch_nums"] = inputs.patch_nums
                         if inputs.images_grid is not None:
@@ -365,7 +398,9 @@ class BaichuanOmni(lmms):
 
                     # Handle videos
                     if inputs.videos is not None:
-                        model_inputs["videos"] = [torch.tensor(vid, dtype=torch.float32).cuda() for vid in inputs.videos]
+                        model_inputs["videos"] = [
+                            torch.tensor(vid, dtype=torch.float32).cuda() for vid in inputs.videos
+                        ]
                         if inputs.videos_patch_nums is not None:
                             model_inputs["videos_patch_nums"] = inputs.videos_patch_nums
                         if inputs.videos_grid is not None:
@@ -411,5 +446,5 @@ class BaichuanOmni(lmms):
         pbar.close()
         return res
 
-    def generate_until_multi_round(self, requests) -> List[str]:
+    def generate_until_multi_round(self, requests) -> list[str]:
         raise NotImplementedError("Multi-round generation is not implemented")

@@ -1,8 +1,6 @@
 import re
 
 from lmms_eval.tasks.ocrbench_v2.utils import (
-    ocrbench_v2_aggregate_accuracy,
-    ocrbench_v2_doc_to_target,
     ocrbench_v2_doc_to_text,
     ocrbench_v2_doc_to_visual,
 )

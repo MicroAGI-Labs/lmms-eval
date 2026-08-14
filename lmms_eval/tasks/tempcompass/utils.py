@@ -8,7 +8,7 @@ from pathlib import Path
 import requests
 import yaml
 
-with open(Path(__file__).parent / "_default_template_yaml", "r") as f:
+with open(Path(__file__).parent / "_default_template_yaml") as f:
     raw_data = f.readlines()
     safe_data = []
     for i, line in enumerate(raw_data):
@@ -151,8 +151,7 @@ def tempcompass_process_results_multi_choice(doc, result):
                 "chatgpt_response": chatgpt_response,
                 "dim": doc["dim"],
             },
-            doc["dim"]
-            + "_accuracy": {
+            doc["dim"] + "_accuracy": {
                 "video_id": doc["video_id"],
                 "question": doc["question"],
                 "gt-answer": doc["answer"],
@@ -165,8 +164,24 @@ def tempcompass_process_results_multi_choice(doc, result):
         }
     else:
         return {
-            "avg_accuracy": {"video_id": doc["video_id"], "question": doc["question"], "gt-answer": doc["answer"], "video-llm-prediction": pred, "match_success": match_success, "rating": rating, "dim": doc["dim"]},
-            doc["dim"] + "_accuracy": {"video_id": doc["video_id"], "question": doc["question"], "gt-answer": doc["answer"], "video-llm-prediction": pred, "match_success": match_success, "rating": rating, "dim": doc["dim"]},
+            "avg_accuracy": {
+                "video_id": doc["video_id"],
+                "question": doc["question"],
+                "gt-answer": doc["answer"],
+                "video-llm-prediction": pred,
+                "match_success": match_success,
+                "rating": rating,
+                "dim": doc["dim"],
+            },
+            doc["dim"] + "_accuracy": {
+                "video_id": doc["video_id"],
+                "question": doc["question"],
+                "gt-answer": doc["answer"],
+                "video-llm-prediction": pred,
+                "match_success": match_success,
+                "rating": rating,
+                "dim": doc["dim"],
+            },
         }
 
 
@@ -204,8 +219,7 @@ def tempcompass_process_results_yes_no(doc, result):
                 "chatgpt_response": chatgpt_response,
                 "dim": doc["dim"],
             },
-            doc["dim"]
-            + "_accuracy": {
+            doc["dim"] + "_accuracy": {
                 "video_id": doc["video_id"],
                 "question": doc["question"],
                 "gt-answer": doc["answer"],
@@ -218,8 +232,24 @@ def tempcompass_process_results_yes_no(doc, result):
         }
     else:
         return {
-            "avg_accuracy": {"video_id": doc["video_id"], "question": doc["question"], "gt-answer": doc["answer"], "video-llm-prediction": pred, "match_success": match_success, "rating": rating, "dim": doc["dim"]},
-            doc["dim"] + "_accuracy": {"video_id": doc["video_id"], "question": doc["question"], "gt-answer": doc["answer"], "video-llm-prediction": pred, "match_success": match_success, "rating": rating, "dim": doc["dim"]},
+            "avg_accuracy": {
+                "video_id": doc["video_id"],
+                "question": doc["question"],
+                "gt-answer": doc["answer"],
+                "video-llm-prediction": pred,
+                "match_success": match_success,
+                "rating": rating,
+                "dim": doc["dim"],
+            },
+            doc["dim"] + "_accuracy": {
+                "video_id": doc["video_id"],
+                "question": doc["question"],
+                "gt-answer": doc["answer"],
+                "video-llm-prediction": pred,
+                "match_success": match_success,
+                "rating": rating,
+                "dim": doc["dim"],
+            },
         }
 
 
@@ -257,8 +287,7 @@ def tempcompass_process_results_caption_matching(doc, result):
                 "chatgpt_response": chatgpt_response,
                 "dim": doc["dim"],
             },
-            doc["dim"]
-            + "_accuracy": {
+            doc["dim"] + "_accuracy": {
                 "video_id": doc["video_id"],
                 "question": doc["question"],
                 "gt-answer": doc["answer"],
@@ -271,8 +300,24 @@ def tempcompass_process_results_caption_matching(doc, result):
         }
     else:
         return {
-            "avg_accuracy": {"video_id": doc["video_id"], "question": doc["question"], "gt-answer": doc["answer"], "video-llm-prediction": pred, "match_success": match_success, "rating": rating, "dim": doc["dim"]},
-            doc["dim"] + "_accuracy": {"video_id": doc["video_id"], "question": doc["question"], "gt-answer": doc["answer"], "video-llm-prediction": pred, "match_success": match_success, "rating": rating, "dim": doc["dim"]},
+            "avg_accuracy": {
+                "video_id": doc["video_id"],
+                "question": doc["question"],
+                "gt-answer": doc["answer"],
+                "video-llm-prediction": pred,
+                "match_success": match_success,
+                "rating": rating,
+                "dim": doc["dim"],
+            },
+            doc["dim"] + "_accuracy": {
+                "video_id": doc["video_id"],
+                "question": doc["question"],
+                "gt-answer": doc["answer"],
+                "video-llm-prediction": pred,
+                "match_success": match_success,
+                "rating": rating,
+                "dim": doc["dim"],
+            },
         }
 
 
@@ -336,8 +381,7 @@ def tempcompass_process_results_captioning(doc, result):
             "rating": eval_result["rating"],
             "dim": doc["dim"],
         },
-        doc["dim"]
-        + "_accuracy": {
+        doc["dim"] + "_accuracy": {
             "video_id": doc["video_id"],
             "question": doc["question"],
             "chatgpt-reasoning": eval_result["chatgpt-reasoning"],
@@ -372,7 +416,9 @@ def parse_llm_output_for_captioning(llm_output, gt_answer):
         eval_result["chatgpt-reasoning"] = None
 
     # Check if the chatgpt answer is the ground-truth answer
-    answer_counts = sum(eval_result["chatgpt-answer"].count(prefix) for prefix in ["A.", "B.", "C.", "D."])  # calculate the number of 'A.', 'B.', 'C.', 'D.' in chatgpt-answer
+    answer_counts = sum(
+        eval_result["chatgpt-answer"].count(prefix) for prefix in ["A.", "B.", "C.", "D."]
+    )  # calculate the number of 'A.', 'B.', 'C.', 'D.' in chatgpt-answer
 
     if eval_result["chatgpt-answer"].split(". ")[0] == gt_answer.split(". ")[0] and answer_counts == 1:
         eval_result["rating"] = 1
@@ -389,7 +435,10 @@ def get_llm_output_for_captioning(prompt):
         "temperature": 1.0,
         "top_p": 1,
         "presence_penalty": 1,
-        "messages": [{"role": "system", "content": "You are an AI assistant for question answering."}, {"role": "user", "content": prompt}],
+        "messages": [
+            {"role": "system", "content": "You are an AI assistant for question answering."},
+            {"role": "user", "content": prompt},
+        ],
     }
     response = requests.post(API_URL, headers=headers, data=json.dumps(data).encode("utf-8"))
     result = response.content.decode("utf-8")
@@ -427,13 +476,18 @@ def eval_rule(video_llm_output, question, answer):
     # Determine whether the video llm output is correct, based on word matching rules
     option_strs = question.split("\n")[1:]  # complete option strings
     option_sents = [opt.split(": ")[1] for opt in option_strs]  # option sentence
-    option_inds = [opt.split(": ")[0] for opt in option_strs] + [opt.split(": ")[0].replace("Sentence ", "").replace("Option ", "").replace("Caption ", "") for opt in option_strs]  # option index, e.g., Sentence A, Caption A, Option 1
+    option_inds = [opt.split(": ")[0] for opt in option_strs] + [
+        opt.split(": ")[0].replace("Sentence ", "").replace("Option ", "").replace("Caption ", "")
+        for opt in option_strs
+    ]  # option index, e.g., Sentence A, Caption A, Option 1
     video_llm_pred = None
     for option_str in option_strs:
         if option_str == video_llm_output:
             video_llm_pred = option_str
     for option_sent in option_sents:
-        if option_sent == video_llm_output or (") " in video_llm_output and option_sent == video_llm_output.split(") ")[1]):
+        if option_sent == video_llm_output or (
+            ") " in video_llm_output and option_sent == video_llm_output.split(") ")[1]
+        ):
             video_llm_pred = option_sent
     for option_ind in option_inds:
         if option_ind == video_llm_output or option_ind == video_llm_output.replace(".", ""):
@@ -442,7 +496,14 @@ def eval_rule(video_llm_output, question, answer):
     if video_llm_pred is None:
         return "fail"
     else:
-        return 1 if video_llm_pred == answer or video_llm_pred == answer.split(":")[0] or video_llm_pred == answer.split(": ")[1] or video_llm_pred == answer.split(": ")[0].split()[1] else 0
+        return (
+            1
+            if video_llm_pred == answer
+            or video_llm_pred == answer.split(":")[0]
+            or video_llm_pred == answer.split(": ")[1]
+            or video_llm_pred == answer.split(": ")[0].split()[1]
+            else 0
+        )
 
 
 # utils function for yes_no
@@ -477,7 +538,14 @@ def get_eval_result(prompt, maxtry=10, sys_prompt=None):
 def get_llm_output(prompt, sys_prompt, max_tokens=128):
     if sys_prompt is None:
         sys_prompt = "You are an AI assistant for question answering."
-    data = {"max_tokens": max_tokens, "model": "gpt-3.5-turbo-1106", "temperature": 1.0, "top_p": 1, "presence_penalty": 1, "messages": [{"role": "system", "content": sys_prompt}, {"role": "user", "content": prompt}]}
+    data = {
+        "max_tokens": max_tokens,
+        "model": "gpt-3.5-turbo-1106",
+        "temperature": 1.0,
+        "top_p": 1,
+        "presence_penalty": 1,
+        "messages": [{"role": "system", "content": sys_prompt}, {"role": "user", "content": prompt}],
+    }
     response = requests.post(API_URL, headers=headers, data=json.dumps(data).encode("utf-8"))
     result = response.content.decode("utf-8")
     dict_result = json.loads(result)

@@ -4,11 +4,10 @@ from pathlib import Path
 
 import pandas as pd
 import yaml
+from lmms_eval.llm_judge import Request, ServerConfig, get_server
 from loguru import logger as eval_logger
 
-from lmms_eval.llm_judge import Request, ServerConfig, get_server
-
-with open(Path(__file__).parent / "mmvet.yaml", "r") as f:
+with open(Path(__file__).parent / "mmvet.yaml") as f:
     raw_data = f.readlines()
     safe_data = []
     for i, line in enumerate(raw_data):
@@ -75,7 +74,9 @@ def mmvet_process_results(doc, results):
     pred = results[0]
     question = doc["question"]
     answer = doc["answer"]
-    gpt_query_prompt = f"{MM_VET_PROMPT}\n{question} | {answer.replace('<AND>', ' <AND> ').replace('<OR>', ' <OR> ')} | {pred} |"
+    gpt_query_prompt = (
+        f"{MM_VET_PROMPT}\n{question} | {answer.replace('<AND>', ' <AND> ').replace('<OR>', ' <OR> ')} | {pred} |"
+    )
     grade_sample_run_complete = False
     temperature = 0.0
 
@@ -93,7 +94,9 @@ def mmvet_process_results(doc, results):
             except ValueError:
                 time.sleep(5)
                 temperature += 0.5
-                eval_logger.info(f"Sleep 5 secs, {doc['question_id']} try again with increased temperature {temperature}.")
+                eval_logger.info(
+                    f"Sleep 5 secs, {doc['question_id']} try again with increased temperature {temperature}."
+                )
                 content, model_name = get_chat_response(
                     gpt_query_prompt,
                     temperature=temperature,

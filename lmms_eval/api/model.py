@@ -1,7 +1,7 @@
 import abc
 import gc
 import os
-from typing import List, Optional, Tuple, Type, TypeVar
+from typing import TypeVar
 
 import torch
 import torch.nn as nn
@@ -29,7 +29,7 @@ class lmms(abc.ABC):
     @staticmethod
     def _resolve_system_prompt(value: str) -> str:
         if value and os.path.isfile(value):
-            with open(value, "r") as f:
+            with open(value) as f:
                 return f.read().strip()
         return value
 
@@ -53,7 +53,7 @@ class lmms(abc.ABC):
         return messages
 
     @abc.abstractmethod
-    def loglikelihood(self, requests: List[Instance]) -> List[Tuple[float, bool]]:
+    def loglikelihood(self, requests: list[Instance]) -> list[tuple[float, bool]]:
         """Compute log-likelihood of generating a continuation from a context.
         Downstream tasks should attempt to use loglikelihood instead of other
         LMM calls whenever possible.
@@ -81,7 +81,7 @@ class lmms(abc.ABC):
 
     # TODO: Add an optional max length
     @abc.abstractmethod
-    def generate_until(self, requests) -> List[str]:
+    def generate_until(self, requests) -> list[str]:
         """Generate greedily until a stopping sequence
 
         :param requests: list[Instance]
@@ -100,7 +100,7 @@ class lmms(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def generate_until_multi_round(self, requests) -> List[str]:
+    def generate_until_multi_round(self, requests) -> list[str]:
         """Generate greedily until a stopping sequence
 
         :param requests: list[Instance]
@@ -118,7 +118,7 @@ class lmms(abc.ABC):
         """
         pass
 
-    def generate_visual_cot(self, requests) -> List[str]:
+    def generate_visual_cot(self, requests) -> list[str]:
         """Visual CoT (GtA) generation: two-stage pipeline that generates an
         auxiliary visualization image (Stage 1) and then answers using both
         the original and generated images (Stage 2).
@@ -126,11 +126,13 @@ class lmms(abc.ABC):
         Models that support GtA must override this method.
         """
         raise NotImplementedError(
-            f"{type(self).__name__} does not support Visual CoT (GtA). " f"To run visual_cot tasks, the model must implement generate_visual_cot(). " f"Supported models: ovis_u1, bagel_unig2u, illume_plus, qwen_image_edit"
+            f"{type(self).__name__} does not support Visual CoT (GtA). "
+            f"To run visual_cot tasks, the model must implement generate_visual_cot(). "
+            f"Supported models: ovis_u1, bagel_unig2u, illume_plus, qwen_image_edit"
         )
 
     @classmethod
-    def create_from_arg_string(cls: Type[T], arg_string: str, additional_config: Optional[dict] = None) -> T:
+    def create_from_arg_string(cls: type[T], arg_string: str, additional_config: dict | None = None) -> T:
         """
         Creates an instance of the LMM class using the given argument string and additional config.
 

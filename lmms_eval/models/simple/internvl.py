@@ -1,18 +1,16 @@
 import os
 from datetime import timedelta
 from pathlib import Path
-from typing import List, Optional, Tuple, Union
 
 import torch
 from accelerate import Accelerator, DistributedType, InitProcessGroupKwargs
 from accelerate.state import AcceleratorState
 from huggingface_hub import snapshot_download
-from tqdm import tqdm
-
 from lmms_eval import utils
 from lmms_eval.api.instance import Instance
 from lmms_eval.api.model import lmms
 from lmms_eval.api.registry import register_model
+from tqdm import tqdm
 
 wd = Path(__file__).parent.parent.parent.resolve()
 import sys
@@ -104,11 +102,11 @@ class InternVLChat(lmms):
         self,
         config=None,
         pretrained: str = "OpenGVLab/InternVL-Chat-V1-5",
-        truncation: Optional[bool] = True,
-        device: Optional[str] = "cuda:0",
-        dtype: Optional[Union[str, torch.dtype]] = "auto",
-        batch_size: Optional[Union[int, str]] = 1,
-        trust_remote_code: Optional[bool] = False,
+        truncation: bool | None = True,
+        device: str | None = "cuda:0",
+        dtype: str | torch.dtype | None = "auto",
+        batch_size: int | str | None = 1,
+        trust_remote_code: bool | None = False,
         revision=None,
         device_map="cuda:0",
         conv_template="vicuna_v1",
@@ -196,9 +194,14 @@ class InternVLChat(lmms):
                     "train_batch_size": self.batch_size_per_gpu * accelerator.num_processes,
                 }
                 AcceleratorState().deepspeed_plugin.deepspeed_config_process(must_match=True, **kwargs)
-                eval_logger.info("Detected that you are using DistributedType.DEEPSPEED. Make sure you run `accelerate config` and set zero stage to 0")
+                eval_logger.info(
+                    "Detected that you are using DistributedType.DEEPSPEED. Make sure you run `accelerate config` and set zero stage to 0"
+                )
 
-            if accelerator.distributed_type == DistributedType.FSDP or accelerator.distributed_type == DistributedType.DEEPSPEED:
+            if (
+                accelerator.distributed_type == DistributedType.FSDP
+                or accelerator.distributed_type == DistributedType.DEEPSPEED
+            ):
                 self._model = accelerator.prepare(self.model)
             else:
                 self._model = accelerator.prepare_model(self.model, evaluation_mode=True)
@@ -265,7 +268,10 @@ class InternVLChat(lmms):
             int(c / (scale_factor * scale_factor)),
         )
         if self.ps_version == "v1":
-            warnings.warn("In ps_version 'v1', the height and width have not been swapped back, " "which results in a transposed image.")
+            warnings.warn(
+                "In ps_version 'v1', the height and width have not been swapped back, "
+                "which results in a transposed image."
+            )
         else:
             x = x.permute(0, 2, 1, 3).contiguous()
         return x
@@ -278,9 +284,13 @@ class InternVLChat(lmms):
 
     def extract_feature(self, pixel_values):
         if self.select_layer == -1:
-            vit_embeds = self.vision_model(pixel_values=pixel_values, output_hidden_states=False, return_dict=True).last_hidden_state
+            vit_embeds = self.vision_model(
+                pixel_values=pixel_values, output_hidden_states=False, return_dict=True
+            ).last_hidden_state
         else:
-            vit_embeds = self.vision_model(pixel_values=pixel_values, output_hidden_states=True, return_dict=True).hidden_states[self.select_layer]
+            vit_embeds = self.vision_model(
+                pixel_values=pixel_values, output_hidden_states=True, return_dict=True
+            ).hidden_states[self.select_layer]
         vit_embeds = vit_embeds[:, 1:, :]
 
         if self.training and self.neftune_alpha is not None:
@@ -323,7 +333,12 @@ class InternVLChat(lmms):
             image_bs = pixel_values.shape[0]
             # print(f"dynamic ViT batch size: {image_bs}, image_counts: {image_counts}")
             for idx, image_count in enumerate(image_counts):
-                image_tokens += f"<image {idx + 1}> (图{idx + 1}):" + IMG_START_TOKEN + IMG_CONTEXT_TOKEN * self.num_image_token * image_count + IMG_END_TOKEN
+                image_tokens += (
+                    f"<image {idx + 1}> (图{idx + 1}):"
+                    + IMG_START_TOKEN
+                    + IMG_CONTEXT_TOKEN * self.num_image_token * image_count
+                    + IMG_END_TOKEN
+                )
             question = image_tokens + "\n" + question
         else:
             for old_question, old_answer in history:
@@ -382,7 +397,7 @@ class InternVLChat(lmms):
     def world_size(self):
         return self._world_size
 
-    def tok_encode(self, string: str, left_truncate_len=None, add_special_tokens=None) -> List[int]:
+    def tok_encode(self, string: str, left_truncate_len=None, add_special_tokens=None) -> list[int]:
         """ """
         add_special_tokens = False if add_special_tokens is None else add_special_tokens
         encoding = self.tokenizer.encode(string, add_special_tokens=add_special_tokens)
@@ -407,13 +422,13 @@ class InternVLChat(lmms):
     @torch.no_grad()
     def generate(
         self,
-        pixel_values: Optional[torch.FloatTensor] = None,
-        input_ids: Optional[torch.FloatTensor] = None,
-        attention_mask: Optional[torch.LongTensor] = None,
-        visual_features: Optional[torch.FloatTensor] = None,
-        generation_config: Optional[GenerationConfig] = None,
-        output_hidden_states: Optional[bool] = None,
-        return_dict: Optional[bool] = None,
+        pixel_values: torch.FloatTensor | None = None,
+        input_ids: torch.FloatTensor | None = None,
+        attention_mask: torch.LongTensor | None = None,
+        visual_features: torch.FloatTensor | None = None,
+        generation_config: GenerationConfig | None = None,
+        output_hidden_states: bool | None = None,
+        return_dict: bool | None = None,
         **generate_kwargs,
     ) -> torch.LongTensor:
         assert self.img_context_token_id is not None
@@ -472,7 +487,7 @@ class InternVLChat(lmms):
         pixel_values = torch.stack(pixel_values)
         return pixel_values
 
-    def generate_until(self, requests: List[Instance]) -> List[str]:
+    def generate_until(self, requests: list[Instance]) -> list[str]:
         res = []
 
         def _collate(x):
@@ -490,7 +505,11 @@ class InternVLChat(lmms):
         # in the same batch.
         re_ords = utils.Collator([reg.args for reg in requests], _collate, grouping=True)
         chunks = re_ords.get_batched(n=self.batch_size, batch_fn=None)
-        num_iters = len(requests) // self.batch_size if len(requests) % self.batch_size == 0 else len(requests) // self.batch_size + 1
+        num_iters = (
+            len(requests) // self.batch_size
+            if len(requests) % self.batch_size == 0
+            else len(requests) // self.batch_size + 1
+        )
         pbar = tqdm(total=num_iters, disable=(self.rank != 0), desc="Model Responding")
         for chunk in chunks:
             contexts, all_gen_kwargs, doc_to_visual, doc_id, task, split = zip(*chunk)
@@ -537,8 +556,8 @@ class InternVLChat(lmms):
         return res
         # print(chunk)
 
-    def loglikelihood(self, requests: List[Instance]) -> List[Tuple[float, bool]]:
+    def loglikelihood(self, requests: list[Instance]) -> list[tuple[float, bool]]:
         pass
 
-    def generate_until_multi_round(self, requests) -> List[str]:
+    def generate_until_multi_round(self, requests) -> list[str]:
         raise NotImplementedError("TODO: Implement multi-round generation for InternVL")

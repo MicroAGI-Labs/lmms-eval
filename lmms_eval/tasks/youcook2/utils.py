@@ -5,10 +5,9 @@ from pathlib import Path
 
 import numpy as np
 import yaml
+from lmms_eval.tasks._task_utils.video_loader import get_cache_dir
 from pycocoevalcap.eval import Bleu, Cider, Meteor, Rouge
 from pycocoevalcap.tokenizer.ptbtokenizer import PTBTokenizer
-
-from lmms_eval.tasks._task_utils.video_loader import get_cache_dir
 
 COCO_METRICS = ["Bleu_4", "Bleu_3", "Bleu_2", "Bleu_1", "METEOR", "ROUGE_L", "CIDEr"]  # , "SPICE"]
 
@@ -24,7 +23,7 @@ def random_string(string_length):
     return "".join(random.choice(letters) for i in range(string_length))
 
 
-with open(Path(__file__).parent / "_default_template_yaml", "r") as f:
+with open(Path(__file__).parent / "_default_template_yaml") as f:
     raw_data = f.readlines()
     safe_data = []
     for i, line in enumerate(raw_data):
@@ -53,13 +52,26 @@ def youcook2_process_results(doc, result):
     video = doc["youtube_id"]
     timestamp = doc["segment"]
 
-    data_dict = {"answer": remove_nonascii(doc["sentence"]), "pred": remove_nonascii(pred), "video": video, "timestamp": timestamp}
+    data_dict = {
+        "answer": remove_nonascii(doc["sentence"]),
+        "pred": remove_nonascii(pred),
+        "video": video,
+        "timestamp": timestamp,
+    }
 
     return {f"{metric}": data_dict for metric in COCO_METRICS}
 
 
 def youcook2_aggregate_results(results, metric, **kwargs):
-    scorers = [(Bleu(4), "Bleu_1"), (Bleu(4), "Bleu_2"), (Bleu(4), "Bleu_3"), (Bleu(4), "Bleu_4"), (Meteor(), "METEOR"), (Rouge(), "ROUGE_L"), (Cider(), "CIDEr")]  # , (Spice(), "SPICE")]
+    scorers = [
+        (Bleu(4), "Bleu_1"),
+        (Bleu(4), "Bleu_2"),
+        (Bleu(4), "Bleu_3"),
+        (Bleu(4), "Bleu_4"),
+        (Meteor(), "METEOR"),
+        (Rouge(), "ROUGE_L"),
+        (Cider(), "CIDEr"),
+    ]  # , (Spice(), "SPICE")]
     scorers_dict = {s[1]: s[0] for s in scorers}
 
     gts = {}
