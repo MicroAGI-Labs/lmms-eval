@@ -1,5 +1,6 @@
 import base64
 import io
+from functools import lru_cache
 from pathlib import Path
 
 import numpy as np
@@ -19,7 +20,11 @@ def load_phyx_config():
 
 
 config = load_phyx_config()
-phyx_evaluator = PhyXEvaluator()
+
+
+@lru_cache(maxsize=1)
+def get_phyx_evaluator() -> PhyXEvaluator:
+    return PhyXEvaluator()
 
 
 def decode_base64_to_image(base64_string, target_size=-1):
@@ -41,6 +46,7 @@ def phyx_doc_to_text(doc, lmms_eval_specific_kwargs=None):
 
 
 def phyx_process_results_mc(doc, results):
+    phyx_evaluator = get_phyx_evaluator()
     prediction = results[0].strip()
     doc["prediction"] = str(prediction)
     doc["answer"] = str(doc["answer"])
@@ -64,6 +70,7 @@ def phyx_process_results_mc(doc, results):
 
 
 def phyx_process_results(doc, results):
+    phyx_evaluator = get_phyx_evaluator()
     prediction = results[0].strip()
     doc["prediction"] = str(prediction)
     doc["answer"] = str(doc["answer"])

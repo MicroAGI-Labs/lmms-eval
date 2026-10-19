@@ -17,7 +17,6 @@ from lmms_eval.models.model_utils.usage_metrics import get_running_totals
 from lmms_eval.models.model_utils.usage_metrics import is_budget_exceeded
 from lmms_eval.models.model_utils.usage_metrics import log_usage
 from lmms_eval.models.simple.openai import OpenAICompatible as OpenAICompatibleSimple
-from lmms_eval.models.simple.openai import _get_max_new_tokens
 from lmms_eval.protocol import ChatMessages
 from loguru import logger as eval_logger
 from tqdm import tqdm
@@ -191,9 +190,10 @@ class OpenAICompatible(OpenAICompatibleSimple):
 
             chat_messages_raw = doc_to_messages(self.task_dict[task][split][doc_id])
             chat_messages: ChatMessages = ChatMessages(**{"messages": chat_messages_raw})
-            request_gen_kwargs = dict(gen_kwargs)
-            max_new_tokens = _get_max_new_tokens(request_gen_kwargs)
-            temperature = request_gen_kwargs.get("temperature", 0)
+            # Endpoint models never receive an output-token cap (same rule as
+            # models/simple/openai.py build_payload_for_index; forced-thinking
+            # deployments truncate mid-reasoning otherwise).
+            temperature = dict(gen_kwargs).get("temperature", 0)
 
             if self.video_fps is not None and self.video_fps > 0:
                 video_kwargs = {"fps": self.video_fps}
@@ -203,7 +203,6 @@ class OpenAICompatible(OpenAICompatibleSimple):
             payload = {
                 "messages": chat_messages.to_openai_messages(video_kwargs=video_kwargs),
                 "model": self.model_version,
-                "max_tokens": max_new_tokens,
                 "temperature": temperature,
             }
             if self.thinking_mode is not None:
@@ -216,9 +215,7 @@ class OpenAICompatible(OpenAICompatibleSimple):
                 or "gpt-5" in self.model_version
             ):
                 payload.pop("temperature")
-                payload.pop("max_tokens")
                 payload["response_format"] = {"type": "text"}
-                payload["max_completion_tokens"] = max_new_tokens
 
             return payload
 

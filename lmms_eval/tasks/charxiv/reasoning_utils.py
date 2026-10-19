@@ -2,61 +2,40 @@ import json
 import os
 from copy import deepcopy
 
-from lmms_eval.tasks.charxiv.constant import (
-    REASONING_GRADING_INST,
-    REASONING_GRADING_PREFIX,
-    REASONING_RESP_INST,
-)
+from lmms_eval.tasks.charxiv.constant import REASONING_GRADING_INST
+from lmms_eval.tasks.charxiv.constant import REASONING_GRADING_PREFIX
+from lmms_eval.tasks.charxiv.constant import REASONING_RESP_INST
 
 
-def get_reasoning_result_gpt(client, prompt, model="gpt-4o-2024-05-13", max_retries=10):
-    curr_retries = 0
-    max_tokens = 256
-    while curr_retries < max_retries:
+def get_reasoning_result_gpt(client, prompt, model, max_retries=10) -> tuple[str, int]:
+    """Apply the native rubric without truncating the judge or scoring failures."""
+    if max_retries < 1:
+        raise ValueError("max_retries must be positive")
+    attempt = 0
+    while attempt < max_retries:
+        attempt += 1
         try:
-            response = (
-                client.chat.completions.create(
-                    messages=[
-                        {
-                            "role": "user",
-                            "content": prompt,
-                        }
-                    ],
-                    model=model,
-                    response_format={"type": "json_object"},
-                    n=1,
-                    max_tokens=max_tokens,
-                    temperature=0,
-                    top_p=1,
-                    seed=42,
-                )
-                .choices[0]
-                .message.content
+            response = client.chat.completions.create(
+                messages=[{"role": "user", "content": prompt}],
+                model=model,
+                response_format={"type": "json_object"},
+                n=1,
+                temperature=0,
+                top_p=1,
+                seed=42,
             )
-            content = json.loads(response)
+            content = json.loads(response.choices[0].message.content)
             ext, scr = content["extracted_answer"], content["score"]
-            break
-        except Exception as e:
-            print(f"Error: {e}")
-            # increase the max_tokens if the response is too long
-            if "Unterminated string starting at" in str(e):
-                if max_tokens >= 1024:
-                    print(f"Failed to get response for prompt: {prompt}")
-                    ext, scr = "Failed to parse response", -1
-                    break
-                else:
-                    max_tokens = min(1024, max_tokens * 2)  # double the max_tokens
-                    print(f"Retrying with max_tokens: {max_tokens}")
-            # otherwise, retry the request
-            curr_retries += 1
-    # if failed to get response, return dummy data
-    if curr_retries == max_retries:
-        print(f"Failed to get response for prompt: {prompt}")
-        ext, scr = "Failed to parse response", -1
-    return ext, scr
+            if scr not in (0, 1):
+                raise ValueError(f"Invalid CharXiv reasoning score: {scr}")
+            return ext, scr
+        except Exception:
+            if attempt == max_retries:
+                raise
+    raise RuntimeError("CharXiv judge retry limit exhausted")
 
 
-def get_number_instruction(answer):
+def get_number_instruction(answer) -> str:
     base = answer.split(".")
     whole, decimal = base[0], None if len(base) == 1 else base[1]
     # check if it contains decimal places
@@ -70,7 +49,7 @@ def get_number_instruction(answer):
     return inst
 
 
-def build_reasoning_grading_queries(input, resp):
+def build_reasoning_grading_queries(input, resp) -> dict[str, dict[str, str]]:
     queries = {}
     for _, data in input.items():
         figure_id = str(data["figure_id"])
@@ -89,7 +68,7 @@ def build_reasoning_grading_queries(input, resp):
     return queries
 
 
-def build_reasoning_queries(data, image_dir):
+def build_reasoning_queries(data, image_dir) -> dict[str | int, dict[str, str | int]]:
     queries = {}
     for _, d in data.items():
         figure_path = os.path.join(image_dir, f"{d['figure_id']}.jpg")

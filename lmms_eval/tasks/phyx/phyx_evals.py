@@ -23,12 +23,16 @@ FAIL_MSG = "Failed to obtain answer via API."
 config = load_phyx_config()
 
 
-def _parse_binary_judgment(response):
+def _parse_binary_judgment(response: int | str) -> int | None:
+    """Accept a binary grade, optionally echoing the native prompt's label."""
     match response:
         case 0 | "0":
             return 0
         case 1 | "1":
             return 1
+        case str() as text:
+            labeled = re.fullmatch(r"Judegement:\s*([01])", text.strip(), flags=re.IGNORECASE)
+            return int(labeled.group(1)) if labeled is not None else None
         case _:
             return None
 
@@ -60,7 +64,6 @@ class PhyXEvaluator:
             "model": self.juder_model,
             "messages": messages,
             "temperature": temperature,
-            "max_tokens": max_tokens,
         }
 
         while patience > 0:
@@ -82,7 +85,6 @@ class PhyXEvaluator:
 
                 if "Please reduce the length of the messages" in str(e):
                     eval_logger.error("!!Reduce prompt size")
-                    # reduce input prompt and keep the tail
                     new_size = int(len(prompt) * 0.9)
                     new_start = len(prompt) - new_size
                     prompt = prompt[new_start:]
@@ -252,7 +254,6 @@ class PhyXEvaluator:
         gt_answer = str(line["answer"])
         prediction = line["prediction"]
 
-        # try extract final answer using re rules
         tmp = self.PhyX_process_line(line)
 
         if tmp["extracted"] == "Fail to Call API":
@@ -261,7 +262,6 @@ class PhyXEvaluator:
         if tmp["extracted"] != "SAME as predict":
             prediction = tmp["extracted"]
 
-        # judge via LLM
         if gt_answer.strip().lower() == prediction.strip().lower():
             return dict(log="Matched at string level", res=1, extracted=prediction)
 
@@ -298,11 +298,9 @@ class PhyXEvaluator:
         if tmp["extracted"] != "SAME as predict":
             prediction = tmp["extracted"]
 
-        # match at string level
         if gt_answer.strip().lower() == prediction.strip().lower():
             return dict(log="Matched at string level", res=1, extracted=prediction)
         else:
-            # prediction is A/B/C/D, then labeled as unmatch
             if prediction.strip() in ["A", "B", "C", "D"]:
                 return dict(log="Unmatched at string level", res=0, extracted=prediction)
 
@@ -332,7 +330,6 @@ class PhyXEvaluator:
         ret["index"] = line["index"]
         ret["gt"] = answers
 
-        # with reasoning, extract content part
         prediction_str = line["prediction"]
         with_reasoning = False
         try:
@@ -374,7 +371,6 @@ class PhyXEvaluator:
             ret["match"] = 1
             return ret
 
-        # unmatch at string level
         ret["match"] = 0
         return ret
 
@@ -397,13 +393,11 @@ class PhyXEvaluator:
 
         if match:
             extracted_answer = match.group(1)
-            # compare string
             ret["extracted"] = extracted_answer
             if ret["gt"].strip().lower() == extracted_answer.strip().lower():
                 ret["match"] = 1
                 return ret
         else:
-            # try another match strategy
             matches = re.findall(r"([ABCD]):", ret["pred"])
             if matches:
                 extracted_answer = matches[-1]

@@ -54,7 +54,6 @@ def chat_completion_openai(messages, temperature, max_tokens):
     payload = {
         "messages": messages,
         "temperature": temperature,
-        "max_tokens": max_tokens,
     }
 
     for attempt in range(API_MAX_RETRY):
