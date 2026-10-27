@@ -8,7 +8,9 @@ import yaml
 from loguru import logger as eval_logger
 from openai import OpenAI
 from openai.types.chat import ChatCompletionUserMessageParam
-from openai.types.chat.completion_create_params import CompletionCreateParamsNonStreaming
+from openai.types.chat.completion_create_params import (
+    CompletionCreateParamsNonStreaming,
+)
 
 
 def load_phyx_config():
@@ -25,18 +27,25 @@ FAIL_MSG = "Failed to obtain answer via API."
 config = load_phyx_config()
 
 
-def _parse_binary_judgment(response: str) -> int | None:
-    judgment = re.fullmatch(r"\s*(?:Judegement:\s*)?([01])\s*", response)
-    return int(judgment.group(1)) if judgment else None
+def _parse_binary_judgment(response: int | str) -> int | None:
+    """Accept a strict binary grade, optionally echoing the native prompt's label."""
+    match response:
+        case bool():
+            return None
+        case int() as grade:
+            return grade if grade in (0, 1) else None
+        case str() as text:
+            judgment = re.fullmatch(r"\s*(?:Judegement:\s*)?([01])\s*", text, flags=re.IGNORECASE)
+            return int(judgment.group(1)) if judgment is not None else None
+        case _:
+            return None
 
 
 class PhyXEvaluator:
     """Stateless native scorer; judge credentials are needed only for API requests."""
 
     def judger_generate(self, prompt: str, temperature: float = 0, patience: int = 5, sleep_time: float = 0) -> str:
-        assert not config["metadata"]["quick_extract"], (
-            "To employ LLM to extract answer, please set `quick_extract=False`"
-        )
+        assert not config["metadata"]["quick_extract"], "To employ LLM to extract answer, please set `quick_extract=False`"
         payload: CompletionCreateParamsNonStreaming = {
             "model": os.environ["JUDGE_MODEL_NAME"],
             "messages": [{"role": "user", "content": prompt}],
@@ -63,7 +72,6 @@ class PhyXEvaluator:
 
                 if "Please reduce the length of the messages" in str(e):
                     eval_logger.error("!!Reduce prompt size")
-                    # reduce input prompt and keep the tail
                     new_size = int(len(prompt) * 0.9)
                     new_start = len(prompt) - new_size
                     prompt = prompt[new_start:]
@@ -231,7 +239,6 @@ class PhyXEvaluator:
         gt_answer = str(line["answer"])
         prediction = line["prediction"]
 
-        # try extract final answer using re rules
         tmp = self.PhyX_process_line(line)
 
         if tmp["extracted"] == "Fail to Call API":
@@ -240,7 +247,6 @@ class PhyXEvaluator:
         if tmp["extracted"] != "SAME as predict":
             prediction = tmp["extracted"]
 
-        # judge via LLM
         if gt_answer.strip().lower() == prediction.strip().lower():
             return dict(log="Matched at string level", res=1, extracted=prediction)
 
@@ -277,11 +283,9 @@ class PhyXEvaluator:
         if tmp["extracted"] != "SAME as predict":
             prediction = tmp["extracted"]
 
-        # match at string level
         if gt_answer.strip().lower() == prediction.strip().lower():
             return dict(log="Matched at string level", res=1, extracted=prediction)
         else:
-            # prediction is A/B/C/D, then labeled as unmatch
             if prediction.strip() in ["A", "B", "C", "D"]:
                 return dict(log="Unmatched at string level", res=0, extracted=prediction)
 
@@ -311,7 +315,6 @@ class PhyXEvaluator:
         ret["index"] = line["index"]
         ret["gt"] = answers
 
-        # with reasoning, extract content part
         prediction_str = line["prediction"]
         with_reasoning = False
         try:
@@ -345,15 +348,10 @@ class PhyXEvaluator:
             else:
                 ret["extracted"] = "SAME as predict"
 
-        if (
-            ret["gt"].strip().lower() == ret["extracted"].strip().lower()
-            or ret["gt"].strip().lower() == ret["pred"].strip().lower()
-            or ret["gt"] in ret["pred"]
-        ):
+        if ret["gt"].strip().lower() == ret["extracted"].strip().lower() or ret["gt"].strip().lower() == ret["pred"].strip().lower() or ret["gt"] in ret["pred"]:
             ret["match"] = 1
             return ret
 
-        # unmatch at string level
         ret["match"] = 0
         return ret
 
@@ -376,13 +374,11 @@ class PhyXEvaluator:
 
         if match:
             extracted_answer = match.group(1)
-            # compare string
             ret["extracted"] = extracted_answer
             if ret["gt"].strip().lower() == extracted_answer.strip().lower():
                 ret["match"] = 1
                 return ret
         else:
-            # try another match strategy
             matches = re.findall(r"([ABCD]):", ret["pred"])
             if matches:
                 extracted_answer = matches[-1]

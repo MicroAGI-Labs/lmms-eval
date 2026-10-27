@@ -68,6 +68,16 @@ CACHE_RELEVANT_KEYS = frozenset(
 )
 
 _SCHEMA_VERSION = 3
+
+# Cache-entry semantics version, independent of the DB schema above. Bump when
+# the *meaning* of a cached response changes without any prompt/gen_kwargs
+# change. History: 1 = initial; 2 = OpenAI-compatible endpoint payloads are sent
+# without any output-token cap (fork openai.py). Pre-2 entries were generated
+# under task/max-default-fallback caps (1024, down to 16 for countbench) and
+# would silently replay truncated forced-thinking completions — observed as
+# GLM-5.3-Flash countbench/mmworld 0.0. Bumping re-keys every entry so stale
+# capped responses are inert.
+_CACHE_SEMANTICS_VERSION = 2
 _LAYERED_RUNS_DIRNAME = "runs"
 _CACHE_RUN_ID_ENV_KEYS = ("LMMS_CACHE_RUN_ID", "SLURM_JOB_ID", "TORCHELASTIC_RUN_ID")
 _LAYERED_READY_MARKER = ".ready"
@@ -209,17 +219,25 @@ def _merge_lock(lock_dir: str, timeout_seconds: int = 60, poll_interval_seconds:
             pass
 
 
+# Output-length budget keys never reach the OpenAI-compatible endpoint payload
+# (see models/simple/openai.py build_payload_for_index: endpoint requests are
+# always sent uncapped — the harness's "no artificial output budgets" rule), so
+# they cannot differentiate what the model actually generated; keeping them in
+# the key would replay stale capped responses under an uncapped run.
+_UNSENT_BUDGET_KEYS = frozenset({"max_new_tokens", "max_gen_toks", "max_tokens"})
+
+
 def canonicalize_gen_kwargs(gen_kwargs: dict | None) -> str:
     """Normalize gen_kwargs for consistent hashing.
 
-    Only includes keys that affect generation output.
+    Only includes keys that affect generation output as actually requested.
     Coerces ``0.0`` to ``0`` so float/int variants hash identically.
     """
     if not gen_kwargs:
         return "{}"
     filtered = {}
     for k in sorted(gen_kwargs.keys()):
-        if k in CACHE_RELEVANT_KEYS:
+        if k in CACHE_RELEVANT_KEYS - _UNSENT_BUDGET_KEYS:
             v = gen_kwargs[k]
             if isinstance(v, float) and v == int(v):
                 v = int(v)
@@ -358,6 +376,7 @@ def compute_cache_key(
     """
     payload = {
         "v": _SCHEMA_VERSION,
+        "sem": _CACHE_SEMANTICS_VERSION,
         "rt": request_type,
         "tn": task_name,
         "did": doc_id,

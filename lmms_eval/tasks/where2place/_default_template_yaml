@@ -1,4 +1,8 @@
 dataset_path: FlagEval/Where2Place
+dataset_kwargs:
+  # Same rationale as the worldvqa task: pinning avoids HF's unpinned
+  # auto-conversion path and fixes the evaluated content. main-HEAD 2026-09-23.
+  revision: 864360aa323f102177329da62a3259ecdd83c5d5
 full_docs: true
 output_type: generate_until
 doc_to_visual: !function utils.where2place_doc_to_visual

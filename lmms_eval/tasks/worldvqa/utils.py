@@ -55,9 +55,7 @@ def worldvqa_doc_to_visual(doc: dict) -> list[Image.Image]:
 
 def worldvqa_doc_to_text(doc: dict, lmms_eval_specific_kwargs: dict | None = None) -> str:
     kwargs = lmms_eval_specific_kwargs or {}
-    detail_prompt = (
-        "请尽可能提供详细的回答。\n" if doc["language"] == "zh" else "Please provide as much detail as possible.\n"
-    )
+    detail_prompt = "请尽可能提供详细的回答。\n" if doc["language"] == "zh" else "Please provide as much detail as possible.\n"
     return f"{kwargs.get('pre_prompt', '')}{detail_prompt}{doc['question'].strip()}{kwargs.get('post_prompt', '')}"
 
 

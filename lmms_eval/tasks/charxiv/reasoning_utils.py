@@ -2,12 +2,12 @@ import json
 import os
 from copy import deepcopy
 
-from lmms_eval.tasks.charxiv.constant import REASONING_GRADING_INST
-from lmms_eval.tasks.charxiv.constant import REASONING_GRADING_PREFIX
-from lmms_eval.tasks.charxiv.constant import REASONING_RESP_INST
-from pydantic import BaseModel
-from pydantic import ConfigDict
-from pydantic import Field
+from lmms_eval.tasks.charxiv.constant import (
+    REASONING_GRADING_INST,
+    REASONING_GRADING_PREFIX,
+    REASONING_RESP_INST,
+)
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class Judgment(BaseModel):
@@ -17,38 +17,32 @@ class Judgment(BaseModel):
     score: int = Field(ge=0, le=1)
 
 
-def get_reasoning_result_gpt(client, prompt, model, max_retries=10):
-    curr_retries = 0
-    while curr_retries < max_retries:
+def get_reasoning_result_gpt(client, prompt, model, max_retries=10) -> tuple[str, int]:
+    """Apply the native rubric without truncating the judge or scoring failures."""
+    if max_retries < 1:
+        raise ValueError("max_retries must be positive")
+    attempt = 0
+    while attempt < max_retries:
+        attempt += 1
         try:
-            response = (
-                client.chat.completions.create(
-                    messages=[
-                        {
-                            "role": "user",
-                            "content": prompt,
-                        }
-                    ],
-                    model=model,
-                    response_format={"type": "json_object"},
-                    n=1,
-                    temperature=0,
-                    top_p=1,
-                    seed=42,
-                )
-                .choices[0]
-                .message.content
+            response = client.chat.completions.create(
+                messages=[{"role": "user", "content": prompt}],
+                model=model,
+                response_format={"type": "json_object"},
+                n=1,
+                temperature=0,
+                top_p=1,
+                seed=42,
             )
-            judgment = Judgment.model_validate(json.loads(response))
+            judgment = Judgment.model_validate(json.loads(response.choices[0].message.content))
             return judgment.extracted_answer, judgment.score
         except Exception as error:
-            curr_retries += 1
-            if curr_retries == max_retries:
+            if attempt == max_retries:
                 raise ValueError("Invalid CharXiv reasoning judgment after all retries") from error
-    raise ValueError("Invalid CharXiv retry count: max_retries must be positive")
+    raise RuntimeError("CharXiv judge retry limit exhausted")
 
 
-def get_number_instruction(answer):
+def get_number_instruction(answer) -> str:
     base = answer.split(".")
     whole, decimal = base[0], None if len(base) == 1 else base[1]
     # check if it contains decimal places
@@ -62,7 +56,7 @@ def get_number_instruction(answer):
     return inst
 
 
-def build_reasoning_grading_queries(input, resp):
+def build_reasoning_grading_queries(input, resp) -> dict[str, dict[str, str]]:
     queries = {}
     for _, data in input.items():
         figure_id = str(data["figure_id"])
@@ -70,9 +64,7 @@ def build_reasoning_grading_queries(input, resp):
         query, response = resp[figure_id]["raw_question"], resp[figure_id]["response"]
         # get query for answer type (inst_category), then
         # populate the query with the question, ground truth, and response
-        grading_query = REASONING_GRADING_PREFIX + deepcopy(REASONING_GRADING_INST[data["inst_category"]]).replace(
-            "<|question|>", query
-        ).replace("<|ground_truth|>", data["answer"]).replace("<|response|>", response)
+        grading_query = REASONING_GRADING_PREFIX + deepcopy(REASONING_GRADING_INST[data["inst_category"]]).replace("<|question|>", query).replace("<|ground_truth|>", data["answer"]).replace("<|response|>", response)
         query = {
             "figure_id": figure_id,
             "grading_query": grading_query,
@@ -81,7 +73,7 @@ def build_reasoning_grading_queries(input, resp):
     return queries
 
 
-def build_reasoning_queries(data, image_dir):
+def build_reasoning_queries(data, image_dir) -> dict[str | int, dict[str, str | int]]:
     queries = {}
     for _, d in data.items():
         figure_path = os.path.join(image_dir, f"{d['figure_id']}.jpg")

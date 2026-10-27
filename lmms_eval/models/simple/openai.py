@@ -21,6 +21,7 @@ from lmms_eval.models.model_utils.concurrency_control import AdaptiveConcurrency
 from lmms_eval.models.model_utils.concurrency_control import decide_next_concurrency
 from lmms_eval.models.model_utils.concurrency_control import is_rate_limit_error
 from lmms_eval.models.model_utils.concurrency_control import make_prefix_hash
+import httpx
 from lmms_eval.models.model_utils.concurrency_control import parse_bool
 from lmms_eval.models.model_utils.media_encoder import encode_image_to_base64
 from lmms_eval.models.model_utils.media_encoder import encode_image_to_base64_with_size_limit
@@ -65,8 +66,22 @@ def _normalize_openai_message_content(content) -> str:
     return str(content)
 
 
-def _get_max_new_tokens(gen_kwargs: dict) -> int:
-    return gen_kwargs.get("max_new_tokens", 1024)
+def out_of_context_text(finish_reason: str | None) -> str:
+    """Replacement text for completions whose ``message.content`` is empty.
+
+    Reasoning deployments (e.g. sglang ``--reasoning-parser=glm45`` on
+    GLM-5.3-Flash, whose chat template always forces ``<think>``) can spend the
+    whole generation budget on reasoning and emit no answer at all. The sample
+    is still a benchmark failure — but a deterministic one (greedy
+    ``temperature=0``), so retrying would reproduce the identical empty
+    completion. Returning this signifier (instead of retrying as a transient
+    error) scores the sample wrong while keeping the cause visible in the
+    per-sample output; ``reasoning_content`` is never scored as an answer.
+    """
+    return (
+        f"[OUT_OF_CONTEXT finish_reason={finish_reason!r}] empty message.content: "
+        "generation budget consumed by reasoning before an answer was emitted"
+    )
 
 
 @register_model("openai")
@@ -172,14 +187,22 @@ class OpenAICompatible(lmms):
         if base_url and base_url.endswith("/"):
             base_url = base_url.rstrip("/")
 
+        # Uncapped generations must be allowed to finish: a 262k-context forced
+        # reasoning sample at deep-KV decode rates can take over an hour, well
+        # past the SDK's default 600s timeout (which would score the sample as
+        # [LMMS_EVAL_REQUEST_FAILED] instead of letting the model stop or hit
+        # finish_reason=length and become OUT_OF_CONTEXT). 4 h overall, short
+        # connect so dead endpoints still fail fast.
+        request_timeout = httpx.Timeout(timeout=14400.0, connect=30.0)
         self.client = (
-            OpenAI(api_key=api_key, base_url=base_url, http_client=http_client)
+            OpenAI(api_key=api_key, base_url=base_url, http_client=http_client, timeout=request_timeout)
             if not azure_openai
             else AzureOpenAI(
                 api_key=os.getenv("AZURE_OPENAI_API_KEY"),
                 azure_endpoint=os.getenv("AZURE_OPENAI_API_BASE"),
                 api_version=os.getenv("AZURE_OPENAI_API_VERSION"),
                 http_client=http_client,
+                timeout=request_timeout,
             )
         )
 
@@ -363,8 +386,8 @@ class OpenAICompatible(lmms):
                     response = self.client.chat.completions.create(**payload)
                     response_text = _normalize_openai_message_content(response.choices[0].message.content)
                     if not response_text.strip():
-                        finish_reason = response.choices[0].finish_reason
-                        raise ValueError(f"OpenAI-compatible endpoint returned empty content ({finish_reason=})")
+                        response_text = out_of_context_text(response.choices[0].finish_reason)
+                        eval_logger.info(f"Empty message.content on request {local_index}: {response_text}")
                     token_counts = None
                     if hasattr(response, "usage") and response.usage:
                         log_usage(
@@ -496,14 +519,18 @@ class OpenAICompatible(lmms):
                     elif isinstance(visual, Image.Image):
                         imgs.append(self.encode_image(visual))
 
-            request_gen_kwargs = dict(gen_kwargs)
-            max_new_tokens = _get_max_new_tokens(request_gen_kwargs)
-            temperature = request_gen_kwargs.get("temperature", 0)
+            # Endpoint models never receive an output-token cap (see AGENTS.md
+            # configuration principle: let the LLM stop its output naturally).
+            # Upstream task YAMLs still carry max_new_tokens hints; capping a
+            # forced-thinking deployment mid-`<think>` truncates the answer away
+            # entirely, as observed on GLM-5.3-Flash (countbench/mmworld/
+            # realworldqa at 0.0). A genuinely exhausted context still surfaces
+            # via finish_reason=length -> out_of_context_text below.
+            temperature = dict(gen_kwargs).get("temperature", 0)
 
             payload = {
                 "model": self.model_version,
                 "messages": [{"role": "user", "content": []}],
-                "max_tokens": max_new_tokens,
                 "temperature": temperature,
             }
             if self.thinking_mode is not None:
@@ -529,8 +556,6 @@ class OpenAICompatible(lmms):
                 payload.pop("temperature")
                 payload["reasoning_effort"] = "medium"
                 payload["response_format"] = {"type": "text"}
-                payload.pop("max_tokens")
-                payload["max_completion_tokens"] = max_new_tokens
 
             return payload
 

@@ -47,6 +47,33 @@ from lmms_eval.filters import build_filter_ensemble
 # Include this inside code block to avoid error
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 
+
+_CAST_TABLE_TO_SCHEMA_UNBATCHED = datasets.table.cast_table_to_schema
+
+
+def _cast_table_to_schema_batched(table, schema, batch_rows: int = 32):
+    """Row-batched drop-in for ``datasets.table.cast_table_to_schema``.
+
+    Rows with MB-scale string cells (e.g. TOMATO's transcript payloads) overflow
+    Arrow's 2 GiB string-offset limit when the writer casts a whole generation
+    batch at once (``pyarrow.lib.ArrowInvalid: Failed casting from large_string
+    to string: input array too large``). Casting in 32-row slices stays under the
+    limit. Schema, values, and row order are unchanged; only the cast chunking
+    differs.
+    """
+    import pyarrow as pa
+
+    if table.num_rows <= batch_rows:
+        return _CAST_TABLE_TO_SCHEMA_UNBATCHED(table, schema)
+    slices = [
+        _CAST_TABLE_TO_SCHEMA_UNBATCHED(table.slice(offset=i, length=min(batch_rows, table.num_rows - i)), schema)
+        for i in range(0, table.num_rows, batch_rows)
+    ]
+    return pa.concat_tables(slices)
+
+
+datasets.table.cast_table_to_schema = _cast_table_to_schema_batched
+
 ALL_OUTPUT_TYPES = [
     "loglikelihood",
     "multiple_choice",

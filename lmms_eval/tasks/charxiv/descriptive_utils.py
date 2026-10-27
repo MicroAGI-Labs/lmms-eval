@@ -1,14 +1,16 @@
 import json
 import os
 
-from lmms_eval.tasks.charxiv.constant import DESCRIPTIVE_GRADING_ICL
-from lmms_eval.tasks.charxiv.constant import DESCRIPTIVE_GRADING_PREFIX
-from lmms_eval.tasks.charxiv.constant import DESCRIPTIVE_GRADING_QMAP
-from lmms_eval.tasks.charxiv.constant import DESCRIPTIVE_RESP_INST
+from lmms_eval.tasks.charxiv.constant import (
+    DESCRIPTIVE_GRADING_ICL,
+    DESCRIPTIVE_GRADING_PREFIX,
+    DESCRIPTIVE_GRADING_QMAP,
+    DESCRIPTIVE_RESP_INST,
+)
 from lmms_eval.tasks.charxiv.reasoning_utils import Judgment
 
 
-def get_rubric(qid):
+def get_rubric(qid) -> str:
     instruction = None
     if qid in [1]:
         instruction = DESCRIPTIVE_GRADING_ICL["title"]
@@ -28,39 +30,32 @@ def get_rubric(qid):
     return instruction
 
 
-def get_descriptive_result_gpt(client, prompt, length, model, max_retries=10):
-    curr_retries = 0
-    while curr_retries < max_retries:
+def get_descriptive_result_gpt(client, prompt, length, model, max_retries=10) -> dict:
+    """Apply the native batched rubric and propagate exhausted judge failures."""
+    if max_retries < 1:
+        raise ValueError("max_retries must be positive")
+    attempt = 0
+    while True:
         try:
-            response = (
-                client.chat.completions.create(
-                    messages=[
-                        {
-                            "role": "user",
-                            "content": prompt,
-                        }
-                    ],
-                    model=model,
-                    response_format={"type": "json_object"},
-                    n=1,
-                    temperature=0,
-                    top_p=1,
-                    seed=42,
-                )
-                .choices[0]
-                .message.content
+            response = client.chat.completions.create(
+                messages=[{"role": "user", "content": prompt}],
+                model=model,
+                response_format={"type": "json_object"},
+                n=1,
+                temperature=0,
+                top_p=1,
+                seed=42,
             )
-            content = json.loads(response)
+            content = json.loads(response.choices[0].message.content)
             verify_grading_output(content, length)
             return content
         except Exception as error:
-            curr_retries += 1
-            if curr_retries == max_retries:
+            attempt += 1
+            if attempt >= max_retries:
                 raise ValueError("Invalid CharXiv descriptive judgment after all retries") from error
-    raise ValueError("Invalid CharXiv retry count: max_retries must be positive")
 
 
-def build_json_keys(length):
+def build_json_keys(length) -> str:
     keys = []
     # specify the keys for gpt-4o's json response
     for i in range(1, length + 1):
@@ -69,7 +64,7 @@ def build_json_keys(length):
     return str(keys)
 
 
-def populate_grading_inputs(batch):
+def populate_grading_inputs(batch) -> str:
     query = ""
     for i, (_, response, answer) in enumerate(batch):
         # index, response, answer
@@ -78,7 +73,7 @@ def populate_grading_inputs(batch):
     return query
 
 
-def verify_grading_output(data, length_data):
+def verify_grading_output(data, length_data) -> bool:
     for i in range(1, length_data + 1):
         try:
             Judgment.model_validate({"extracted_answer": data[f"extract_answer_T{i}"], "score": data[f"score_T{i}"]})
@@ -87,7 +82,7 @@ def verify_grading_output(data, length_data):
     return True
 
 
-def preprocess_descriptive_grading_queries(input, resp, num_templates=19):
+def preprocess_descriptive_grading_queries(input, resp, num_templates=19) -> dict[int, list[tuple[str, str, str]]]:
     # group the responses based on the template id instead of figure id
     groups = {i: [] for i in range(1, num_templates + 1)}
     for _, data in input.items():
@@ -102,7 +97,7 @@ def preprocess_descriptive_grading_queries(input, resp, num_templates=19):
     return groups
 
 
-def build_descriptive_grading_queries(groups, nq_per_query=5):
+def build_descriptive_grading_queries(groups, nq_per_query=5) -> list[dict[str, str | list[str]]]:
     queries = []
     for qid, data in groups.items():
         # batched evaluation based on number of questions per query (nq_per_query)
@@ -114,11 +109,7 @@ def build_descriptive_grading_queries(groups, nq_per_query=5):
             # build the json keys for GPT-4o's response
             json_keys = build_json_keys(len(batch))
             # populate batch size, question, and json keys spec
-            prefix = (
-                DESCRIPTIVE_GRADING_PREFIX.replace("<|NUM_TRIPLETS|>", str(len(batch)))
-                .replace("<|OVERARCHING_QUESTION|>", question)
-                .replace("<|JSON_KEYS|>", json_keys)
-            )
+            prefix = DESCRIPTIVE_GRADING_PREFIX.replace("<|NUM_TRIPLETS|>", str(len(batch))).replace("<|OVERARCHING_QUESTION|>", question).replace("<|JSON_KEYS|>", json_keys)
             # add in-context grading example based on the template id
             rubric_icl = get_rubric(qid)
             # prompt + example + model responses
@@ -131,7 +122,7 @@ def build_descriptive_grading_queries(groups, nq_per_query=5):
     return queries
 
 
-def postprocess_descriptive_grading_queries(queries):
+def postprocess_descriptive_grading_queries(queries) -> dict[str, dict[str, str | int]]:
     scores = {}
     for query in queries:
         # query contains resp_keys, grading_query, extract_answer and score
@@ -149,7 +140,7 @@ def postprocess_descriptive_grading_queries(queries):
     return scores
 
 
-def descriptive_query_helper(qid, subplot_loc):
+def descriptive_query_helper(qid, subplot_loc) -> str:
     if qid in [18, 19]:
         # skip subplot location when asking about the layout of the subplots
         return DESCRIPTIVE_RESP_INST[qid]
@@ -169,7 +160,7 @@ def descriptive_query_helper(qid, subplot_loc):
     return DESCRIPTIVE_RESP_INST[qid].format(prefix)
 
 
-def build_descriptive_quries(data, image_dir):
+def build_descriptive_quries(data, image_dir) -> dict[str, dict[str, str | int]]:
     queries = {}
     for _, d in data.items():
         figure_path = os.path.join(image_dir, f"{d['figure_id']}.jpg")
