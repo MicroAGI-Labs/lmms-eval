@@ -48,13 +48,12 @@ def egothink_doc_to_answer(doc):
 
 
 # Process result for evaluation in generic task
-def chat_completion_openai(messages, temperature, max_tokens):
+def chat_completion_openai(messages, temperature):
     model = os.environ["JUDGE_MODEL_NAME"]
     client = OpenAI(api_key=os.environ["JUDGE_API_KEY"], base_url=os.environ["JUDGE_BASE_URL"])
     payload = {
         "messages": messages,
         "temperature": temperature,
-        "max_tokens": max_tokens,
     }
 
     for attempt in range(API_MAX_RETRY):
@@ -84,7 +83,7 @@ def judge_single(question, answer, ref_answer):
         },
     ]
 
-    judgment, eval_model = chat_completion_openai(conv, temperature=0, max_tokens=2048)
+    judgment, eval_model = chat_completion_openai(conv, temperature=0)
     match = re.search(one_score_pattern, judgment) or re.search(one_score_pattern_backup, judgment)
     if match is None:
         raise RuntimeError(f"EgoThink judge returned an invalid rating: {judgment!r}")

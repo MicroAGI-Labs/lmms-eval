@@ -1,37 +1,40 @@
 import os
+from functools import lru_cache
 
 from datasets import Dataset
 from lmms_eval.tasks.charxiv.constant import REASONING_RESP_INST
-from lmms_eval.tasks.charxiv.descriptive_utils import (
-    build_descriptive_grading_queries,
-    descriptive_query_helper,
-    get_descriptive_result_gpt,
-    postprocess_descriptive_grading_queries,
-)
-from lmms_eval.tasks.charxiv.reasoning_utils import (
-    build_reasoning_grading_queries,
-    get_number_instruction,
-    get_reasoning_result_gpt,
-)
+from lmms_eval.tasks.charxiv.descriptive_utils import build_descriptive_grading_queries
+from lmms_eval.tasks.charxiv.descriptive_utils import descriptive_query_helper
+from lmms_eval.tasks.charxiv.descriptive_utils import get_descriptive_result_gpt
+from lmms_eval.tasks.charxiv.descriptive_utils import postprocess_descriptive_grading_queries
+from lmms_eval.tasks.charxiv.reasoning_utils import build_reasoning_grading_queries
+from lmms_eval.tasks.charxiv.reasoning_utils import get_number_instruction
+from lmms_eval.tasks.charxiv.reasoning_utils import get_reasoning_result_gpt
 from openai import OpenAI
-from tqdm import tqdm
-
-# get environment else return dummy values, in a single line
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "YOUR_OPENAI_API_KEY")
-OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "YOUR_OPENAI_BASE_URL")
-MODEL_VERSION = os.getenv("MODEL_VERSION", "YOUR_MODEL_VERSION")
-
-# Lazy-initialize the OpenAI client to avoid creating an SSLContext at import time.
-# An SSLContext cannot be pickled, which breaks dataset.map() multiprocessing even
-# with num_proc=1 on newer versions of the `datasets` library.
-_client = None
+from pydantic import BaseModel
+from pydantic import ConfigDict
+from pydantic import Field
 
 
-def _get_client():
-    global _client
-    if _client is None:
-        _client = OpenAI(api_key=OPENAI_API_KEY, base_url=OPENAI_BASE_URL)
-    return _client
+class JudgeConfig(BaseModel):
+    model_config = ConfigDict(frozen=True, strict=True)
+
+    model: str = Field(min_length=1)
+    base_url: str = Field(min_length=1)
+    api_key: str = Field(min_length=1, repr=False)
+
+
+def _judge_config() -> JudgeConfig:
+    return JudgeConfig(
+        model=os.environ["JUDGE_MODEL_NAME"],
+        base_url=os.environ["JUDGE_BASE_URL"],
+        api_key=os.environ["JUDGE_API_KEY"],
+    )
+
+
+@lru_cache(maxsize=1)
+def _get_client(config: JudgeConfig) -> OpenAI:
+    return OpenAI(api_key=config.api_key, base_url=config.base_url)
 
 
 def charxiv_reasoning_doc_to_text_cot(doc, lmms_eval_specific_kwargs=None):
@@ -47,11 +50,12 @@ def charxiv_reasoning_doc_to_text_cot(doc, lmms_eval_specific_kwargs=None):
 
 
 def charxiv_descriptive_process_docs(dataset: Dataset) -> Dataset:
-    # Four descriptive questions for each reasoning question
+    figure_count = len(dataset)
     dataset = dataset.repeat(4)
 
     def _process_row(example, indice):
-        q_number = indice % 4 + 1
+        question_index = indice // figure_count
+        q_number = question_index + 1
         descriptive_q = example[f"descriptive_q{q_number}"]
         qid = descriptive_q
         subplot_loc = example["subplot_loc"]
@@ -62,7 +66,7 @@ def charxiv_descriptive_process_docs(dataset: Dataset) -> Dataset:
         descriptive_q = descriptive_query_helper(descriptive_q, subplot_loc)
         example["descriptive_q"] = descriptive_q
         example["descriptive_a"] = example[f"descriptive_a{q_number}"]
-        return {"qid": qid, **example}
+        return {**example, "qid": qid, "question_index": question_index}
 
     # Use num_proc=None (single-process, no pickling) to avoid SSLContext
     # serialization errors from the lazy OpenAI client in module globals.
@@ -81,48 +85,43 @@ def charxiv_doc_to_visual(doc):
 def charxiv_descriptive_doc_to_messages_cot(doc, lmms_eval_specific_kwargs=None):
     question = charxiv_descriptive_doc_to_text_cot(doc, lmms_eval_specific_kwargs)
     visuals = charxiv_doc_to_visual(doc)
-    messages = [{"role": "user", "content": []}]
-    messages[0]["content"].append({"type": "image", "url": visuals[0]})
-    messages[0]["content"].append({"type": "text", "text": question.strip()})
-    return messages
+    return [
+        {
+            "role": "user",
+            "content": [
+                {"type": "image", "url": visuals[0]},
+                {"type": "text", "text": question.strip()},
+            ],
+        }
+    ]
 
 
 def charxiv_reasoning_doc_to_messages_cot(doc, lmms_eval_specific_kwargs=None):
     question = charxiv_reasoning_doc_to_text_cot(doc, lmms_eval_specific_kwargs)
     visuals = charxiv_doc_to_visual(doc)
-    messages = [{"role": "user", "content": []}]
-    messages[0]["content"].append({"type": "image", "url": visuals[0]})
-    messages[0]["content"].append({"type": "text", "text": question.strip()})
-    return messages
+    return [
+        {
+            "role": "user",
+            "content": [
+                {"type": "image", "url": visuals[0]},
+                {"type": "text", "text": question.strip()},
+            ],
+        }
+    ]
 
 
 def charxiv_descriptive_process_results(doc, results):
-    figure_id = doc["figure_path"]
-    qid = doc["qid"]
-    resp_key = f"{figure_id}_{qid}"
-    response = results[0].strip()
-    answer = doc["descriptive_a"]
-    return {"descriptive_acc": {"group": (resp_key, response, answer), "qid": qid}}
+    resp_key = f"{doc['figure_path']}_{doc['question_index']}"
+    groups = {doc["qid"]: [(resp_key, results[0].strip(), doc["descriptive_a"])]}
+    query = build_descriptive_grading_queries(groups, nq_per_query=1)[0]
+    config = _judge_config()
+    result = get_descriptive_result_gpt(_get_client(config), query["grading_query"], 1, model=config.model)
+    scored = postprocess_descriptive_grading_queries([{**query, **result}])
+    return {"descriptive_acc": scored[resp_key]}
 
 
 def charxiv_descriptive_aggregate_results(results):
-    groups = {i: [] for i in range(1, 20)}
-    for result in results:
-        groups[result["qid"]].append(result["group"])
-    queries = build_descriptive_grading_queries(groups)
-    combined_queries = []
-    for query in tqdm(queries):
-        result = get_descriptive_result_gpt(
-            _get_client(), query["grading_query"], len(query["resp_keys"]), model=MODEL_VERSION
-        )
-        # query contains resp_keys, grading_query, extract_answer and score
-        combined_queries.append({**query, **result})
-    queries = combined_queries
-    # flatten the queries and only keep the necessary fields
-    queries = postprocess_descriptive_grading_queries(queries)
-    # Return the average score
-    scores = [query["score"] for query in queries.values()]
-    return sum(scores) / len(scores)
+    return sum(result["score"] for result in results) / len(results)
 
 
 def charxiv_reasoning_process_results(doc, results):
@@ -135,21 +134,11 @@ def charxiv_reasoning_process_results(doc, results):
     data["figure_id"] = figure_id
     data["answer"] = answer
     resp_value = {"raw_question": doc["reasoning_q"], "response": response}
-    return {"reasoning_acc": {"resp_value": resp_value, "resp_key": figure_id, "data": data}}
+    query = build_reasoning_grading_queries({figure_id: data}, {str(figure_id): resp_value})[str(figure_id)]
+    config = _judge_config()
+    extracted, score = get_reasoning_result_gpt(_get_client(config), query["grading_query"], model=config.model)
+    return {"reasoning_acc": {"resp_id": figure_id, "extracted_answer": extracted, "score": score}}
 
 
 def charxiv_reasoning_aggregate_results(results):
-    data = {}
-    resps = {}
-    for i, result in enumerate(results):
-        data[i] = result["data"]
-        resps[result["resp_key"]] = result["resp_value"]
-    queries = build_reasoning_grading_queries(data, resps)
-    for figure_id, query in tqdm(queries.items()):
-        ext, scr = get_reasoning_result_gpt(_get_client(), query["grading_query"], model=MODEL_VERSION)
-        queries[figure_id]["extracted_answer"] = ext
-        queries[figure_id]["score"] = scr
-        queries[figure_id].pop("grading_query")
-    # Return the average score
-    scores = [query["score"] for query in queries.values()]
-    return sum(scores) / len(scores)
+    return sum(result["score"] for result in results) / len(results)

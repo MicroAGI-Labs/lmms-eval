@@ -7,6 +7,8 @@ from pathlib import Path
 import yaml
 from loguru import logger as eval_logger
 from openai import OpenAI
+from openai.types.chat import ChatCompletionUserMessageParam
+from openai.types.chat.completion_create_params import CompletionCreateParamsNonStreaming
 
 
 def load_phyx_config():
@@ -23,58 +25,37 @@ FAIL_MSG = "Failed to obtain answer via API."
 config = load_phyx_config()
 
 
-def _parse_binary_judgment(response):
-    match response:
-        case 0 | "0":
-            return 0
-        case 1 | "1":
-            return 1
-        case _:
-            return None
+def _parse_binary_judgment(response: str) -> int | None:
+    judgment = re.fullmatch(r"\s*(?:Judegement:\s*)?([01])\s*", response)
+    return int(judgment.group(1)) if judgment else None
 
 
 class PhyXEvaluator:
-    def __init__(self):
-        if not config["metadata"]["quick_extract"]:
-            self.juder_model = os.environ["JUDGE_MODEL_NAME"]
-            api_url = os.environ["JUDGE_BASE_URL"]
-            api_key = os.environ["JUDGE_API_KEY"]
-            self.headers = {
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json",
-            }
-            self.client = OpenAI(api_key=api_key, base_url=api_url)
-        else:
-            self.juder_model = None
-            self.headers = None
-            self.client = None
+    """Stateless native scorer; judge credentials are needed only for API requests."""
 
-    def judger_generate(self, prompt, temperature=0, max_tokens=128, n=1, patience=5, sleep_time=0):
+    def judger_generate(self, prompt: str, temperature: float = 0, patience: int = 5, sleep_time: float = 0) -> str:
         assert not config["metadata"]["quick_extract"], (
             "To employ LLM to extract answer, please set `quick_extract=False`"
         )
-        messages = [
-            {"role": "user", "content": prompt},
-        ]
-        payload = {
-            "model": self.juder_model,
-            "messages": messages,
+        payload: CompletionCreateParamsNonStreaming = {
+            "model": os.environ["JUDGE_MODEL_NAME"],
+            "messages": [{"role": "user", "content": prompt}],
             "temperature": temperature,
-            "max_tokens": max_tokens,
         }
 
+        api_key = os.environ["JUDGE_API_KEY"]
+        base_url = os.environ["JUDGE_BASE_URL"]
         while patience > 0:
             patience -= 1
             try:
-                response = self.client.chat.completions.create(**payload)
-                if n == 1:
-                    prediction = response.choices[0].message.content.strip()
-                    if prediction and prediction != "":
-                        return prediction
-                else:
-                    prediction = [choice.message.content.strip() for choice in response.choices]
-                    if prediction and prediction[0] != "":
-                        return prediction
+                with OpenAI(api_key=api_key, base_url=base_url) as client:
+                    response = client.chat.completions.create(**payload)
+                content = response.choices[0].message.content
+                if content is None:
+                    raise ValueError("PhyX judge returned no text content")
+                prediction = content.strip()
+                if prediction:
+                    return prediction
 
             except Exception as e:
                 if "Rate limit" not in str(e):
@@ -86,9 +67,7 @@ class PhyXEvaluator:
                     new_size = int(len(prompt) * 0.9)
                     new_start = len(prompt) - new_size
                     prompt = prompt[new_start:]
-                    payload["messages"] = [
-                        {"role": "user", "content": prompt},
-                    ]
+                    payload["messages"] = [ChatCompletionUserMessageParam(role="user", content=prompt)]
 
                 if sleep_time > 0:
                     time.sleep(sleep_time)

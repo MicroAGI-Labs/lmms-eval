@@ -2,16 +2,23 @@ import json
 import os
 from copy import deepcopy
 
-from lmms_eval.tasks.charxiv.constant import (
-    REASONING_GRADING_INST,
-    REASONING_GRADING_PREFIX,
-    REASONING_RESP_INST,
-)
+from lmms_eval.tasks.charxiv.constant import REASONING_GRADING_INST
+from lmms_eval.tasks.charxiv.constant import REASONING_GRADING_PREFIX
+from lmms_eval.tasks.charxiv.constant import REASONING_RESP_INST
+from pydantic import BaseModel
+from pydantic import ConfigDict
+from pydantic import Field
 
 
-def get_reasoning_result_gpt(client, prompt, model="gpt-4o-2024-05-13", max_retries=10):
+class Judgment(BaseModel):
+    model_config = ConfigDict(strict=True)
+
+    extracted_answer: str
+    score: int = Field(ge=0, le=1)
+
+
+def get_reasoning_result_gpt(client, prompt, model, max_retries=10):
     curr_retries = 0
-    max_tokens = 256
     while curr_retries < max_retries:
         try:
             response = (
@@ -25,7 +32,6 @@ def get_reasoning_result_gpt(client, prompt, model="gpt-4o-2024-05-13", max_retr
                     model=model,
                     response_format={"type": "json_object"},
                     n=1,
-                    max_tokens=max_tokens,
                     temperature=0,
                     top_p=1,
                     seed=42,
@@ -33,27 +39,13 @@ def get_reasoning_result_gpt(client, prompt, model="gpt-4o-2024-05-13", max_retr
                 .choices[0]
                 .message.content
             )
-            content = json.loads(response)
-            ext, scr = content["extracted_answer"], content["score"]
-            break
-        except Exception as e:
-            print(f"Error: {e}")
-            # increase the max_tokens if the response is too long
-            if "Unterminated string starting at" in str(e):
-                if max_tokens >= 1024:
-                    print(f"Failed to get response for prompt: {prompt}")
-                    ext, scr = "Failed to parse response", -1
-                    break
-                else:
-                    max_tokens = min(1024, max_tokens * 2)  # double the max_tokens
-                    print(f"Retrying with max_tokens: {max_tokens}")
-            # otherwise, retry the request
+            judgment = Judgment.model_validate(json.loads(response))
+            return judgment.extracted_answer, judgment.score
+        except Exception as error:
             curr_retries += 1
-    # if failed to get response, return dummy data
-    if curr_retries == max_retries:
-        print(f"Failed to get response for prompt: {prompt}")
-        ext, scr = "Failed to parse response", -1
-    return ext, scr
+            if curr_retries == max_retries:
+                raise ValueError("Invalid CharXiv reasoning judgment after all retries") from error
+    raise ValueError("Invalid CharXiv retry count: max_retries must be positive")
 
 
 def get_number_instruction(answer):

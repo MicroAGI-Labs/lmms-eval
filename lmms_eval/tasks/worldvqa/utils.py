@@ -90,7 +90,6 @@ def _judge_answer(question: str, prediction: str, ground_truth: str) -> tuple[st
                 model=model,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0,
-                max_tokens=1024,
             )
             judgment = response.choices[0].message.content or ""
             parsed_judgment = _strip_thinking(judgment)

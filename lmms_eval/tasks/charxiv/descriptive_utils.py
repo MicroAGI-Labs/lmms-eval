@@ -1,12 +1,11 @@
 import json
 import os
 
-from lmms_eval.tasks.charxiv.constant import (
-    DESCRIPTIVE_GRADING_ICL,
-    DESCRIPTIVE_GRADING_PREFIX,
-    DESCRIPTIVE_GRADING_QMAP,
-    DESCRIPTIVE_RESP_INST,
-)
+from lmms_eval.tasks.charxiv.constant import DESCRIPTIVE_GRADING_ICL
+from lmms_eval.tasks.charxiv.constant import DESCRIPTIVE_GRADING_PREFIX
+from lmms_eval.tasks.charxiv.constant import DESCRIPTIVE_GRADING_QMAP
+from lmms_eval.tasks.charxiv.constant import DESCRIPTIVE_RESP_INST
+from lmms_eval.tasks.charxiv.reasoning_utils import Judgment
 
 
 def get_rubric(qid):
@@ -29,9 +28,8 @@ def get_rubric(qid):
     return instruction
 
 
-def get_descriptive_result_gpt(client, prompt, length, model="gpt-4o-2024-05-13", max_retries=10):
+def get_descriptive_result_gpt(client, prompt, length, model, max_retries=10):
     curr_retries = 0
-    max_tokens = 256
     while curr_retries < max_retries:
         try:
             response = (
@@ -45,7 +43,6 @@ def get_descriptive_result_gpt(client, prompt, length, model="gpt-4o-2024-05-13"
                     model=model,
                     response_format={"type": "json_object"},
                     n=1,
-                    max_tokens=max_tokens,
                     temperature=0,
                     top_p=1,
                     seed=42,
@@ -55,25 +52,12 @@ def get_descriptive_result_gpt(client, prompt, length, model="gpt-4o-2024-05-13"
             )
             content = json.loads(response)
             verify_grading_output(content, length)
-            break
-        except Exception as e:
-            print(f"Error: {e}")
-            # increase the max_tokens if the response is too long
-            if "Unterminated string starting at" in str(e):
-                if max_tokens >= 1024:
-                    print(f"Failed to get response for prompt: {prompt}")
-                    content = build_dummy_output(length)
-                    break
-                else:
-                    max_tokens = min(1024, max_tokens * 2)  # double the max_tokens
-                    print(f"Retrying with max_tokens: {max_tokens}")
-            # otherwise, retry the request
+            return content
+        except Exception as error:
             curr_retries += 1
-    # if failed to get response, return dummy data
-    if curr_retries == max_retries:
-        print(f"Failed to get response for prompt: {prompt}")
-        content = build_dummy_output(length)
-    return content
+            if curr_retries == max_retries:
+                raise ValueError("Invalid CharXiv descriptive judgment after all retries") from error
+    raise ValueError("Invalid CharXiv retry count: max_retries must be positive")
 
 
 def build_json_keys(length):
@@ -95,21 +79,12 @@ def populate_grading_inputs(batch):
 
 
 def verify_grading_output(data, length_data):
-    # check the integrity of keys and values
     for i in range(1, length_data + 1):
-        assert f"extract_answer_T{i}" in data, f"extract_answer_T{i} is not found in {d}"
-        assert f"score_T{i}" in data, f"score_T{i} is not found in {data}"
-        assert data[f"score_T{i}"] in [0, 1], f"score_T{i} is not in [0, 1]"
+        try:
+            Judgment.model_validate({"extracted_answer": data[f"extract_answer_T{i}"], "score": data[f"score_T{i}"]})
+        except KeyError as error:
+            raise ValueError(f"Missing CharXiv judgment field: {error.args[0]}") from error
     return True
-
-
-def build_dummy_output(length_data):
-    # if failed to parse the response, return dummy data
-    data = {}
-    for i in range(1, length_data + 1):
-        data[f"extract_answer_T{i}"] = "Failed to parse response"
-        data[f"score_T{i}"] = -1
-    return data
 
 
 def preprocess_descriptive_grading_queries(input, resp, num_templates=19):
